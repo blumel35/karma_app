@@ -242,10 +242,16 @@ def save_login_session(user_data: dict) -> None:
 def load_login_session() -> dict | None:
     """
     login_session.json'ı oku. 7 günden eskiyse ya da dosya yoksa None döner.
+    Cloud ortamında (Streamlit Cloud) dosya sistemi paylaşıldığı için devre dışı.
 
     Returns:
         {user_key, email, rol, ofis_id, timestamp} ya da None.
     """
+    # Cloud ortamında devre dışı — dosya sistemi tüm kullanıcılar arasında paylaşılıyor
+    import os as _os
+    if _os.environ.get("HOME", "").startswith("/home/adminuser"):
+        return None
+
     SESSION_FILE_PATH = _get_root() / ".streamlit" / "login_session.json"
     if not SESSION_FILE_PATH.exists():
         return None
