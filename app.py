@@ -8,39 +8,21 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────
-# SESSION RESTORE
+# SESSION RESTORE (Cloud ortamında devre dışı)
+# Local dosya sistemi cloud'da paylaşıldığı için
+# kullanıcı oturumları birbirine karışıyor.
 # ─────────────────────────────────────────────────────
-if not st.session_state.get("kullanici"):
-    try:
-        from core.personel_manager import (
-            load_login_session,
-            enrich_session_from_personel,
-        )
-
-        _saved = load_login_session()
-
-        if _saved:
-            _stub = {
-                "id": "",
-                "email": _saved.get("email", ""),
-                "user_key": _saved.get("user_key", ""),
-                "rol": _saved.get("rol", "danisan"),
-                "ofis_id": _saved.get("ofis_id", ""),
-                "ofis_adi": "",
-                "ad": _saved.get("email", "").split("@")[0],
-                "foto_url": "",
-                "foto_bytes": None,
-                "logo_url": "",
-                "logo_bytes": None,
-                "_from_local_session": True,
-            }
-
-            _stub = enrich_session_from_personel(_stub)
-
-            st.session_state["kullanici"] = _stub
-
-    except Exception as e:
-        st.warning(f"Session restore hatası: {e}")
+# if not st.session_state.get("kullanici"):
+#     try:
+#         from core.personel_manager import (
+#             load_login_session,
+#             enrich_session_from_personel,
+#         )
+#         _saved = load_login_session()
+#         if _saved:
+#             ...
+#     except Exception as e:
+#         st.warning(f"Session restore hatası: {e}")
 
 # ─────────────────────────────────────────────────────
 # USER SYNC
