@@ -98,13 +98,9 @@ with center:
                         )
                         st.session_state["kullanici_id"]   = kullanici["id"]
 
-                        # Local login session kaydet (7 gün kalıcı)
-                        save_login_session({
-                            "user_key": kullanici.get("user_key", ""),
-                            "email":    kullanici["email"],
-                            "rol":      kullanici["rol"],
-                            "ofis_id":  kullanici.get("ofis_id", ""),
-                        })
+                        # Local login session — cloud ortamında devre dışı
+                        # (dosya sistemi paylaşıldığı için kullanıcılar karışıyor)
+                        # save_login_session({...})
 
                         st.success(f"Hoş geldiniz, {kullanici['ad']}!")
                         st.switch_page("pages/ana_sayfa.py")
