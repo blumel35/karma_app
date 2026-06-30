@@ -5,7 +5,26 @@ from pathlib import Path
 import streamlit as st
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from core.auth import oturum_kontrol
+
+# ── AUTH KONTROLÜ ─────────────────────────────────────────────────────────
+# Ana sayfa kullanıcı yokken sahte (SK/fallback) şekilde açılmasın.
+if not oturum_kontrol():
+    st.switch_page("pages/giris.py")
+    st.stop()
+
 from core.ui_helpers import render_navbar
+
+# ── SESSION SYNC (oturum_kontrol zaten senkronize ediyor, burada
+#    son bir kez daha garanti altına alıyoruz) ───────────────────────────
+_k = st.session_state.get("kullanici", {})
+_ad = _k.get("ad_soyad") or _k.get("ad") or _k.get("email", "").split("@")[0]
+st.session_state["user_role"] = _k.get("rol") or "danisan"
+st.session_state["user_name"] = _ad
+st.session_state["user_initials"] = "".join(
+    w[0].upper() for w in _ad.split()[:2] if w
+)
 
 render_navbar(
     user_role=st.session_state.get("user_role", "danisan"),

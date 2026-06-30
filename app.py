@@ -8,35 +8,53 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────
-# SESSION RESTORE (Cloud ortamında devre dışı)
-# Local dosya sistemi cloud'da paylaşıldığı için
-# kullanıcı oturumları birbirine karışıyor.
+# SESSION RESTORE
+# Local geliştirme ortamında dosya tabanlı session restore
+# aktif. Cloud ortamında core/personel_manager.py içindeki
+# load_login_session() kendini otomatik devre dışı bırakıyor
+# (HOME path kontrolü), bu yüzden burada ek bir guard'a
+# gerek yok. LOCAL_SESSION_RESTORE flag'i core/auth.py'de.
 # ─────────────────────────────────────────────────────
-# if not st.session_state.get("kullanici"):
-#     try:
-#         from core.personel_manager import (
-#             load_login_session,
-#             enrich_session_from_personel,
-#         )
-#         _saved = load_login_session()
-#         if _saved:
-#             ...
-#     except Exception as e:
-#         st.warning(f"Session restore hatası: {e}")
+if not st.session_state.get("kullanici"):
+    try:
+        from core.auth import LOCAL_SESSION_RESTORE
+        from core.personel_manager import load_login_session, enrich_session_from_personel
+
+        if LOCAL_SESSION_RESTORE:
+            _saved = load_login_session()
+            if _saved:
+                _kullanici = enrich_session_from_personel(dict(_saved))
+                if _kullanici.get("email") or _kullanici.get("user_key"):
+                    st.session_state["kullanici"] = _kullanici
+    except Exception as e:
+        st.warning(f"Session restore hatası: {e}")
 
 # ─────────────────────────────────────────────────────
-# USER SYNC
+# CLOUD GÜVENLİĞİ: impersonate flag'i tutarsız kalmışsa temizle
+# ─────────────────────────────────────────────────────
+if not st.session_state.get("kullanici", {}).get("_impersonated"):
+    st.session_state.pop("_impersonate_active", None)
+    st.session_state.pop("_impersonate_original", None)
+
+# ─────────────────────────────────────────────────────
+# USER SYNC — güvenli ad/rol üretimi (boş alan fallback'leri)
 # ─────────────────────────────────────────────────────
 _k = st.session_state.get("kullanici", {})
 
 if _k:
-    _ad = _k.get("ad_soyad") or _k.get("ad", "")
+    _ad = (
+        _k.get("ad_soyad")
+        or _k.get("ad")
+        or _k.get("email", "").split("@")[0]
+    )
+    _rol = _k.get("rol") or "danisan"
 
-    st.session_state["user_role"] = _k.get("rol", "danisan")
+    st.session_state["user_role"] = _rol
     st.session_state["user_name"] = _ad
     st.session_state["user_initials"] = "".join(
         w[0].upper() for w in _ad.split()[:2] if w
     )
+    st.session_state["kullanici_id"] = _k.get("id", "")
 
 # ─────────────────────────────────────────────────────
 # PAGES
@@ -168,6 +186,26 @@ pazar_raporu = st.Page(
     icon=":material/description:",
 )
 
+# ── Daha önce eksik olan sayfalar (ui_helpers.py ve ana_sayfa.py'de
+#    route'ları tanımlıydı ama burada st.Page olarak kayıtlı değildi) ──
+arsiv_merkezi = st.Page(
+    "pages/arsiv_merkezi.py",
+    title="Arşiv Merkezi",
+    icon=":material/archive:",
+)
+
+rehber = st.Page(
+    "pages/rehber_app.py",
+    title="Startkey Rehberi",
+    icon=":material/contacts:",
+)
+
+startkey_ilanlar = st.Page(
+    "pages/startkey_ilanlar.py",
+    title="Startkey İlanları",
+    icon=":material/travel_explore:",
+)
+
 # ─────────────────────────────────────────────────────
 # NAVIGATION
 # ─────────────────────────────────────────────────────
@@ -188,6 +226,8 @@ pg = st.navigation(
             talep_arsiv,
             portfoy,
             portfoy_arsiv,
+            arsiv_merkezi,
+            rehber,
             eslestirme,
             sunum,
         ],
@@ -201,6 +241,7 @@ pg = st.navigation(
         "Pazar & Analiz": [
             pazar_analiz,
             pazar_raporu,
+            startkey_ilanlar,
         ],
 
         "Yönetici": [

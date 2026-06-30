@@ -90,7 +90,8 @@ def cikis_yap():
             supa.auth.sign_out()
         except Exception:
             pass
-    for k in ["kullanici", "danisман_profil"]:
+    for k in ["kullanici", "user_role", "user_name", "user_initials",
+              "kullanici_id", "danisман_profil"]:
         st.session_state.pop(k, None)
 
 
@@ -175,9 +176,73 @@ def tum_kullanicilar(ofis_id: str | None = None) -> list[dict]:
         return []
 
 
+# ─────────────────────────────────────────────────────
+# LOCAL SESSION RESTORE FLAG
+# Cloud'da kullanıcı karışması riski nedeniyle local
+# dosya tabanlı session restore kapatılmıştı. Local
+# geliştirme ortamında bunu tekrar açmak için True yap.
+# Cloud ortamı zaten load_login_session() içinde kendi
+# kendini devre dışı bırakıyor (HOME path kontrolü).
+# ─────────────────────────────────────────────────────
+LOCAL_SESSION_RESTORE = True
+
+
+def _set_session_fields(kullanici: dict) -> None:
+    """
+    Standart session_state alanlarını güvenli şekilde yaz.
+    Tüm dosyalarda (giris.py, app.py, oturum_kontrol) aynı
+    mantık kullanılsın diye merkezi hale getirildi.
+    """
+    ad = (
+        kullanici.get("ad_soyad")
+        or kullanici.get("ad")
+        or kullanici.get("email", "").split("@")[0]
+    )
+    rol = kullanici.get("rol") or "danisan"
+
+    st.session_state["kullanici"]      = kullanici
+    st.session_state["user_role"]      = rol
+    st.session_state["user_name"]      = ad
+    st.session_state["user_initials"]  = "".join(
+        w[0].upper() for w in ad.split()[:2] if w
+    )
+    st.session_state["kullanici_id"]   = kullanici.get("id", "")
+
+
 def oturum_kontrol() -> bool:
     """
     Session'da geçerli kullanıcı var mı?
-    Yoksa giris sayfasına yönlendir.
+    Yoksa (ve LOCAL_SESSION_RESTORE açıksa) local kayıtlı
+    oturumu geri yüklemeyi dener.
+
+    Returns:
+        True  -> kullanıcı session'da var (ya da başarıyla geri yüklendi)
+        False -> kullanıcı yok, giriş ekranına yönlendirilmeli
     """
-    return bool(st.session_state.get("kullanici"))
+    if st.session_state.get("kullanici"):
+        # Session zaten var ama diğer alanlar eksik/tutarsız olabilir —
+        # her ihtimale karşı standart alanları senkronize et.
+        _set_session_fields(st.session_state["kullanici"])
+        return True
+
+    if not LOCAL_SESSION_RESTORE:
+        return False
+
+    try:
+        from core.personel_manager import load_login_session, enrich_session_from_personel
+
+        saved = load_login_session()
+        if not saved:
+            return False
+
+        # load_login_session sadece user_key/email/rol/ofis_id taşıyor,
+        # enrich_session_from_personel Excel'den ad_soyad vb. tamamlar.
+        kullanici = enrich_session_from_personel(dict(saved))
+
+        if not kullanici.get("email") and not kullanici.get("user_key"):
+            return False
+
+        _set_session_fields(kullanici)
+        return True
+    except Exception:
+        return False

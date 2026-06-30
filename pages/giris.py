@@ -90,19 +90,43 @@ with center:
                         # Excel personel kaydıyla zenginleştir (rol, foto_path, ofis vb.)
                         kullanici = enrich_session_from_personel(kullanici)
 
-                        st.session_state["kullanici"]      = kullanici
-                        st.session_state["user_role"]      = kullanici["rol"]
-                        st.session_state["user_name"]      = kullanici["ad"]
-                        st.session_state["user_initials"]  = "".join(
-                            w[0].upper() for w in kullanici["ad"].split()[:2]
+                        # ── Güvenli ad / rol üretimi ────────────────────────
+                        ad = (
+                            kullanici.get("ad_soyad")
+                            or kullanici.get("ad")
+                            or kullanici.get("email", "").split("@")[0]
                         )
-                        st.session_state["kullanici_id"]   = kullanici["id"]
+                        rol = kullanici.get("rol") or "danisan"
 
-                        # Local login session — cloud ortamında devre dışı
-                        # (dosya sistemi paylaşıldığı için kullanıcılar karışıyor)
-                        # save_login_session({...})
+                        # ── Standart session_state alanları ─────────────────
+                        st.session_state["kullanici"]      = kullanici
+                        st.session_state["user_role"]      = rol
+                        st.session_state["user_name"]      = ad
+                        st.session_state["user_initials"]  = "".join(
+                            w[0].upper() for w in ad.split()[:2] if w
+                        )
+                        st.session_state["kullanici_id"]   = kullanici.get("id", "")
 
-                        st.success(f"Hoş geldiniz, {kullanici['ad']}!")
+                        # ── Local geliştirme: login session'ı kaydet ────────
+                        # (Cloud'da load_login_session() kendini otomatik
+                        #  devre dışı bırakıyor, bu yüzden burada güvenli.)
+                        try:
+                            save_login_session({
+                                "id":        kullanici.get("id", ""),
+                                "email":     kullanici.get("email", ""),
+                                "ad":        kullanici.get("ad", ""),
+                                "ad_soyad":  ad,
+                                "rol":       rol,
+                                "ofis_id":   kullanici.get("ofis_id", ""),
+                                "ofis_adi":  kullanici.get("ofis_adi", ""),
+                                "foto_url":  kullanici.get("foto_url", ""),
+                                "logo_url":  kullanici.get("logo_url", ""),
+                                "user_key":  kullanici.get("user_key", ""),
+                            })
+                        except Exception:
+                            pass
+
+                        st.success(f"Hoş geldiniz, {ad}!")
                         st.switch_page("pages/ana_sayfa.py")
                     else:
                         st.error("E-posta veya şifre hatalı.")

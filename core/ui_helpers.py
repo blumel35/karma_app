@@ -371,34 +371,37 @@ def render_navbar(user_role: str = "danisan",
                 if is_active:
                     st.markdown('</div>', unsafe_allow_html=True)
 
-        # ── DEBUG CAPTION (geçici) ───────────────────────────────────────────
-        _dk = st.session_state.get("kullanici", {})
-        _foto_dbg = _dk.get("foto_path") or "—"
-        _foto_found = "✅" if (_dk.get("foto_path") and __import__("os").path.exists(_dk.get("foto_path", ""))) else "❌"
-        
-        # ROL STATE UYUMSUZLUĞU KONTROLÜ
-        _sesli_rol = user_role
-        _dict_rol = _dk.get("rol", "")
-        _role_mismatch = _sesli_rol != _dict_rol
-        
-        st.markdown(
-            f'<div style="font-size:9px;color:rgba(255,255,255,0.25);'
-            f'padding:8px 4px 4px;line-height:1.6;word-break:break-all;">'
-            f'🔑 {_dk.get("user_key","—")}<br>'
-            f'🏷 kullanici.rol={_dict_rol}<br>'
-            f'🏷 user_role={_sesli_rol}<br>'
-            f'🏢 {_dk.get("ofis_id","—")}<br>'
-            f'📷 foto {_foto_found}</div>',
-            unsafe_allow_html=True,
-        )
-        
-        if _role_mismatch:
+        # ── DEBUG CAPTION (kapalı — açmak için SHOW_DEBUG = True yap) ────────
+        SHOW_DEBUG = False
+
+        if SHOW_DEBUG:
+            _dk = st.session_state.get("kullanici", {})
+            _foto_dbg = _dk.get("foto_path") or "—"
+            _foto_found = "✅" if (_dk.get("foto_path") and __import__("os").path.exists(_dk.get("foto_path", ""))) else "❌"
+
+            # ROL STATE UYUMSUZLUĞU KONTROLÜ
+            _sesli_rol = user_role
+            _dict_rol = _dk.get("rol", "")
+            _role_mismatch = _sesli_rol != _dict_rol
+
             st.markdown(
-                f'<div style="font-size:10px;color:#ff4444;font-weight:600;'
-                f'padding:6px 4px;background:rgba(255,68,68,0.15);border-radius:4px;">'
-                f'⚠️ ROL STATE UYUMSUZ</div>',
-                unsafe_allow_html=True
+                f'<div style="font-size:9px;color:rgba(255,255,255,0.25);'
+                f'padding:8px 4px 4px;line-height:1.6;word-break:break-all;">'
+                f'🔑 {_dk.get("user_key","—")}<br>'
+                f'🏷 kullanici.rol={_dict_rol}<br>'
+                f'🏷 user_role={_sesli_rol}<br>'
+                f'🏢 {_dk.get("ofis_id","—")}<br>'
+                f'📷 foto {_foto_found}</div>',
+                unsafe_allow_html=True,
             )
+
+            if _role_mismatch:
+                st.markdown(
+                    f'<div style="font-size:10px;color:#ff4444;font-weight:600;'
+                    f'padding:6px 4px;background:rgba(255,68,68,0.15);border-radius:4px;">'
+                    f'⚠️ ROL STATE UYUMSUZ</div>',
+                    unsafe_allow_html=True
+                )
 
     # ── Global CSS — sidebar stilini override et ──────────────────────────────
     st.markdown("""
