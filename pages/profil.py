@@ -1,11 +1,13 @@
 # pages/profil.py
-# Danışman Profil Sayfası — fotoğraf yükleme, bilgi güncelleme
+# Danışman Profil Sayfası — fotoğraf yükleme, bilgi güncelleme, Revy hesabı
 
 import streamlit as st
+import streamlit.components.v1 as components
 import io, sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from PIL import Image
 from core.auth import oturum_kontrol, profil_guncelle, foto_yukle, cikis_yap
+from core.revy_kimlik import revy_hesap_kaydet, revy_hesap_sil, revy_hesap_getir
 
 # Session sync — her zaman kullanici dict'inden yaz
 _k = st.session_state.get("kullanici", {})
@@ -147,9 +149,32 @@ with info_col:
 st.markdown("---")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# FORM
+# Pazar Radar'dan yönlendirme — "Revy Hesabım" tab'ını otomatik aç
 # ─────────────────────────────────────────────────────────────────────────────
-tab1, tab2 = st.tabs(["📋 Bilgiler", "📷 Fotoğraf & Logo"])
+_revy_tab_ac = st.session_state.pop("_profil_revy_tab_ac", False)
+if _revy_tab_ac:
+    st.info("👇 Revy hesabınızı aşağıdaki **Revy Hesabım** sekmesinden bağlayabilirsiniz.")
+
+tab1, tab2, tab3 = st.tabs(["📋 Bilgiler", "📷 Fotoğraf & Logo", "🔑 Revy Hesabım"])
+
+if _revy_tab_ac:
+    components.html(
+        """
+        <script>
+        setTimeout(function() {
+            const doc = window.parent.document;
+            const tabs = doc.querySelectorAll('[data-baseweb="tab"]');
+            for (const t of tabs) {
+                if (t.innerText.includes('Revy Hesabım')) {
+                    t.click();
+                    break;
+                }
+            }
+        }, 150);
+        </script>
+        """,
+        height=0,
+    )
 
 with tab1:
     c1, c2 = st.columns(2)
@@ -239,3 +264,50 @@ with tab2:
             st.rerun()
     elif kullanici.get("logo_url"):
         st.image(kullanici["logo_url"], width=200)
+
+with tab3:
+    st.markdown("**Kendi Revy Hesabınız**")
+    st.caption(
+        "Pazar Radar ve Pazar Raporu modülleri, burada kayıtlı hesap varsa "
+        "onu kullanır. Kayıtlı değilse ofis ortak hesabı denenir. "
+        "Şifreniz şifrelenerek saklanır, kimse tarafından okunamaz."
+    )
+
+    _uid = kullanici.get("id", "")
+    if not _uid:
+        st.warning("Kullanıcı kimliği bulunamadı, Revy hesabı kaydedilemiyor.")
+    else:
+        _mevcut = revy_hesap_getir(_uid)
+
+        if _mevcut:
+            st.success(f"✅ Kayıtlı Revy hesabı: **{_mevcut['revy1_kullanici']}**")
+            col_a, col_b = st.columns([1, 1])
+            with col_a:
+                with st.expander("Hesabı Değiştir"):
+                    yeni_kullanici = st.text_input("Revy Kullanıcı Adı", key="revy_ku_degis")
+                    yeni_sifre = st.text_input("Revy Şifre", type="password", key="revy_sf_degis")
+                    if st.button("💾 Güncelle", key="revy_guncelle_btn"):
+                        if yeni_kullanici and yeni_sifre:
+                            if revy_hesap_kaydet(_uid, yeni_kullanici, yeni_sifre):
+                                st.success("✅ Revy hesabınız güncellendi!")
+                                st.rerun()
+                        else:
+                            st.error("Kullanıcı adı ve şifre zorunludur.")
+            with col_b:
+                if st.button("🗑️ Hesabı Kaldır", key="revy_sil_btn"):
+                    if revy_hesap_sil(_uid):
+                        st.success("Revy hesabınız kaldırıldı.")
+                        st.rerun()
+        else:
+            st.info("Henüz kayıtlı bir Revy hesabınız yok.")
+            revy_kullanici = st.text_input("Revy Kullanıcı Adı", key="revy_ku_yeni")
+            revy_sifre = st.text_input("Revy Şifre", type="password", key="revy_sf_yeni")
+            if st.button("💾 Revy Hesabımı Kaydet", type="primary", key="revy_kaydet_btn"):
+                if revy_kullanici and revy_sifre:
+                    with st.spinner("Kaydediliyor..."):
+                        ok = revy_hesap_kaydet(_uid, revy_kullanici, revy_sifre)
+                    if ok:
+                        st.success("✅ Revy hesabınız kaydedildi! Artık Pazar Radar/Raporu kendi hesabınızla çalışacak.")
+                        st.rerun()
+                else:
+                    st.error("Kullanıcı adı ve şifre zorunludur.")

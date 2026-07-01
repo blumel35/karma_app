@@ -222,11 +222,12 @@ def resolve_personel_photo(user_row: dict | pd.Series) -> str | None:
 def save_login_session(user_data: dict) -> None:
     """
     Kullanıcı verilerini .streamlit/login_session.json'a yaz.
-    Kaydedilen alanlar: user_key, email, rol, ofis_id, timestamp.
+    Kaydedilen alanlar: id, user_key, email, rol, ofis_id, timestamp.
     """
     SESSION_FILE_PATH = _get_root() / ".streamlit" / "login_session.json"
     SESSION_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
     payload = {
+        "id":        user_data.get("id", ""),
         "user_key":  user_data.get("user_key", ""),
         "email":     user_data.get("email", ""),
         "rol":       user_data.get("rol", ""),

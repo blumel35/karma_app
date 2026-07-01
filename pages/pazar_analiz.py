@@ -59,7 +59,25 @@ def _supa():
     return None
 
 def revy_kimlik_al() -> dict | None:
-    """Secrets'tan Revy kimlik bilgilerini al."""
+    """
+    Revy kimlik bilgilerini al. Öncelik sırası:
+      1. Giriş yapmış kullanıcının kendi kayıtlı Revy hesabı (Supabase, şifreli)
+      2. secrets.toml [revy] (ortak/merkezi hesap)
+      3. ayarlar.txt fallback (lokal ortak hesap)
+    """
+    # 1. Kullanıcının kendi Revy hesabı
+    try:
+        import core.revy_kimlik as rk
+        _kullanici = st.session_state.get("kullanici", {})
+        _uid = _kullanici.get("id", "")
+        if _uid:
+            kisisel = rk.revy_hesap_getir(_uid)
+            if kisisel:
+                return kisisel
+    except Exception:
+        pass
+
+    # 2. secrets.toml ortak hesap
     try:
         rv = st.secrets.get("revy", {})
         if rv.get("kullanici") and rv.get("sifre"):
@@ -70,12 +88,14 @@ def revy_kimlik_al() -> dict | None:
             }
     except Exception:
         pass
-    # ayarlar.txt fallback
+
+    # 3. ayarlar.txt fallback
     try:
         import core.revy_pazar_cek as rpc
         return rpc.ayarlari_oku(ROOT / "ayarlar.txt")
     except Exception:
         pass
+
     return None
 
 # ── Aramaları Supabase'e kaydet / yükle ───────────────────────────────────────
@@ -577,7 +597,11 @@ if listele_btn:
 
             ayarlar = revy_kimlik_al()
             if not ayarlar:
-                durum_placeholder.error("❌ Revy hesabınız bağlı değil. Lütfen sayfanın üstünden Revy hesabınızı bağlayın.")
+                durum_placeholder.empty()
+                st.error("❌ Revy hesabınız bağlı değil. Devam etmek için Revy hesabınızı profil sayfanızdan bağlayın.")
+                if st.button("🔑 Profilime Git ve Revy Hesabımı Bağla", type="primary", key="pz_revy_profil_git"):
+                    st.session_state["_profil_revy_tab_ac"] = True
+                    st.switch_page("pages/profil.py")
                 st.stop()
 
             progress_cb("🌐 Revy'ye bağlanılıyor...")
