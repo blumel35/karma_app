@@ -96,12 +96,19 @@ with col2:
                     f"✅ {sonuc['alici']} alıcı talebi/diğer, {sonuc['portfoy']} portföy paylaşımı ayrıştırıldı!"
                 )
 
+                kalan = sonuc.get("kalan", 0)
+                if kalan > 0:
+                    st.info(f"📋 Hâlâ **{kalan}** kayıt işlenmeyi bekliyor. Devam etmek için butona tekrar bas.")
+                else:
+                    st.success("🎉 Bekleyen kayıt kalmadı, hepsi işlendi!")
+
                 with st.expander("AI işleme özeti", expanded=sonuc["hatali"] > 0):
                     st.markdown(f"""
 - **İşlenen kayıt:** {sonuc['islenen']}
 - **Alıcı talebi / diğer:** {sonuc['alici']}
 - **Portföy paylaşımı:** {sonuc['portfoy']}
 - **Hatalı (parse_status='failed'):** {sonuc['hatali']}
+- **Kalan (parse_status='raw'):** {kalan}
 - **Süre:** {sonuc['sure_saniye']} sn
 """)
                     if sonuc["hatali"] > 0:
@@ -110,12 +117,6 @@ with col2:
                             "`parse_status='failed'` olarak işaretlendi — `parse_error` "
                             "kolonundan sebebini görebilirsin."
                         )
-
-                if sonuc["islenen"] >= islenecek_limit:
-                    st.info(
-                        f"Bu limitte ({islenecek_limit}) daha fazla işlenmemiş kayıt olabilir. "
-                        "Kalan kayıtlar için butona tekrar basabilirsin."
-                    )
 
         except Exception as e:
             durum2.update(label="❌ Hata oluştu", state="error")
