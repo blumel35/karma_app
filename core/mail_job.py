@@ -208,7 +208,7 @@ def run_pending_ai_parse_job(limit=50, durum_callback=None, max_workers=3):
     if not kayitlar:
         if durum_callback:
             durum_callback("İşlenecek yeni kayıt yok.")
-        return {"islenen": 0, "alici": 0, "portfoy": 0, "hatali": 0, "sure_saniye": 0}
+        return {"islenen": 0, "alici": 0, "portfoy": 0, "hatali": 0, "sure_saniye": 0, "kalan": 0}
 
     if durum_callback:
         durum_callback(f"{len(kayitlar)} kayıt AI ile işlenecek...")
@@ -322,10 +322,26 @@ def run_pending_ai_parse_job(limit=50, durum_callback=None, max_workers=3):
         sure_saniye=sure,
     )
 
+    # Kalan işlenmemiş (raw) kayıt sayısını sorgula — kullanıcıya "daha
+    # kaç tur kaldı" bilgisini net vermek için. Supabase count sorgusu
+    # satırların kendisini çekmeden sadece sayıyı döndürür (hafif sorgu).
+    kalan = 0
+    try:
+        kalan_resp = (
+            supabase.table("alici_talepleri")
+            .select("id", count="exact")
+            .eq("parse_status", "raw")
+            .execute()
+        )
+        kalan = kalan_resp.count or 0
+    except Exception as e:
+        print(f"Kalan kayıt sayısı sorgulanamadı: {e}")
+
     if durum_callback:
         durum_callback(
             f"✅ AI işleme bitti: {len(alici_sonuclar)} alıcı/diğer, "
-            f"{portfoy_basarili} portföy, {len(hatali_kayitlar)} hatalı ({sure}sn)"
+            f"{portfoy_basarili} portföy, {len(hatali_kayitlar)} hatalı ({sure}sn). "
+            f"Hâlâ {kalan} kayıt bekliyor."
         )
 
     return {
@@ -334,6 +350,7 @@ def run_pending_ai_parse_job(limit=50, durum_callback=None, max_workers=3):
         "portfoy": portfoy_basarili,
         "hatali": len(hatali_kayitlar),
         "sure_saniye": sure,
+        "kalan": kalan,
     }
 
 
