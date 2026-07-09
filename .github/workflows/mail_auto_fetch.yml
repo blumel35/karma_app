@@ -1,0 +1,76 @@
+name: Otomatik Mail Çekimi
+
+on:
+  schedule:
+    # Her 30 dakikada bir çalışır (UTC). GitHub Actions cron'u dakika
+    # hassasiyetinde garanti vermez, birkaç dakika gecikme normaldir.
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    # Gerektiğinde Actions sekmesinden manuel de tetikleyebilirsin.
+
+jobs:
+  mail-cek:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repo'yu çek
+        uses: actions/checkout@v4
+
+      - name: Python kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Bağımlılıkları yükle
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: secrets.toml oluştur
+        # st.secrets, .streamlit/secrets.toml dosyasını okur. GitHub Actions'ta
+        # gerçek bir Streamlit sunucusu çalışmasa da bu dosya varsa st.secrets
+        # normal şekilde çalışır. Aşağıdaki değerler GitHub repo Settings >
+        # Secrets and variables > Actions altında tanımlanmalı.
+        run: |
+          mkdir -p .streamlit
+          cat <<EOF > .streamlit/secrets.toml
+          [email]
+          user = "${{ secrets.MAIL_USER }}"
+          password = "${{ secrets.MAIL_PASSWORD }}"
+          imap = "${{ secrets.MAIL_IMAP }}"
+
+          [anthropic]
+          api_key = "${{ secrets.ANTHROPIC_API_KEY }}"
+
+          [supabase]
+          url = "${{ secrets.SUPABASE_URL }}"
+          secret_key = "${{ secrets.SUPABASE_SECRET_KEY }}"
+          EOF
+
+      - name: Otomatik mail çekimini çalıştır
+        env:
+          # Faz 2.5 kararı: ilk kurulumda AI kategorizasyonu KAPALI başlat.
+          # Bir süre sorunsuz çalıştıktan sonra "true" yap.
+          AI_KATEGORIZASYON_AKTIF: "false"
+          AI_ISLEME_LIMITI: "20"
+        run: |
+          python scripts/mail_auto_job.py
+
+# ============================================================
+# KURULUM NOTLARI (bir defalık):
+#
+# 1) GitHub reposunda Settings > Secrets and variables > Actions
+#    altına şu secret'ları ekle:
+#      MAIL_USER, MAIL_PASSWORD, MAIL_IMAP
+#      ANTHROPIC_API_KEY
+#      SUPABASE_URL, SUPABASE_SECRET_KEY
+#    (core/supabase_client.py doğrulandı: st.secrets["supabase"]["url"]
+#     ve st.secrets["supabase"]["secret_key"] okuyor — isimler buna göre
+#     eşleştirildi.)
+#
+# 2) requirements.txt içinde şunların olduğundan emin ol:
+#      streamlit, anthropic, supabase, python-dateutil (varsa)
+#
+# 3) İlk hafta AI_KATEGORIZASYON_AKTIF="false" kalsın — sadece ham
+#    mail çekimi otomatik çalışsın, AI kategorize etme manuel buton
+#    ile test edilsin. Sorunsuz geçince bu satırı "true" yap.
+# ============================================================
