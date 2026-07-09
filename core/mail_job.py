@@ -27,18 +27,38 @@ FETCH_KLASORLERI = ["INBOX", "1_Alici_Depo"]
 
 def _mevcut_kimlikleri_cek(supabase):
     """alici_talepleri + portfoyler tablolarındaki mevcut message_id ve
-    fallback_hash değerlerini çeker (dedupe için)."""
+    fallback_hash değerlerini çeker (dedupe için).
+
+    ÖNEMLİ: Supabase/PostgREST varsayılan olarak tek sorguda en fazla 1000
+    satır döndürür. Tablo 1000 satırı geçtiğinde .range() ile sayfalama
+    yapılmazsa bazı eski kayıtlar "yokmuş" gibi görünür ve tekrar tekrar
+    çekilmeye çalışılır (portfoyler tablosunda unique constraint'e takılıp
+    'failed' olarak işaretlenmesine yol açan sorun buydu). Bu yüzden burada
+    tüm satırlar bitene kadar sayfa sayfa okunuyor.
+    """
     message_idler = set()
     fallback_hashler = set()
 
     for tablo in ("alici_talepleri", "portfoyler"):
         try:
-            resp = supabase.table(tablo).select("message_id, fallback_hash").execute()
-            for row in resp.data or []:
-                if row.get("message_id"):
-                    message_idler.add(row["message_id"])
-                if row.get("fallback_hash"):
-                    fallback_hashler.add(row["fallback_hash"])
+            sayfa_boyutu = 1000
+            baslangic = 0
+            while True:
+                resp = (
+                    supabase.table(tablo)
+                    .select("message_id, fallback_hash")
+                    .range(baslangic, baslangic + sayfa_boyutu - 1)
+                    .execute()
+                )
+                satirlar = resp.data or []
+                for row in satirlar:
+                    if row.get("message_id"):
+                        message_idler.add(row["message_id"])
+                    if row.get("fallback_hash"):
+                        fallback_hashler.add(row["fallback_hash"])
+                if len(satirlar) < sayfa_boyutu:
+                    break
+                baslangic += sayfa_boyutu
         except Exception as e:
             # fallback_hash kolonu migration uygulanmadan önce yoksa da
             # sistem çökmesin — sadece message_id ile devam eder.
@@ -239,6 +259,35 @@ def run_pending_ai_parse_job(limit=50, durum_callback=None, max_workers=3):
 
             portfoy_basarili += 1
         except Exception as e:
+            hata_metni = str(e)
+            # Bu mail (message_id) daha önce zaten portfoyler tablosuna
+            # eklenmiş demektir (unique constraint tetiklendi). Bu gerçek
+            # bir hata değil — dedupe'un kaçırdığı bir kayıt. 'failed'
+            # yazmak yerine mevcut portföy kaydını bulup doğru şekilde
+            # bağlıyoruz.
+            if "portfoyler_message_id_key" in hata_metni and portfoy.get("message_id"):
+                try:
+                    mevcut = (
+                        supabase.table("portfoyler")
+                        .select("id")
+                        .eq("message_id", portfoy["message_id"])
+                        .limit(1)
+                        .execute()
+                    )
+                    mevcut_id = (mevcut.data or [{}])[0].get("id")
+                    if source_id is not None:
+                        supabase.table("alici_talepleri").update({
+                            "parse_status": "moved_to_portfoy",
+                            "linked_portfoy_id": mevcut_id,
+                            "ai_processed_at": simdi_iso,
+                            "parse_error": None,
+                        }).eq("id", source_id).execute()
+                    portfoy_basarili += 1
+                    continue
+                except Exception as e2:
+                    hatali_kayitlar.append({"kayit": portfoy, "hata": f"Duplicate çözümleme hatası: {e2}"})
+                    continue
+
             hatali_kayitlar.append({"kayit": portfoy, "hata": f"Portföy insert/link hatası: {e}"})
             if source_id is not None:
                 try:
