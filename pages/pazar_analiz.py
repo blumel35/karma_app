@@ -12,7 +12,7 @@ Gerekli dosyalar (core/ klasöründe):
 """
 
 import streamlit as st
-import sys, os, json, importlib
+import sys, os, json, importlib, pickle
 from pathlib import Path
 from io import BytesIO
 from datetime import datetime
@@ -26,9 +26,64 @@ ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "core"))
 
+# ─────────────────────────────────────────
+# ARŞİV — her başarılı "Yeni Sorgu" ayrı bir kayıt olarak saklanır
+# ─────────────────────────────────────────
+GECMIS_KLASOR = ROOT / "revy_pazar_cikti" / "gecmis_analiz"
+GECMIS_INDEX  = GECMIS_KLASOR / "index.json"
+
+def pz_gecmis_kaydet(veri: dict, ilceler: list, etiket: str = ""):
+    try:
+        GECMIS_KLASOR.mkdir(parents=True, exist_ok=True)
+        zaman = datetime.now()
+        dosya_adi = f"pz_{zaman.strftime('%Y%m%d_%H%M%S')}.pkl"
+        with open(GECMIS_KLASOR / dosya_adi, "wb") as f:
+            pickle.dump(veri, f)
+        kayit_sayisi = sum(len(v) for v in veri.values())
+        index = []
+        if GECMIS_INDEX.exists():
+            try:
+                index = json.loads(GECMIS_INDEX.read_text(encoding="utf-8"))
+            except Exception:
+                index = []
+        index.insert(0, {
+            "dosya": dosya_adi,
+            "zaman": zaman.strftime("%d.%m.%Y %H:%M"),
+            "ilceler": ilceler,
+            "kayit_sayisi": kayit_sayisi,
+            "etiket": etiket or (", ".join(ilceler) if len(ilceler) <= 3 else f"{len(ilceler)} ilçe"),
+        })
+        GECMIS_INDEX.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+def pz_gecmis_listele():
+    if not GECMIS_INDEX.exists():
+        return []
+    try:
+        return json.loads(GECMIS_INDEX.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+def pz_gecmis_yukle(dosya_adi: str):
+    try:
+        with open(GECMIS_KLASOR / dosya_adi, "rb") as f:
+            return pickle.load(f)
+    except Exception:
+        return None
+
+def pz_gecmis_sil(dosya_adi: str):
+    try:
+        (GECMIS_KLASOR / dosya_adi).unlink(missing_ok=True)
+        index = [k for k in pz_gecmis_listele() if k["dosya"] != dosya_adi]
+        GECMIS_INDEX.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
 # ── Auth kontrolü ──────────────────────────────────────────────────────────────
 from core.auth import oturum_kontrol
 from core.ui_helpers import render_navbar, render_page_header
+from core.tuik_ilce_hacim import hacim_sinifi, hacim_rozet_rengi
 
 if not oturum_kontrol():
     st.switch_page("pages/giris.py")
@@ -39,10 +94,52 @@ render_navbar(
     user_name=_k.get("ad_soyad") or _k.get("ad", ""),
 )
 
-render_page_header(
-    "Pazar Radar",
-    "İzmir gayrimenkul pazar verisi — ilçe, mülk ve marka bazlı analiz"
-)
+baslik_col, sorgu_col = st.columns([4, 1.4])
+with baslik_col:
+    render_page_header(
+        "Pazar Radar",
+        "İzmir gayrimenkul pazar verisi — ilçe, mülk ve marka bazlı analiz"
+    )
+with sorgu_col:
+    st.write("")
+    listele_btn = st.button("🆕 Yeni Sorgu\n(Revy'den Çek)", type="primary", use_container_width=True, key="pz_listele",
+        help="Revy'den TAZE veri çeker. Diğer filtreler (Mahalle vb.) zaten çekilmiş veri üzerinde anında uygulanır.")
+
+with st.expander("📚 Geçmiş Taramalar (Arşiv)", expanded=False):
+    st.caption(
+        "Her başarılı 'Yeni Sorgu' taraması burada ayrı bir kayıt olarak saklanır. "
+        "Yeni bir bölge taraması yapman önceki sonucu SİLMEZ — istediğin zaman buradan geri yükleyebilirsin."
+    )
+    _pz_gecmis = pz_gecmis_listele()
+    if not _pz_gecmis:
+        st.info("Henüz arşivlenmiş bir tarama yok.")
+    else:
+        st.caption(f"{len(_pz_gecmis)} kayıtlı tarama")
+        for _kayit in _pz_gecmis:
+            _c1, _c2, _c3, _c4, _c5 = st.columns([2.5, 1.3, 1, 1, 1])
+            with _c1:
+                st.markdown(f'<div style="font-size:13px;font-weight:700;color:#0f172a;padding:6px 0;">{_html.escape(_kayit.get("etiket",""))}</div>', unsafe_allow_html=True)
+            with _c2:
+                st.markdown(f'<div style="font-size:11px;color:#64748b;padding:6px 0;">🕐 {_kayit.get("zaman","-")}</div>', unsafe_allow_html=True)
+            with _c3:
+                st.markdown(f'<div style="font-size:12px;color:#355C7D;font-weight:700;padding:6px 0;">{_kayit.get("kayit_sayisi",0):,} kayıt</div>', unsafe_allow_html=True)
+            with _c4:
+                if st.button("📂 Yükle", key=f"pz_gecmis_yukle_{_kayit['dosya']}", use_container_width=True):
+                    _veri = pz_gecmis_yukle(_kayit["dosya"])
+                    if _veri is not None:
+                        st.session_state.pazar_veri = _veri
+                        st.session_state.pazar_filtre = {"mahalle": []}
+                        st.session_state.pazar_last_filtre = {"ilceler": _kayit.get("ilceler", [])}
+                        st.toast(f"'{_kayit.get('etiket','')}' yüklendi ✓")
+                        st.rerun()
+                    else:
+                        st.error("Bu kayıt yüklenemedi.")
+            with _c5:
+                if st.button("🗑", key=f"pz_gecmis_sil_{_kayit['dosya']}", use_container_width=True, help="Bu arşiv kaydını sil"):
+                    pz_gecmis_sil(_kayit["dosya"])
+                    st.toast("Kayıt silindi.")
+                    st.rerun()
+            st.divider()
 
 # ─────────────────────────────────────────
 # SUPABASE & REVY HESAP YÖNETİMİ
@@ -448,7 +545,7 @@ with st.expander("🔍 Pazar Filtresi", expanded=True):
         kullanim_filtre = st.multiselect("Kullanım Durumu", ["Boş","Kiracılı","Mülk Sahibi"],
             placeholder="Tümü", key="pz_kullanim")
 
-    g5a, g5b, g5c, g5d, g5e = st.columns([1.5, 1.5, 1, 1, 1])
+    g5a, g5b, g5c, g5d, g5e, g5f = st.columns([1.5, 1.5, 1, 1, 1, 1])
     with g5a:
         m2_min = st.number_input("M² Alt", min_value=0, value=0, step=10, key="pz_m2_min")
     with g5b:
@@ -457,8 +554,11 @@ with st.expander("🔍 Pazar Filtresi", expanded=True):
         fiyat_min = st.number_input("Fiyat Alt (₺M)", min_value=0.0, value=0.0, step=0.5,
             format="%.1f", key="pz_fiyat_min")
     with g5d:
-        esyali_filtre = st.selectbox("Eşyalı", ["Tümü","Evet","Hayır"], key="pz_esyali")
+        fiyat_max = st.number_input("Fiyat Üst (₺M)", min_value=0.0, value=0.0, step=0.5,
+            format="%.1f", key="pz_fiyat_max")
     with g5e:
+        esyali_filtre = st.selectbox("Eşyalı", ["Tümü","Evet","Hayır"], key="pz_esyali")
+    with g5f:
         site_filtre = st.selectbox("Site İçi", ["Tümü","Evet","Hayır"], key="pz_site")
 
     ILAN_KAYNAK_OPTS = [
@@ -522,7 +622,8 @@ with ak1:
     kaydet_btn = st.button("💾 Aramayı Kaydet", use_container_width=True, key="pz_kaydet_arama",
         disabled=not bool(st.session_state.get("pazar_veri")))
 with ak2:
-    listele_btn = st.button("🔍 Listele", type="primary", use_container_width=True, key="pz_listele")
+    filtrele_btn = st.button("🔍 Filtrele", type="primary", use_container_width=True, key="pz_filtrele_btn",
+        help="Revy'ye gitmez — zaten çekilmiş veri üzerinde seçtiğin filtreleri (Mahalle vb.) anında uygular.")
 
 # ── Aramayı Kaydet dialog ──────────────────────────────────────────────────────
 if kaydet_btn:
@@ -623,6 +724,7 @@ if listele_btn:
             st.session_state.pazar_veri = cikti
             st.session_state.pazar_filtre = lokal_filtre
             st.session_state.pazar_last_filtre = filtre_dict
+            pz_gecmis_kaydet(cikti, secili_ilceler)
             durum_placeholder.success(f"✅ Veri hazır! {sum(len(v) for v in cikti.values()):,} kayıt")
             st.rerun()
 
@@ -685,8 +787,14 @@ if m2_min > 0 and "M2" in df.columns:
     df = df[pd.to_numeric(df["M2"], errors="coerce").fillna(0) >= m2_min]
 if m2_max > 0 and "M2" in df.columns:
     df = df[pd.to_numeric(df["M2"], errors="coerce").fillna(99999) <= m2_max]
-if fiyat_min > 0 and "Fiyat" in df.columns:
-    df = df[df["Fiyat"].apply(lambda v: parse_num(v) or 0) >= fiyat_min * 1_000_000]
+if "Fiyat" in df.columns:
+    fiyat_seri = df["Fiyat"].apply(lambda v: parse_num(v) or 0)
+
+    if fiyat_min > 0:
+        df = df[fiyat_seri >= fiyat_min * 1_000_000]
+
+    if fiyat_max > 0:
+        df = df[fiyat_seri <= fiyat_max * 1_000_000]
 
 # Filtrelenmiş df'i kaydet butonu için session_state'e al
 st.session_state["pazar_df_filtrelenmis"] = df
@@ -758,6 +866,25 @@ with st.expander("📊 İstatistikler ve Grafikler", expanded=False):
                 yaxis=dict(categoryorder="total ascending"), font=dict(size=10))
             fig2.update_traces(textposition="outside", textfont_size=9)
             st.plotly_chart(fig2, use_container_width=True)
+
+            # TÜİK 2025 resmi konut satış verisine göre ilçe hacim sınıfı —
+            # bu ilçelerin ilan sayısı DIŞINDA, gerçek pazar büyüklüğü
+            # bağlamını verir (bkz. core/tuik_ilce_hacim.py).
+            _rozet_html = ""
+            for _il in idf["İlçe"].tolist():
+                _sinif = hacim_sinifi(_il)
+                _renk = hacim_rozet_rengi(_sinif)
+                _rozet_html += (
+                    f'<span style="display:inline-block;margin:2px 4px 2px 0;padding:2px 8px;'
+                    f'border-radius:999px;background:{_renk}1A;color:{_renk};'
+                    f'font-size:10px;font-weight:700;">{_il}: {_sinif}</span>'
+                )
+            st.markdown(
+                f'<div style="margin-top:6px;">{_rozet_html}</div>'
+                f'<div style="font-size:9px;color:#94a3b8;margin-top:4px;">'
+                f'TÜİK 2025 resmi konut satış verisine göre ilçe hacim sınıfı</div>',
+                unsafe_allow_html=True
+            )
 
 st.markdown("<br>", unsafe_allow_html=True)
 

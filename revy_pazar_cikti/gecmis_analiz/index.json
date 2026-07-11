@@ -1,0 +1,30 @@
+[
+  {
+    "dosya": "pz_20260708_135110.pkl",
+    "zaman": "08.07.2026 13:51",
+    "ilceler": [
+      "Bornova"
+    ],
+    "kayit_sayisi": 2775,
+    "etiket": "Bornova"
+  },
+  {
+    "dosya": "pz_20260707_113032.pkl",
+    "zaman": "07.07.2026 11:30",
+    "ilceler": [
+      "Bornova",
+      "Bayraklı"
+    ],
+    "kayit_sayisi": 4362,
+    "etiket": "Bornova, Bayraklı"
+  },
+  {
+    "dosya": "pz_20260705_002446.pkl",
+    "zaman": "05.07.2026 00:24",
+    "ilceler": [
+      "Balçova"
+    ],
+    "kayit_sayisi": 990,
+    "etiket": "Balçova"
+  }
+]

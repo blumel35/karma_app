@@ -35,6 +35,7 @@ render_navbar(
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
 ROUTES = {
+    "gd_calisma_alani": "pages/gd_calisma_alani.py",
     "taleplerim":     "pages/taleplerim.py",
     "portfoylerim":   "pages/portfoylerím.py",
     "zeta_ilanlar":   "pages/portfoy_listesi.py",
@@ -234,7 +235,7 @@ st.markdown(f"""
 <div class="hero">
   <div class="hero-content">
     <div class="hero-eyebrow">STARTKEY ZETA</div>
-    <div class="hero-title">Merhaba Meltem</div>
+<div class="hero-title">Merhaba {st.session_state.get("user_name", "Kullanıcı").split()[0]}</div>
     <div class="hero-subtitle">Bugünün fırsatlarını ve çalışma alanlarını buradan yönetin.</div>
   </div>
 </div>
@@ -276,6 +277,11 @@ st.markdown('''
         <div class="kokpit-card-desc">Kendi taleplerinizi, portföylerinizi ve günlük planınızı yönetin.</div>
       </div>
     </div>
+    <a class="kokpit-row" href="?nav=gd_calisma_alani">
+      <div class="kokpit-row-icon">🧭</div>
+      <span class="kokpit-row-label">GD Çalışma Alanı</span>
+      <span class="kokpit-row-arrow">›</span>
+    </a>
     <a class="kokpit-row" href="?nav=taleplerim">
       <div class="kokpit-row-icon">📋</div>
       <span class="kokpit-row-label">Taleplerim</span>

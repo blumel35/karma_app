@@ -466,15 +466,9 @@ label, .stSelectbox label, .stTextInput label {
     gap: 6px;
 }
 
-/* Streamlit kolon içindeki nkart'ların eşit yükseklikte olması için */
-[data-testid="stColumn"] > div {
-    height: 100%;
-}
-[data-testid="stColumn"] > div > div[data-testid="stVerticalBlock"] {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-}
+/* Not: stColumn için global height:100% kaldırıldı.
+   Bu kural toolbar/filtre butonlarının üstüne görünmez katman bindirip
+   Tümü ve Filtreler gibi butonların tıklanmasını engelleyebiliyordu. */
 .nkart-avatar {
     width: 22px; height: 22px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
@@ -594,14 +588,8 @@ label, .stSelectbox label, .stTextInput label {
 .zt-agent-name { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .zt-tarih { font-size: 10.5px; color: #94a3b8; line-height: 1.4; }
 .zt-fav-star { color: #f59e0b; }
-/* Tablo seç butonu görünmez */
-.zt-table-wrap + div [data-testid="stColumn"]:first-child [data-testid="stButton"] > button {
-    opacity: 0 !important;
-    width: 1px !important;
-    min-width: 1px !important;
-    padding: 0 !important;
-    pointer-events: none !important;
-}
+/* Gizli buton / pointer-events:none kuralı kaldırıldı.
+   Tablo altındaki aksiyon butonlarını ve üst toolbar tıklamalarını bozabiliyordu. */
 
 </style>
 """, unsafe_allow_html=True)
@@ -1138,26 +1126,61 @@ def favori_ilce_guncelle(ilceler):
 
 @st.cache_data(ttl=30)
 def verileri_yukle(kaynak_filtre=None):
+    """
+    ÖNEMLİ DÜZELTME: Eskiden `.limit(500)` vardı — tablo 500 satırı geçince
+    en eski kayıtlar bu sayfadan görünmez oluyordu (veri kaybı yok, sadece
+    erişim yok). Artık `.range()` ile tüm kayıtlar sayfa sayfa çekiliyor.
+    """
+    def _sayfali_cek(builder_fn):
+        tum = []
+        sayfa_boyu = 1000
+        bas = 0
+        while True:
+            r = builder_fn().range(bas, bas + sayfa_boyu - 1).execute()
+            parca = r.data or []
+            tum.extend(parca)
+            if len(parca) < sayfa_boyu:
+                break
+            bas += sayfa_boyu
+        return tum
+
     try:
-        q = (
-            get_client()
-            .table("alici_talepleri")
-            .select("*")
-            .eq("kategori", "alici_talebi")
-            .order("olusturma_tarihi", desc=True)
-            .limit(500)
-        )
-        if kaynak_filtre:
-            if kaynak_filtre == "startkey_mail":
-                r1 = q.eq("kaynak", "startkey_mail").execute()
-                r2 = q.is_("kaynak", "null").execute()
-                return (r1.data or []) + (r2.data or [])
-            elif isinstance(kaynak_filtre, list):
-                q = q.in_("kaynak", kaynak_filtre)
-            else:
-                q = q.eq("kaynak", kaynak_filtre)
-        r = q.execute()
-        return r.data
+        if kaynak_filtre == "startkey_mail":
+            # "kaynak='startkey_mail' VEYA kaynak NULL" — iki ayrı sorgu,
+            # ikisi de sayfalanarak birleştiriliyor.
+            def _b1():
+                return (
+                    get_client().table("alici_talepleri").select("*")
+                    .eq("kategori", "alici_talebi")
+                    .order("olusturma_tarihi", desc=True)
+                    .eq("kaynak", "startkey_mail")
+                )
+
+            def _b2():
+                return (
+                    get_client().table("alici_talepleri").select("*")
+                    .eq("kategori", "alici_talebi")
+                    .order("olusturma_tarihi", desc=True)
+                    .is_("kaynak", "null")
+                )
+            return _sayfali_cek(_b1) + _sayfali_cek(_b2)
+
+        def _builder():
+            q = (
+                get_client()
+                .table("alici_talepleri")
+                .select("*")
+                .eq("kategori", "alici_talebi")
+                .order("olusturma_tarihi", desc=True)
+            )
+            if kaynak_filtre:
+                if isinstance(kaynak_filtre, list):
+                    q = q.in_("kaynak", kaynak_filtre)
+                else:
+                    q = q.eq("kaynak", kaynak_filtre)
+            return q
+
+        return _sayfali_cek(_builder)
     except Exception as e:
         st.error(f"Veri yüklenemedi: {e}")
         return []
@@ -2491,11 +2514,11 @@ if st.session_state.get("show_filters_panel", False):
         g1, g2, g3, g4, g5, g6 = st.columns([1.2, 1.2, 1.2, 1.2, 1.2, 1.2])
         with g1:
             st.caption("Bütçe Alt (TL)")
-            butce_alt = st.number_input("", min_value=0, step=100000,
+            butce_alt = st.number_input("Bütçe Alt (TL)", min_value=0, step=100000,
                 key="ft_butce_alt", label_visibility="collapsed")
         with g2:
             st.caption("Bütçe Üst (TL)")
-            butce_ust = st.number_input("", min_value=0, step=100000,
+            butce_ust = st.number_input("Bütçe Üst (TL)", min_value=0, step=100000,
                 key="ft_butce_ust", label_visibility="collapsed")
 
         # Oda seçenekleri — veriden çek
@@ -2527,11 +2550,11 @@ if st.session_state.get("show_filters_panel", False):
 
         with h3:
             st.caption("İlan Süresi Min (gün)")
-            gun_min = st.number_input("", min_value=0, step=1,
+            gun_min = st.number_input("İlan Süresi Min (gün)", min_value=0, step=1,
                 key="ft_gun_min", label_visibility="collapsed")
         with h4:
             st.caption("İlan Süresi Maks (gün)")
-            gun_max = st.number_input("", min_value=0, step=1,
+            gun_max = st.number_input("İlan Süresi Maks (gün)", min_value=0, step=1,
                 key="ft_gun_max", label_visibility="collapsed")
 
         with h5: ara = st.text_input("Arama", placeholder="Başlık, ilçe, kriter...", key="ft_ara")
@@ -2638,7 +2661,11 @@ if hizli != "Tümü":
     gl = {"Bugün": 0, "Son 7 gün": 7, "Son 30 gün": 30}.get(hizli)
     if gl == 0: f = [v for v in f if tarih_gun_farki(en_iyi_tarih(v)) == 0]
     elif gl is not None: f = [v for v in f if tarih_gun_farki(en_iyi_tarih(v)) <= gl]
-if bas_tarih and bit_tarih: f = [v for v in f if (d := tarih_parse(en_iyi_tarih(v))) and bas_tarih <= d <= bit_tarih]
+if bas_tarih and bit_tarih:
+    f = [
+        v for v in f
+        if (d := tarih_parse(en_iyi_tarih(v))) and bas_tarih <= d.date() <= bit_tarih
+    ]
 if favori_filtre: f = [v for v in f if v.get("favori", False)]
 
 f = siralama_uygula(f, siralama)
@@ -2656,45 +2683,45 @@ if "goruldu_ids" not in st.session_state:
 _ws_fav_list = favori_ilceleri_cek()
 _ws_fav_secili = st.session_state.get("fav_secili_ilce")
 
-# query_params ile tıklama — koşulsuz kontrol (her render'da)
-_qp = st.query_params
-if "fav_ilce" in _qp:
-    _gelen = _qp["fav_ilce"]
-    if _gelen == "__tumu__":
-        st.session_state["fav_secili_ilce"] = None
-        st.session_state["aktif_talep_sekme"] = "Favorilerim"
-        del st.query_params["fav_ilce"]
-        st.rerun()
-    elif _gelen == "__ekle__":
-        st.session_state["show_fav_ekle"] = True
-        del st.query_params["fav_ilce"]
-        st.rerun()
-    else:
-        st.session_state["fav_secili_ilce"] = None if st.session_state.get("fav_secili_ilce") == _gelen else _gelen
-        st.session_state["aktif_talep_sekme"] = "Favorilerim"
-        del st.query_params["fav_ilce"]
-        st.rerun()
-
-# Chip HTML — koşulsuz render (DOM tutarlılığı)
-_chip_html = '<div class="firsat-row">'
+# Favori ilçe chip'leri — gerçek Streamlit button ile render edilir.
+# Önceki HTML <a><button> yaklaşımı bazı tarayıcı/Streamlit kombinasyonlarında
+# tıklama ve query_params davranışını bozabiliyordu.
 if _ws_fav_list:
     _fav_toplam = sum(ilce_kayit_sayisi(f, _filce)[0] for _filce in _ws_fav_list[:5])
-    _tumu_cls = "fchip fchip-tumu active" if not _ws_fav_secili else "fchip fchip-tumu"
-    _chip_html += f'<a href="?fav_ilce=__tumu__" style="text-decoration:none;"><button class="{_tumu_cls}">★ Tüm Favoriler &nbsp;{_fav_toplam}</button></a>'
-    for _filce in _ws_fav_list[:5]:
+    fav_cols = st.columns([1.35] + [1.05] * min(len(_ws_fav_list[:5]), 5) + [1.0], gap="small")
+
+    with fav_cols[0]:
+        if st.button(
+            f"★ Tüm Favoriler · {_fav_toplam}",
+            key="fav_chip_tum_favoriler",
+            use_container_width=True,
+            type="primary" if not _ws_fav_secili else "secondary",
+        ):
+            st.session_state["fav_secili_ilce"] = None
+            st.session_state["aktif_talep_sekme"] = "Favorilerim"
+            st.rerun()
+
+    for idx, _filce in enumerate(_ws_fav_list[:5], start=1):
         _ftoplam, _fyeni = ilce_kayit_sayisi(f, _filce)
         if _ftoplam == 0:
             continue
         _fsecili = _ws_fav_secili == _filce
-        _ilce_cls = "fchip fchip-ilce active" if _fsecili else "fchip fchip-ilce"
-        _yeni_html = f'<span class="fchip-yeni">{_fyeni} yeni</span>' if _fyeni > 0 else ""
-        _chip_html += (
-            f'<a href="?fav_ilce={_filce}" style="text-decoration:none;">'
-            f'<button class="{_ilce_cls}">★ {_filce} &nbsp;{_ftoplam}{_yeni_html}</button></a>'
-        )
-    _chip_html += '<a href="?fav_ilce=__ekle__" style="text-decoration:none;"><button class="fchip fchip-ekle">+ Favori Ekle</button></a>'
-_chip_html += '</div>'
-st.markdown(_chip_html, unsafe_allow_html=True)
+        _label = f"★ {_filce} · {_ftoplam}" + (f" · {_fyeni} yeni" if _fyeni > 0 else "")
+        with fav_cols[idx]:
+            if st.button(
+                _label,
+                key=f"fav_chip_{safe_key(_filce)}",
+                use_container_width=True,
+                type="primary" if _fsecili else "secondary",
+            ):
+                st.session_state["fav_secili_ilce"] = None if _fsecili else _filce
+                st.session_state["aktif_talep_sekme"] = "Favorilerim"
+                st.rerun()
+
+    with fav_cols[-1]:
+        if st.button("+ Favori Ekle", key="fav_chip_ekle", use_container_width=True):
+            st.session_state["show_fav_ekle"] = True
+            st.rerun()
 
 # ── Sekme değişkenleri (geriye dönük uyumluluk) ──────────────────────────────
 aktif_sekme = st.session_state.get("aktif_talep_sekme", "Favorilerim")

@@ -123,15 +123,57 @@ def aks_bul(ilce):
 @st.cache_data(ttl=60)
 def veri_yukle():
     try:
-        r = get_client().table("portfoyler")\
-            .select("*")\
-            .in_("kaynak", ["zeta1","zeta2"])\
-            .order("ilan_tarihi", desc=True)\
-            .limit(1000)\
-            .execute()
-        return r.data or []
+        # NOT: Eskiden .eq("aktif", True) filtresi yoktu — satılmış/yayından
+        # kalkmış ilanlar da sonsuza kadar listede kalıyordu. Artık sadece
+        # hâlâ aktif olan ilanlar çekiliyor (bkz. revy_sync.py'deki pasifleme
+        # düzeltmesi). .limit(1000) de kaldırıldı — 1000'den fazla aktif ilan
+        # olduğunda sessizce kesilip tutarsız sayılara yol açıyordu; Supabase
+        # sayfalama ile (1000'er 1000'er) tüm satırlar çekiliyor.
+        tum_veri = []
+        sayfa_boyu = 1000
+        bas = 0
+        while True:
+            r = get_client().table("portfoyler")\
+                .select("*")\
+                .in_("kaynak", ["zeta1","zeta2"])\
+                .eq("aktif", True)\
+                .order("ilan_tarihi", desc=True)\
+                .range(bas, bas + sayfa_boyu - 1)\
+                .execute()
+            parca = r.data or []
+            tum_veri.extend(parca)
+            if len(parca) < sayfa_boyu:
+                break
+            bas += sayfa_boyu
+        return tum_veri
     except Exception as e:
         st.error(f"Veri yüklenemedi: {e}")
+        return []
+
+
+@st.cache_data(ttl=60)
+def pasif_veri_yukle():
+    """Yayından kalkmış (aktif=False) ilanları çeker — aynı sayfalama mantığı."""
+    try:
+        tum_veri = []
+        sayfa_boyu = 1000
+        bas = 0
+        while True:
+            r = get_client().table("portfoyler")\
+                .select("*")\
+                .in_("kaynak", ["zeta1","zeta2"])\
+                .eq("aktif", False)\
+                .order("guncelleme_tarihi", desc=True)\
+                .range(bas, bas + sayfa_boyu - 1)\
+                .execute()
+            parca = r.data or []
+            tum_veri.extend(parca)
+            if len(parca) < sayfa_boyu:
+                break
+            bas += sayfa_boyu
+        return tum_veri
+    except Exception as e:
+        st.error(f"Pasif veri yüklenemedi: {e}")
         return []
 
 
@@ -265,7 +307,8 @@ def revy_sync_calistir():
             if "hata" in s:
                 log(f"❌ {ofis.upper()}: {s['hata']}")
             else:
-                log(f"✅ {ofis.upper()}: {s['eklenen']} yeni, {s['guncellenen']} güncellendi")
+                log(f"✅ {ofis.upper()}: {s['eklenen']} yeni, {s['guncellenen']} güncellendi, "
+                    f"{s.get('kapanan', 0)} pasife alındı")
 
         log("✅ Sync tamamlandı!")
         st.cache_data.clear()
@@ -590,6 +633,77 @@ with d2:
         st.markdown(html2, unsafe_allow_html=True)
     else:
         st.info("Veri yok.")
+
+# ── GD Bazlı Zaman Serisi — geçmişten günümüze ilan girişi ──────────────────
+st.markdown('<div class="section-title">Danışman Bazlı İlan Girişi (Zaman İçinde)</div>', unsafe_allow_html=True)
+if "talep_eden_danisan" in filtered.columns and "ilan_tarihi" in filtered.columns and not filtered.empty:
+    _gd_ts = filtered.dropna(subset=["ilan_tarihi"]).copy()
+    if not _gd_ts.empty:
+        _gd_ts["ay"] = _gd_ts["ilan_tarihi"].dt.to_period("M").dt.to_timestamp()
+        # Aşırı kalabalık olmasın diye toplamda en çok ilanı olan ilk 8 GD
+        _top_gd = _gd_ts["talep_eden_danisan"].value_counts().head(8).index.tolist()
+        _gd_ts_top = _gd_ts[_gd_ts["talep_eden_danisan"].isin(_top_gd)]
+
+        _gd_g1, _gd_g2 = st.columns(2)
+        with _gd_g1:
+            st.markdown("##### Aylık Yeni İlan Girişi (ilk 8 GD)")
+            _aylik = _gd_ts_top.groupby(["ay","talep_eden_danisan"]).size().reset_index(name="Adet")
+            _aylik["Danışman"] = _aylik["talep_eden_danisan"].str.title()
+            fig_gd_aylik = px.line(_aylik, x="ay", y="Adet", color="Danışman", markers=True)
+            fig_gd_aylik.update_layout(height=340, xaxis_title="", yaxis_title="Yeni İlan",
+                margin=dict(l=0,r=0,t=10,b=0), plot_bgcolor="white", paper_bgcolor="white",
+                legend=dict(font=dict(size=9)))
+            st.plotly_chart(fig_gd_aylik, use_container_width=True)
+        with _gd_g2:
+            st.markdown("##### Kümülatif Toplam İlan (ilk 8 GD)")
+            _aylik_sirali = _aylik.sort_values("ay")
+            _aylik_sirali["Kumulatif"] = _aylik_sirali.groupby("Danışman")["Adet"].cumsum()
+            fig_gd_kum = px.line(_aylik_sirali, x="ay", y="Kumulatif", color="Danışman", markers=True)
+            fig_gd_kum.update_layout(height=340, xaxis_title="", yaxis_title="Toplam İlan",
+                margin=dict(l=0,r=0,t=10,b=0), plot_bgcolor="white", paper_bgcolor="white",
+                legend=dict(font=dict(size=9)))
+            st.plotly_chart(fig_gd_kum, use_container_width=True)
+    else:
+        st.info("Tarih bilgisi olan ilan bulunamadı.")
+else:
+    st.info("Danışman/tarih bilgisi bulunamadı.")
+
+# ── Yayından Kalkanlar (Pasif İlanlar) ───────────────────────────────────────
+st.markdown('<div class="section-title">🚪 Yayından Kalkanlar (Pasif İlanlar)</div>', unsafe_allow_html=True)
+with st.expander("Pasif ilan listesini göster", expanded=False):
+    _pasif_ham = pasif_veri_yukle()
+    _pasif_df = veriyi_hazirla(_pasif_ham)
+
+    if ust_ofis == "ZETA 1":
+        _pasif_df = _pasif_df[_pasif_df["ofis_label"] == "ZETA 1"] if "ofis_label" in _pasif_df.columns else _pasif_df
+    elif ust_ofis == "ZETA 2":
+        _pasif_df = _pasif_df[_pasif_df["ofis_label"] == "ZETA 2"] if "ofis_label" in _pasif_df.columns else _pasif_df
+
+    if _pasif_df.empty:
+        st.info("Pasife alınmış (yayından kalkmış) ilan bulunamadı.")
+    else:
+        _pz1, _pz2, _pz3 = st.columns(3)
+        with _pz1:
+            st.markdown(f'<div class="kpi-card"><div class="kpi-label">Toplam Pasif İlan</div>'
+                        f'<div class="kpi-value kpi-amber">{len(_pasif_df)}</div></div>', unsafe_allow_html=True)
+        with _pz2:
+            _z1n = int((_pasif_df.get("ofis_label","") == "ZETA 1").sum())
+            _z2n = int((_pasif_df.get("ofis_label","") == "ZETA 2").sum())
+            st.markdown(f'<div class="kpi-card"><div class="kpi-label">Ofis Dağılımı</div>'
+                        f'<div class="kpi-value">{_z1n} / {_z2n}</div></div>', unsafe_allow_html=True)
+        with _pz3:
+            _son30 = int((pd.Timestamp.today().normalize() - pd.to_datetime(_pasif_df.get("guncelleme_tarihi"), errors="coerce", utc=True).dt.tz_localize(None)).dt.days.le(30).sum()) if "guncelleme_tarihi" in _pasif_df.columns else 0
+            st.markdown(f'<div class="kpi-card"><div class="kpi-label">Son 30 Günde Pasifleşen</div>'
+                        f'<div class="kpi-value kpi-red">{_son30}</div></div>', unsafe_allow_html=True)
+
+        _pasif_goster = _pasif_df.copy()
+        _kolon_secim = [c for c in ["ozet","ilce","mahalle","fiyat","talep_eden_danisan","ofis_label","ilan_tarihi","guncelleme_tarihi","ilan_linki"] if c in _pasif_goster.columns]
+        _pasif_goster = _pasif_goster[_kolon_secim].rename(columns={
+            "ozet":"Başlık","ilce":"İlçe","mahalle":"Mahalle","fiyat":"Fiyat",
+            "talep_eden_danisan":"Danışman","ofis_label":"Ofis","ilan_tarihi":"İlan Tarihi",
+            "guncelleme_tarihi":"Pasife Alınma","ilan_linki":"Link",
+        })
+        st.dataframe(_pasif_goster, use_container_width=True, hide_index=True, height=420)
 
 # ── Operasyonel Takip ─────────────────────────────────────────────────────
 st.markdown('<div class="section-title">Operasyonel Takip</div>', unsafe_allow_html=True)

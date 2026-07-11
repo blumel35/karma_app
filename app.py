@@ -84,6 +84,12 @@ taleplerim = st.Page(
     icon=":material/person_pin:",
 )
 
+gd_calisma_alani = st.Page(
+    "pages/gd_calisma_alani.py",
+    title="GD Çalışma Alanı",
+    icon=":material/dashboard_customize:",
+)
+
 portfoylerím = st.Page(
     "pages/portfoylerím.py",
     title="Portföylerim",
@@ -102,22 +108,10 @@ talep = st.Page(
     icon=":material/list_alt:",
 )
 
-talep_arsiv = st.Page(
-    "pages/2_Talep_Arsiv.py",
-    title="Talep Arşivi",
-    icon=":material/inventory_2:",
-)
-
 portfoy = st.Page(
     "pages/3_Portfoy_Tablosu.py",
     title="Portföy Havuzu",
     icon=":material/home_work:",
-)
-
-portfoy_arsiv = st.Page(
-    "pages/3_Portfoy_Arsiv.py",
-    title="Portföy Arşivi",
-    icon=":material/inventory_2:",
 )
 
 eslestirme = st.Page(
@@ -201,7 +195,7 @@ rehber = st.Page(
 )
 
 startkey_ilanlar = st.Page(
-    "pages/startkey_ilanlar.py",
+    "pages/startkey_portfoy_listesi.py",
     title="Startkey İlanları",
     icon=":material/travel_explore:",
 )
@@ -218,14 +212,13 @@ pg = st.navigation(
         ],
 
         "Danışman": [
+            gd_calisma_alani,
             taleplerim,
             portfoylerím,
             zeta_ilanlar,
             ajandam,
             talep,
-            talep_arsiv,
             portfoy,
-            portfoy_arsiv,
             arsiv_merkezi,
             rehber,
             eslestirme,

@@ -592,22 +592,54 @@ def favori_ilce_guncelle(ilceler):
 
 @st.cache_data(ttl=30)
 def verileri_yukle(kaynak_filtre=None):
+    """
+    ÖNEMLİ DÜZELTME: Eskiden `.limit(500)` vardı — tablo 500 satırı geçince
+    en eski kayıtlar bu sayfadan görünmez oluyordu (veri kaybı yok, sadece
+    erişim yok). Artık `.range()` ile tüm kayıtlar sayfa sayfa çekiliyor.
+    """
+    def _sayfali_cek(builder_fn):
+        tum = []
+        sayfa_boyu = 1000
+        bas = 0
+        while True:
+            r = builder_fn().range(bas, bas + sayfa_boyu - 1).execute()
+            parca = r.data or []
+            tum.extend(parca)
+            if len(parca) < sayfa_boyu:
+                break
+            bas += sayfa_boyu
+        return tum
+
     try:
-        q = get_client().table("portfoyler")\
-            .select("*").order("olusturma_tarihi", desc=True).limit(500)
-        if kaynak_filtre:
-            if kaynak_filtre == "startkey_mail":
-                r1 = q.eq("kaynak", "startkey_mail").execute()
-                r2 = q.is_("kaynak", "null").execute()
-                return (r1.data or []) + (r2.data or [])
-            elif isinstance(kaynak_filtre, list):
-                q = q.in_("kaynak", kaynak_filtre)
-            else:
-                q = q.eq("kaynak", kaynak_filtre)
-        r = q.execute()
-        return r.data
+        if kaynak_filtre == "startkey_mail":
+            def _b1():
+                return (
+                    get_client().table("portfoyler").select("*")
+                    .order("olusturma_tarihi", desc=True)
+                    .eq("kaynak", "startkey_mail")
+                )
+
+            def _b2():
+                return (
+                    get_client().table("portfoyler").select("*")
+                    .order("olusturma_tarihi", desc=True)
+                    .is_("kaynak", "null")
+                )
+            return _sayfali_cek(_b1) + _sayfali_cek(_b2)
+
+        def _builder():
+            q = get_client().table("portfoyler").select("*").order("olusturma_tarihi", desc=True)
+            if kaynak_filtre:
+                if isinstance(kaynak_filtre, list):
+                    q = q.in_("kaynak", kaynak_filtre)
+                else:
+                    q = q.eq("kaynak", kaynak_filtre)
+            return q
+
+        return _sayfali_cek(_builder)
     except Exception as e:
-        st.error(f"Veri yüklenemedi: {e}"); return []
+        st.error(f"Veri yüklenemedi: {e}")
+        return []
 
 
 @st.cache_data(ttl=3600)

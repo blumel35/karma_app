@@ -1,0 +1,225 @@
+[
+  {
+    "dosya": "sk_20260707_232612.pkl",
+    "zaman": "07.07.2026 23:26",
+    "ilceler": [
+      "Balçova"
+    ],
+    "kayit_sayisi": 30,
+    "etiket": "Balçova"
+  },
+  {
+    "dosya": "sk_20260707_165442.pkl",
+    "zaman": "07.07.2026 16:54",
+    "ilceler": [
+      "Menemen"
+    ],
+    "kayit_sayisi": 443,
+    "etiket": "Menemen"
+  },
+  {
+    "dosya": "sk_20260707_121656.pkl",
+    "zaman": "07.07.2026 12:16",
+    "ilceler": [
+      "Bayraklı",
+      "Bornova"
+    ],
+    "kayit_sayisi": 181,
+    "etiket": "Bayraklı, Bornova"
+  },
+  {
+    "dosya": "sk_20260705_150446.pkl",
+    "zaman": "05.07.2026 15:04",
+    "ilceler": [
+      "Balçova"
+    ],
+    "kayit_sayisi": 20,
+    "etiket": "Balçova"
+  },
+  {
+    "dosya": "sk_20260705_145203.pkl",
+    "zaman": "05.07.2026 14:52",
+    "ilceler": [
+      "Balçova"
+    ],
+    "kayit_sayisi": 21,
+    "etiket": "Balçova"
+  },
+  {
+    "dosya": "sk_20260705_144912.pkl",
+    "zaman": "05.07.2026 14:49",
+    "ilceler": [
+      "Balçova"
+    ],
+    "kayit_sayisi": 21,
+    "etiket": "Balçova"
+  },
+  {
+    "dosya": "sk_20260705_141134.pkl",
+    "zaman": "05.07.2026 14:11",
+    "ilceler": [
+      "Bornova"
+    ],
+    "kayit_sayisi": 463,
+    "etiket": "Bornova"
+  },
+  {
+    "dosya": "sk_20260704_234023.pkl",
+    "zaman": "04.07.2026 23:40",
+    "ilceler": [
+      "Bornova"
+    ],
+    "kayit_sayisi": 495,
+    "etiket": "Bornova"
+  },
+  {
+    "dosya": "sk_20260704_232002.pkl",
+    "zaman": "04.07.2026 23:20",
+    "ilceler": [
+      "Balçova"
+    ],
+    "kayit_sayisi": 48,
+    "etiket": "Balçova"
+  },
+  {
+    "dosya": "sk_20260704_231834.pkl",
+    "zaman": "04.07.2026 23:18",
+    "ilceler": [
+      "Konak"
+    ],
+    "kayit_sayisi": 346,
+    "etiket": "Konak"
+  },
+  {
+    "dosya": "sk_20260704_223015.pkl",
+    "zaman": "04.07.2026 22:30",
+    "ilceler": [
+      "Bornova"
+    ],
+    "kayit_sayisi": 294,
+    "etiket": "Bornova"
+  },
+  {
+    "dosya": "sk_20260704_222043.pkl",
+    "zaman": "04.07.2026 22:20",
+    "ilceler": [
+      "Bornova"
+    ],
+    "kayit_sayisi": 293,
+    "etiket": "Bornova"
+  },
+  {
+    "dosya": "sk_20260704_221309.pkl",
+    "zaman": "04.07.2026 22:13",
+    "ilceler": [
+      "Aliağa",
+      "Balçova",
+      "Bayraklı",
+      "Bayındır",
+      "Bergama",
+      "Beydağ",
+      "Bornova",
+      "Buca",
+      "Dikili",
+      "Foça",
+      "Gaziemir",
+      "Güzelbahçe",
+      "Karabağlar",
+      "Karaburun",
+      "Karşıyaka",
+      "Kemalpaşa",
+      "Kiraz",
+      "Konak",
+      "Kınık",
+      "Menderes",
+      "Menemen",
+      "Narlıdere",
+      "Seferihisar",
+      "Selçuk",
+      "Tire",
+      "Torbalı",
+      "Urla",
+      "Çeşme",
+      "Çiğli",
+      "Ödemiş"
+    ],
+    "kayit_sayisi": 4180,
+    "etiket": "30 ilçe (Tüm İzmir)"
+  },
+  {
+    "dosya": "sk_20260704_214709.pkl",
+    "zaman": "04.07.2026 21:47",
+    "ilceler": [
+      "Aliağa",
+      "Balçova",
+      "Bayraklı",
+      "Bayındır",
+      "Bergama",
+      "Beydağ",
+      "Bornova",
+      "Buca",
+      "Dikili",
+      "Foça",
+      "Gaziemir",
+      "Güzelbahçe",
+      "Karabağlar",
+      "Karaburun",
+      "Karşıyaka",
+      "Kemalpaşa",
+      "Kiraz",
+      "Konak",
+      "Kınık",
+      "Menderes",
+      "Menemen",
+      "Narlıdere",
+      "Seferihisar",
+      "Selçuk",
+      "Tire",
+      "Torbalı",
+      "Urla",
+      "Çeşme",
+      "Çiğli",
+      "Ödemiş"
+    ],
+    "kayit_sayisi": 4180,
+    "etiket": "30 ilçe (Tüm İzmir)"
+  },
+  {
+    "dosya": "sk_20260704_191508.pkl",
+    "zaman": "04.07.2026 19:15",
+    "ilceler": [
+      "Aliağa",
+      "Balçova",
+      "Bayraklı",
+      "Bayındır",
+      "Bergama",
+      "Beydağ",
+      "Bornova",
+      "Buca",
+      "Dikili",
+      "Foça",
+      "Gaziemir",
+      "Güzelbahçe",
+      "Karabağlar",
+      "Karaburun",
+      "Karşıyaka",
+      "Kemalpaşa",
+      "Kiraz",
+      "Konak",
+      "Kınık",
+      "Menderes",
+      "Menemen",
+      "Narlıdere",
+      "Seferihisar",
+      "Selçuk",
+      "Tire",
+      "Torbalı",
+      "Urla",
+      "Çeşme",
+      "Çiğli",
+      "Ödemiş"
+    ],
+    "kayit_sayisi": 4180,
+    "etiket": "30 ilçe (Tüm İzmir)"
+  }
+]

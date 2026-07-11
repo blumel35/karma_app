@@ -265,6 +265,19 @@ def df_to_supabase(df, kaynak_ofis, supabase_client, log_fn=None):
     """
     DataFrame'i portfoyler tablosuna yazar.
     URL bazlı: varsa günceller, yoksa ekler.
+
+    NOT: Eskiden bu fonksiyon sadece "eklenen"/"güncellenen" sayıyordu —
+    Revy'nin export'unda artık görünmeyen (satılmış/yayından kalkmış)
+    ilanlar hiç tespit edilmiyor, tabloda sonsuza kadar "varmış gibi"
+    kalıyordu. Bu da ilan sayılarının şişmesine ve tutarsızlığa yol
+    açıyordu. Şimdi rehber_sync.py / startkey_portfoy_sync.py'deki aynı
+    "diff bazlı pasifleme" mantığı uygulanıyor: önceki aktif URL kümesi
+    ile şimdi export'ta gelen URL kümesi karşılaştırılıyor, artık
+    gelmeyenler aktif=False yapılıyor (silinmiyor — geçmiş veri kalıyor).
+
+    ÖNEMLİ: Bunun çalışması için Supabase'deki "portfoyler" tablosunda
+    "aktif" (boolean, varsayılan true) sütununun var olması gerekiyor.
+    Yoksa: ALTER TABLE portfoyler ADD COLUMN aktif boolean DEFAULT true;
     """
     def log(msg):
         print(msg)
@@ -296,10 +309,13 @@ def df_to_supabase(df, kaynak_ofis, supabase_client, log_fn=None):
     if not url_col:
         raise Exception("URL kolonu bulunamadı — veri yazılamaz.")
 
-    # Mevcut URL'leri çek
+    kaynak_key = kaynak_ofis.lower().replace(" ", "")
+
+    # Mevcut AKTİF URL'leri çek — pasifleme kıyaslaması için gerekli
     mevcut = supabase_client.table("portfoyler")\
         .select("id,ilan_linki")\
-        .in_("kaynak", [kaynak_ofis.lower().replace(" ","")])\
+        .in_("kaynak", [kaynak_key])\
+        .eq("aktif", True)\
         .execute()
     mevcut_url_map = {
         r["ilan_linki"]: r["id"]
@@ -308,12 +324,15 @@ def df_to_supabase(df, kaynak_ofis, supabase_client, log_fn=None):
     }
 
     eklenen = guncellenen = atlanan = 0
+    taranan_urller = set()
 
     for _, row in df.iterrows():
         url = str(row.get(url_col, "") or "").strip()
         if not url or url.lower() in ["nan", "none", ""]:
             atlanan += 1
             continue
+
+        taranan_urller.add(url)
 
         def val(col):
             if col is None:
@@ -329,8 +348,6 @@ def df_to_supabase(df, kaynak_ofis, supabase_client, log_fn=None):
                 return int(float(v)) if v else None
             except Exception:
                 return None
-
-        kaynak_key = kaynak_ofis.lower().replace(" ","")  # "zeta1" veya "zeta2"
 
         veri = {
             "kaynak": kaynak_key,
@@ -356,9 +373,10 @@ def df_to_supabase(df, kaynak_ofis, supabase_client, log_fn=None):
             "esyali": val(esyali_col),
             "ilan_durumu": val(durum_col),
             "guncelleme_tarihi": datetime.now().isoformat(),
+            "aktif": True,
         }
-        # None değerleri çıkar
-        veri = {k: v for k, v in veri.items() if v is not None}
+        # None değerleri çıkar (aktif hariç — o her zaman gönderilmeli)
+        veri = {k: v for k, v in veri.items() if v is not None or k == "aktif"}
 
         try:
             if url in mevcut_url_map:
@@ -373,8 +391,22 @@ def df_to_supabase(df, kaynak_ofis, supabase_client, log_fn=None):
             log(f"Yazma hatası ({url[:40]}): {e}")
             atlanan += 1
 
-    log(f"✅ {kaynak_ofis}: {eklenen} yeni eklendi, {guncellenen} güncellendi, {atlanan} atlandı")
-    return eklenen, guncellenen, atlanan
+    # ── Artık export'ta görünmeyen ilanları pasifle (satılmış/kalkmış) ──
+    kapanan_urller = set(mevcut_url_map.keys()) - taranan_urller
+    kapanan = 0
+    for kapanan_url in kapanan_urller:
+        try:
+            supabase_client.table("portfoyler").update({
+                "aktif": False,
+                "guncelleme_tarihi": datetime.now().isoformat(),
+            }).eq("id", mevcut_url_map[kapanan_url]).execute()
+            kapanan += 1
+        except Exception as e:
+            log(f"Pasifleme hatası ({kapanan_url[:40]}): {e}")
+
+    log(f"✅ {kaynak_ofis}: {eklenen} yeni eklendi, {guncellenen} güncellendi, "
+        f"{kapanan} pasife alındı, {atlanan} atlandı")
+    return eklenen, guncellenen, atlanan, kapanan
 
 
 # =============================================
@@ -418,8 +450,8 @@ def tek_ofis_sync(ayarlar, hesap_no, hedef_url, klasor_adi, kaynak_ofis, supabas
         if url_col:
             df = df.drop_duplicates(subset=[url_col])
 
-        eklenen, guncellenen, atlanan = df_to_supabase(df, kaynak_ofis, supabase_client, log_fn)
-        return eklenen, guncellenen, atlanan
+        eklenen, guncellenen, atlanan, kapanan = df_to_supabase(df, kaynak_ofis, supabase_client, log_fn)
+        return eklenen, guncellenen, atlanan, kapanan
 
     finally:
         if driver:
@@ -447,7 +479,7 @@ def sync_tum_ofisler(ayarlar=None, log_fn=None):
 
     # ZETA 1
     try:
-        e, g, a = tek_ofis_sync(
+        e, g, a, k = tek_ofis_sync(
             ayarlar=ayarlar,
             hesap_no=1,
             hedef_url=ayarlar["revy1_ofis_aktif_url"],
@@ -456,7 +488,7 @@ def sync_tum_ofisler(ayarlar=None, log_fn=None):
             supabase_client=supabase_client,
             log_fn=log_fn
         )
-        sonuclar["zeta1"] = {"eklenen": e, "guncellenen": g, "atlanan": a}
+        sonuclar["zeta1"] = {"eklenen": e, "guncellenen": g, "atlanan": a, "kapanan": k}
     except Exception as ex:
         sonuclar["zeta1"] = {"hata": str(ex)}
         if log_fn:
@@ -466,7 +498,7 @@ def sync_tum_ofisler(ayarlar=None, log_fn=None):
 
     # ZETA 2
     try:
-        e, g, a = tek_ofis_sync(
+        e, g, a, k = tek_ofis_sync(
             ayarlar=ayarlar,
             hesap_no=2,
             hedef_url=ayarlar["revy2_ofis_aktif_url"],
@@ -475,7 +507,7 @@ def sync_tum_ofisler(ayarlar=None, log_fn=None):
             supabase_client=supabase_client,
             log_fn=log_fn
         )
-        sonuclar["zeta2"] = {"eklenen": e, "guncellenen": g, "atlanan": a}
+        sonuclar["zeta2"] = {"eklenen": e, "guncellenen": g, "atlanan": a, "kapanan": k}
     except Exception as ex:
         sonuclar["zeta2"] = {"hata": str(ex)}
         if log_fn:

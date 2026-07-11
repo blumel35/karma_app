@@ -86,6 +86,7 @@ _NAV_SECTIONS = [
         "key": "calisma",
         "label": "Çalışma Alanım",
         "pages": [
+            ("pages/gd_calisma_alani.py", "GD Çalışma Alanı", "🧭", []),
             ("pages/taleplerim.py", "Taleplerim", "👤", []),
             ("pages/portfoylerím.py", "Portföylerim", "🏡", []),
             ("pages/Sunum_Merkezi_V2_Demo.py", "Sunum Merkezi", "✨", []),
@@ -117,6 +118,7 @@ _NAV_SECTIONS = [
         "pages": [
             ("pages/pazar_analiz.py", "Pazar Radar", "📡", []),
             ("pages/pazar_raporu.py", "Pazar Raporu", "📊", []),
+            ("pages/startkey_portfoy_listesi.py", "Startkey İlanları", "🔎", []),
         ],
     },
     {
@@ -195,7 +197,12 @@ def render_navbar(user_role: str = "danisan",
     # Sidebar'ı her render'da expanded tut
     st.markdown(
         '<style>[data-testid="stSidebar"]{display:flex!important;}'
-        '[data-testid="collapsedControl"]{display:none!important;}</style>',
+        '[data-testid="collapsedControl"]{display:none!important;}'
+        '[data-testid="stSidebarHeader"]{'
+        'background:transparent!important;padding:0!important;height:0!important;'
+        'min-height:0!important;}'
+        '[data-testid="stSidebarCollapseButton"]{display:none!important;}'
+        '</style>',
         unsafe_allow_html=True
     )
     with st.sidebar:
@@ -222,113 +229,67 @@ def render_navbar(user_role: str = "danisan",
                 st.session_state.pop("_impersonate_original", None)
                 st.rerun()
 
-        # Brand
+        # Brand + Kullanıcı alanı — transparan
+        # Logo + avatar + kullanıcı bilgisi tek HTML bloğunda kalır.
+        # Beyaz/açık kart zemini kaldırıldı.
         import os as _os
+        import base64 as _b64
+
         _logo_path = _os.path.join(
             _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
             "assets", "zeta_logo_sidebar.png"
         )
+        _logo_src = ""
         if _os.path.exists(_logo_path):
-            st.markdown(
-                '<div style="padding:10px 8px 8px 8px;'
-                'border-bottom:0.5px solid rgba(255,255,255,0.08);'
-                'margin-bottom:6px;">',
-                unsafe_allow_html=True
-            )
-            st.image(_logo_path, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            st.markdown("""
-<div style="padding:14px 4px 12px;border-bottom:0.5px solid rgba(255,255,255,0.08);
-            display:flex;align-items:center;gap:9px;margin-bottom:6px;">
-  <div style="width:30px;min-width:30px;height:30px;background:rgba(255,255,255,0.12);
-              border:0.5px solid rgba(255,255,255,0.2);border-radius:7px;
-              display:flex;align-items:center;justify-content:center;
-              font-size:13px;font-weight:600;color:#fff;">Z</div>
-  <div>
-    <div style="font-size:9px;color:rgba(255,255,255,0.38);letter-spacing:0.12em;
-                text-transform:uppercase;">Startkey</div>
-    <div style="font-size:14px;font-weight:600;color:#fff;letter-spacing:-0.03em;">
-                Zeta Panel</div>
-  </div>
-</div>""", unsafe_allow_html=True)
+            with open(_logo_path, "rb") as _lf:
+                _logo_src = f"data:image/png;base64,{_b64.b64encode(_lf.read()).decode('utf-8')}"
 
-        # ── Kullanıcı kartı — brand'ın hemen altı ───────────────────────────
         _k = st.session_state.get("kullanici", {})
         _foto_bytes = _k.get("foto_bytes")
-        _foto_path  = _k.get("foto_path", "")
-        _foto_url   = _k.get("foto_url", "")
+        _foto_path = _k.get("foto_path", "")
+        _foto_url = _k.get("foto_url", "")
 
-        def _render_circle_avatar(raw_bytes, size=56):
-            """bytes → yuvarlak PIL image → st.image"""
-            import io as _io
-            from PIL import Image as _PImg, ImageDraw as _PDraw
+        _avatar_src = ""
+        if _foto_bytes:
+            _avatar_src = f"data:image/jpeg;base64,{_b64.b64encode(_foto_bytes).decode('utf-8')}"
+        elif _foto_path and _os.path.exists(_foto_path):
             try:
-                _img = _PImg.open(_io.BytesIO(raw_bytes)).convert("RGBA")
-                # Boy fotoğraf: üst kare al
-                _w, _h = _img.size
-                if _h > _w * 1.1:
-                    _img = _img.crop((0, 0, _w, _w))
-                # Kareye çevir (ortadan)
-                _w2, _h2 = _img.size
-                if _w2 != _h2:
-                    _mn = min(_w2, _h2)
-                    _img = _img.crop(
-                        ((_w2 - _mn) // 2, 0, (_w2 - _mn) // 2 + _mn, _mn)
-                    )
-                _img = _img.resize((size * 2, size * 2), _PImg.LANCZOS)
-                _mask = _PImg.new("L", (size * 2, size * 2), 0)
-                _PDraw.Draw(_mask).ellipse((0, 0, size * 2, size * 2), fill=255)
-                _img.putalpha(_mask)
-                _img = _img.resize((size, size), _PImg.LANCZOS)
-                st.image(_img, width=size)
-                return True
+                with open(_foto_path, "rb") as _f:
+                    _avatar_src = f"data:image/jpeg;base64,{_b64.b64encode(_f.read()).decode('utf-8')}"
             except Exception:
-                return False
+                _avatar_src = ""
+        elif _foto_url and _foto_url.startswith("http"):
+            _avatar_src = _foto_url  # http URL doğrudan <img src> olarak kullanılabilir
 
-        _col_av, _col_info = st.columns([1, 2.4])
-        with _col_av:
-            _rendered = False
+        _avatar_html = (
+            f'<img src="{_avatar_src}" style="width:52px;height:52px;border-radius:50%;'
+            'object-fit:cover;object-position:center top;border:1px solid rgba(255,255,255,0.35);'
+            'box-shadow:none;flex-shrink:0;">'
+            if _avatar_src else
+            f'<div style="width:52px;height:52px;border-radius:50%;background:#185FA5;'
+            'display:flex;align-items:center;justify-content:center;font-size:15px;'
+            f'font-weight:700;color:#fff;flex-shrink:0;">{initials}</div>'
+        )
 
-            # Öncelik 1: foto_bytes (Supabase'den indirilen)
-            if _foto_bytes and not _rendered:
-                _rendered = _render_circle_avatar(_foto_bytes)
+        st.markdown(
+            f'<div style="padding:12px 8px 10px 8px;margin-bottom:2px;">'
+            f'<div style="background:transparent;border-radius:0;padding:8px 4px;box-shadow:none;">'
+            + (f'<div style="display:flex;justify-content:center;margin-bottom:12px;">'
+               f'<img src="{_logo_src}" style="width:100%;max-width:118px;display:block;background:transparent;box-shadow:none;">'
+               f'</div>' if _logo_src else '')
+            + '<div style="height:0.5px;background:rgba(255,255,255,0.12);margin:0 0 12px 0;"></div>'
+            + '<div style="display:flex;align-items:center;gap:10px;">'
+            + _avatar_html
+            + '<div>'
+            + f'<div style="font-size:13px;font-weight:700;color:#ffffff;line-height:1.3;">{user_name or "Kullanıcı"}</div>'
+            + f'<div style="font-size:10px;color:rgba(255,255,255,0.58);">{role_label}</div>'
+            + '</div></div>'
+            + '</div></div>',
+            unsafe_allow_html=True,
+        )
 
-            # Öncelik 2: foto_path (local Excel klasörü)
-            if _foto_path and not _rendered:
-                import os as _os
-                if _os.path.exists(_foto_path):
-                    try:
-                        with open(_foto_path, "rb") as _f:
-                            _raw = _f.read()
-                        _rendered = _render_circle_avatar(_raw)
-                    except Exception:
-                        pass
-
-            # Öncelik 3: foto_url (Supabase Storage URL)
-            if _foto_url and _foto_url.startswith("http") and not _rendered:
-                st.markdown(
-                    f'<img src="{_foto_url}" width="56" '
-                    'style="border-radius:50%;object-fit:cover;'
-                    'border:2px solid rgba(255,255,255,0.25);">',
-                    unsafe_allow_html=True)
-                _rendered = True
-
-            # Fallback: initials dairesi
-            if not _rendered:
-                st.markdown(
-                    f'<div style="width:56px;height:56px;border-radius:50%;'
-                    'background:#185FA5;display:flex;align-items:center;'
-                    f'justify-content:center;font-size:16px;font-weight:700;color:#fff;">{initials}</div>',
-                    unsafe_allow_html=True)
-        with _col_info:
-            st.markdown(
-                f'<div style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.92);' +
-                f'padding-top:2px;line-height:1.3;">{user_name or "Kullanıcı"}</div>' +
-                f'<div style="font-size:9px;color:rgba(255,255,255,0.4);margin-bottom:4px;">{role_label}</div>',
-                unsafe_allow_html=True)
-            if st.button("👤 Profilim", key="nav_profil_btn", use_container_width=False):
-                st.switch_page("pages/profil.py")
+        if st.button("👤 Profilim", key="nav_profil_btn", use_container_width=True):
+            st.switch_page("pages/profil.py")
 
         st.markdown(
             '<div style="height:0.5px;background:rgba(255,255,255,0.1);margin:8px 0 4px 0;"></div>',

@@ -6,9 +6,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.mail_fetcher import mailleri_cek
-from core.mail_parser import mailleri_isle
-from core.supabase_client import get_client
+from core.mail_job import run_mail_fetch_job, run_pending_ai_parse_job
 
 render_navbar(
     user_role=st.session_state.get("user_role", "danisan"),
@@ -17,11 +15,16 @@ render_navbar(
 )
 st.title("Mail İşlem")
 
+st.caption(
+    "Not: Bu ekran manuel çalıştırma içindir. Aynı işlemler artık GitHub Actions "
+    "üzerinden otomatik olarak da periyodik çalışıyor (bkz. scripts/mail_auto_job.py)."
+)
+
 col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("1. Mailleri Çek")
-    st.caption("INBOX ve 1_Alici_Depo klasörlerinden mailleri çeker")
+    st.caption("INBOX ve 1_Alici_Depo klasörlerinden, son başarılı çekimden bu yana gelen mailleri çeker")
 
     if st.button("Mailleri Çek", use_container_width=True, type="primary"):
         durum = st.status("Mailler çekiliyor...", expanded=True)
@@ -30,35 +33,32 @@ with col1:
             def guncelle(mesaj):
                 durum.write(mesaj)
 
-            veriler = mailleri_cek(durum_callback=guncelle)
+            sonuc = run_mail_fetch_job(durum_callback=guncelle)
 
-            if not veriler:
+            if sonuc["yeni_kayit"] == 0 and sonuc["hata_sayisi"] == 0:
                 durum.update(label="Yeni mail bulunamadı", state="complete")
                 st.info("Yeni mail yok.")
             else:
-                supabase = get_client()
-
-                mevcut_alici = supabase.table("alici_talepleri").select("message_id").execute()
-                mevcut_portfoy = supabase.table("portfoyler").select("message_id").execute()
-
-                mevcut_idler = set(
-                    [r["message_id"] for r in mevcut_alici.data if r["message_id"]] +
-                    [r["message_id"] for r in mevcut_portfoy.data if r["message_id"]]
+                durum.update(
+                    label=f"✅ {sonuc['yeni_kayit']} yeni mail kaydedildi!",
+                    state="complete" if sonuc["hata_sayisi"] == 0 else "error",
                 )
+                st.success(f"✅ {sonuc['yeni_kayit']} yeni mail kaydedildi!")
 
-                yeni_veriler = [v for v in veriler if v.get("message_id") not in mevcut_idler]
-                durum.write(f"{len(yeni_veriler)} yeni mail Supabase'e kaydediliyor...")
+                with st.expander("Çekim özeti", expanded=sonuc["hata_sayisi"] > 0):
+                    st.markdown(f"""
+- **Bulunan mail:** {sonuc['bulunan']}
+- **Yeni kaydedilen:** {sonuc['yeni_kayit']}
+- **Hata sayısı:** {sonuc['hata_sayisi']}
+- **Süre:** {sonuc['sure_saniye']} sn
+""")
+                    for klasor, k_ozet in sonuc.get("ozet_klasor", {}).items():
+                        st.write(f"- `{klasor}`: {k_ozet['bulunan']} mail, {k_ozet['hata']} hata")
 
-                kayit_sayisi = 0
-                for kayit in yeni_veriler:
-                    try:
-                        supabase.table("alici_talepleri").insert(kayit).execute()
-                        kayit_sayisi += 1
-                    except Exception as e:
-                        continue
-
-                durum.update(label=f"✅ {kayit_sayisi} yeni mail kaydedildi!", state="complete")
-                st.success(f"✅ {kayit_sayisi} yeni mail kaydedildi!")
+                    if sonuc["hata_sayisi"] > 0:
+                        st.warning("Bazı mailler okunamadı, detaylar:")
+                        for h in sonuc["hata_log"][:20]:
+                            st.write(f"- [{h.get('klasor')}] uid={h.get('uid')}: {h.get('hata')}")
 
         except Exception as e:
             durum.update(label="❌ Hata oluştu", state="error")
@@ -70,66 +70,53 @@ with col2:
     st.subheader("2. AI ile Kategorize Et")
     st.caption("Mailleri Claude AI ile analiz eder — alıcı talebi mi, portföy paylaşımı mı ayırır")
 
+    islenecek_limit = st.number_input(
+        "Bu çalıştırmada en fazla kaç kayıt işlensin?",
+        min_value=10, max_value=200, value=100, step=10,
+    )
+
     if st.button("AI ile Kategorize Et", use_container_width=True, type="primary"):
         durum2 = st.status("Mailler işleniyor...", expanded=True)
 
         try:
-            supabase = get_client()
+            def guncelle2(mesaj):
+                durum2.write(mesaj)
 
-            response = supabase.table("alici_talepleri")\
-                .select("*")\
-                .eq("bolge_mahalle", "")\
-                .limit(100)\
-                .execute()
-            kayitlar = response.data
+            sonuc = run_pending_ai_parse_job(limit=int(islenecek_limit), durum_callback=guncelle2)
 
-            if not kayitlar:
+            if sonuc["islenen"] == 0:
                 durum2.update(label="İşlenecek yeni kayıt yok", state="complete")
                 st.info("Tüm kayıtlar zaten işlenmiş.")
             else:
-                durum2.write(f"{len(kayitlar)} kayıt işlenecek...")
-
-                def guncelle2(mesaj):
-                    durum2.write(mesaj)
-
-                alici_sonuclar, portfoy_sonuclar = mailleri_isle(
-                    kayitlar, durum_callback=guncelle2
-                )
-
-                for kayit in alici_sonuclar:
-                    supabase.table("alici_talepleri").update({
-                        "kategori": kayit.get("kategori", "diger"),
-                        "ozet": kayit.get("ozet", ""),
-                        "islem_tipi": kayit.get("islem_tipi", ""),
-                        "mulk_tipi": kayit.get("mulk_tipi", ""),
-                        "il": kayit.get("il", ""),
-                        "ilce": kayit.get("ilce", ""),
-                        "ilceler": kayit.get("ilceler", []),
-                        "bolge_mahalle": kayit.get("bolge_mahalle", "diger"),
-                        "oda_sayisi_m2": kayit.get("oda_sayisi_m2", ""),
-                        "max_butce": kayit.get("max_butce", ""),
-                        "ozel_kriterler": kayit.get("ozel_kriterler", ""),
-                        "iletisim_not": kayit.get("iletisim_not", "")
-                    }).eq("id", kayit["id"]).execute()
-
-                portfoy_sayisi = 0
-                for portfoy in portfoy_sonuclar:
-                    try:
-                        supabase.table("portfoyler").insert(portfoy).execute()
-                        supabase.table("alici_talepleri")\
-                            .delete()\
-                            .eq("message_id", portfoy["message_id"])\
-                            .execute()
-                        portfoy_sayisi += 1
-                    except Exception as e:
-                        st.warning(f"Portföy eklenemedi: {e}")
-                        continue
-
                 durum2.update(
-                    label=f"✅ {len(alici_sonuclar)} alıcı, {portfoy_sayisi} portföy işlendi!",
-                    state="complete"
+                    label=f"✅ {sonuc['alici']} alıcı/diğer, {sonuc['portfoy']} portföy işlendi!",
+                    state="complete" if sonuc["hatali"] == 0 else "error",
                 )
-                st.success(f"✅ {len(alici_sonuclar)} alıcı talebi, {portfoy_sayisi} portföy paylaşımı ayrıştırıldı!")
+                st.success(
+                    f"✅ {sonuc['alici']} alıcı talebi/diğer, {sonuc['portfoy']} portföy paylaşımı ayrıştırıldı!"
+                )
+
+                kalan = sonuc.get("kalan", 0)
+                if kalan > 0:
+                    st.info(f"📋 Hâlâ **{kalan}** kayıt işlenmeyi bekliyor. Devam etmek için butona tekrar bas.")
+                else:
+                    st.success("🎉 Bekleyen kayıt kalmadı, hepsi işlendi!")
+
+                with st.expander("AI işleme özeti", expanded=sonuc["hatali"] > 0):
+                    st.markdown(f"""
+- **İşlenen kayıt:** {sonuc['islenen']}
+- **Alıcı talebi / diğer:** {sonuc['alici']}
+- **Portföy paylaşımı:** {sonuc['portfoy']}
+- **Hatalı (parse_status='failed'):** {sonuc['hatali']}
+- **Kalan (parse_status='raw'):** {kalan}
+- **Süre:** {sonuc['sure_saniye']} sn
+""")
+                    if sonuc["hatali"] > 0:
+                        st.warning(
+                            "Hatalı kayıtlar silinmedi, `alici_talepleri` tablosunda "
+                            "`parse_status='failed'` olarak işaretlendi — `parse_error` "
+                            "kolonundan sebebini görebilirsin."
+                        )
 
         except Exception as e:
             durum2.update(label="❌ Hata oluştu", state="error")

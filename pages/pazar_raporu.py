@@ -7,7 +7,7 @@ PDF + Word çıktısı.
 """
 
 import streamlit as st
-import sys, os, json, importlib, io, tempfile
+import sys, os, json, importlib, io, tempfile, pickle
 from pathlib import Path
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT / "core"))
 
 from core.auth import oturum_kontrol
 from core.ui_helpers import render_navbar, render_page_header
+from core.tuik_ilce_hacim import hacim_sinifi, hacim_rozet_rengi, ilce_satis_2025
 
 if not oturum_kontrol():
     st.switch_page("pages/giris.py")
@@ -33,10 +34,108 @@ render_navbar(
     user_name=_k.get("ad_soyad") or _k.get("ad", ""),
 )
 
-render_page_header(
-    "Pazar Analiz Raporu",
-    "Seçilen bölge ve kriterlere göre kapsamlı pazar analizi ve PDF/Word raporu"
-)
+# ─────────────────────────────────────────
+# ARŞİV (HAM VERİ) — her başarılı "Yeni Sorgu" ayrı bir kayıt olarak saklanır.
+# NOT: Sayfadaki mevcut "Önceki Raporlarım" paneli sadece FİLTREYİ hatırlıyor
+# (tekrar Revy'den çekmen gerekiyor). Bu yeni arşiv ise HAM VERİYİ de saklıyor,
+# "Yükle" ile Revy'ye hiç gitmeden anında geri getirebiliyorsun.
+# ─────────────────────────────────────────
+RPR_GECMIS_KLASOR = ROOT / "revy_pazar_cikti" / "gecmis_rapor"
+RPR_GECMIS_INDEX  = RPR_GECMIS_KLASOR / "index.json"
+
+def rpr_gecmis_kaydet_yerel(df_aktif_ham, df_pasif_ham, meta: dict):
+    try:
+        RPR_GECMIS_KLASOR.mkdir(parents=True, exist_ok=True)
+        zaman = datetime.now()
+        dosya_adi = f"rpr_{zaman.strftime('%Y%m%d_%H%M%S')}.pkl"
+        with open(RPR_GECMIS_KLASOR / dosya_adi, "wb") as f:
+            pickle.dump({"aktif": df_aktif_ham, "pasif": df_pasif_ham, "meta": meta}, f)
+        index = []
+        if RPR_GECMIS_INDEX.exists():
+            try:
+                index = json.loads(RPR_GECMIS_INDEX.read_text(encoding="utf-8"))
+            except Exception:
+                index = []
+        index.insert(0, {
+            "dosya": dosya_adi,
+            "zaman": zaman.strftime("%d.%m.%Y %H:%M"),
+            "etiket": meta.get("baslik", ""),
+            "aktif_n": len(df_aktif_ham),
+            "pasif_n": len(df_pasif_ham),
+        })
+        RPR_GECMIS_INDEX.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+def rpr_gecmis_listele_yerel():
+    if not RPR_GECMIS_INDEX.exists():
+        return []
+    try:
+        return json.loads(RPR_GECMIS_INDEX.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+def rpr_gecmis_yukle_yerel(dosya_adi: str):
+    try:
+        with open(RPR_GECMIS_KLASOR / dosya_adi, "rb") as f:
+            return pickle.load(f)
+    except Exception:
+        return None
+
+def rpr_gecmis_sil_yerel(dosya_adi: str):
+    try:
+        (RPR_GECMIS_KLASOR / dosya_adi).unlink(missing_ok=True)
+        index = [k for k in rpr_gecmis_listele_yerel() if k["dosya"] != dosya_adi]
+        RPR_GECMIS_INDEX.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+baslik_col, sorgu_col = st.columns([4, 1.4])
+with baslik_col:
+    render_page_header(
+        "Pazar Analiz Raporu",
+        "Seçilen bölge ve kriterlere göre kapsamlı pazar analizi ve PDF/Word raporu"
+    )
+with sorgu_col:
+    st.write("")
+    analiz_btn = st.button("🆕 Yeni Sorgu\n(Revy'den Çek)", type="primary", use_container_width=True, key="rpr_analiz",
+        help="Revy'den TAZE veri çeker. Mahalle ve Mülk Türü filtreleri zaten çekilmiş veri üzerinde anında uygulanır.")
+
+with st.expander("📚 Geçmiş Taramalar (Ham Veri Arşivi)", expanded=False):
+    st.caption(
+        "Her başarılı 'Yeni Sorgu' taraması burada HAM VERİSİYLE saklanır. "
+        "'Yükle' ile Revy'ye hiç gitmeden anında geri getirebilirsin."
+    )
+    _rpr_gecmis_yerel = rpr_gecmis_listele_yerel()
+    if not _rpr_gecmis_yerel:
+        st.info("Henüz arşivlenmiş bir tarama yok.")
+    else:
+        st.caption(f"{len(_rpr_gecmis_yerel)} kayıtlı tarama")
+        for _rg in _rpr_gecmis_yerel:
+            _rc1, _rc2, _rc3, _rc4, _rc5 = st.columns([2.5, 1.3, 1.2, 1, 1])
+            with _rc1:
+                st.markdown(f'<div style="font-size:13px;font-weight:700;color:#0f172a;padding:6px 0;">{_rg.get("etiket","")}</div>', unsafe_allow_html=True)
+            with _rc2:
+                st.markdown(f'<div style="font-size:11px;color:#64748b;padding:6px 0;">🕐 {_rg.get("zaman","-")}</div>', unsafe_allow_html=True)
+            with _rc3:
+                st.markdown(f'<div style="font-size:12px;color:#355C7D;font-weight:700;padding:6px 0;">Aktif:{_rg.get("aktif_n",0)} Pasif:{_rg.get("pasif_n",0)}</div>', unsafe_allow_html=True)
+            with _rc4:
+                if st.button("📂 Yükle", key=f"rpr_gecmis_yukle_yerel_{_rg['dosya']}", use_container_width=True):
+                    _paket = rpr_gecmis_yukle_yerel(_rg["dosya"])
+                    if _paket is not None:
+                        st.session_state["rpr_aktif_ham"] = _paket["aktif"]
+                        st.session_state["rpr_pasif_ham"] = _paket["pasif"]
+                        st.session_state["rpr_meta"] = _paket["meta"]
+                        st.toast(f"'{_rg.get('etiket','')}' yüklendi ✓")
+                        st.rerun()
+                    else:
+                        st.error("Bu kayıt yüklenemedi.")
+            with _rc5:
+                if st.button("🗑", key=f"rpr_gecmis_sil_yerel_{_rg['dosya']}", use_container_width=True, help="Bu arşiv kaydını sil"):
+                    rpr_gecmis_sil_yerel(_rg["dosya"])
+                    st.toast("Kayıt silindi.")
+                    st.rerun()
+            st.divider()
 
 # ─── YARDIMCI FONKSİYONLAR ────────────────────────────────────────────────────
 def _fmt(v, suffix="₺", decimals=0):
@@ -174,7 +273,7 @@ if _gecmis:
             with gc2:
                 if st.button("📂 Yükle", key=f"rpr_yukle_{_g['id']}", use_container_width=True):
                     rapor_gecmis_yukle_filtre(_g)
-                    st.toast("Filtre yüklendi — Pazar Analizi Yap'a basın ✓")
+                    st.toast("Filtre yüklendi — Yeni Sorgu'ya basın ✓")
                     st.rerun()
             with gc3:
                 if st.button("🗑", key=f"rpr_sil_{_g['id']}", use_container_width=True):
@@ -215,8 +314,9 @@ with st.expander("🔍 Rapor Filtresi", expanded=True):
 
 btn_col1, btn_col2 = st.columns([3, 1])
 with btn_col2:
-    analiz_btn = st.button("📊 Pazar Analizi Yap", type="primary",
-        use_container_width=True, key="rpr_analiz")
+    filtrele_btn = st.button("🔍 Filtrele", type="primary",
+        use_container_width=True, key="rpr_filtrele_btn",
+        help="Revy'ye gitmez — zaten çekilmiş ham veri üzerinde Mahalle/Mülk Türü filtresini anında uygular.")
 
 # ─── VERİ ÇEKME ────────────────────────────────────────────────────────────────
 DONEM_GUN = {
@@ -293,29 +393,20 @@ if analiz_btn:
             st.warning(f"Filtre aktif: {filtre_aktif}")
             st.warning(f"Filtre pasif: {filtre_pasif}")
 
-        if sec_mah:
-            if not df_aktif.empty and "Mahalle" in df_aktif.columns:
-                df_aktif = df_aktif[df_aktif["Mahalle"].isin(sec_mah)]
-            if not df_pasif.empty and "Mahalle" in df_pasif.columns:
-                df_pasif = df_pasif[df_pasif["Mahalle"].isin(sec_mah)]
-
-        if sec_tur:
-            if not df_aktif.empty and "Mülk türü" in df_aktif.columns:
-                df_aktif = df_aktif[df_aktif["Mülk türü"].isin(sec_tur)]
-            if not df_pasif.empty and "Mülk türü" in df_pasif.columns:
-                df_pasif = df_pasif[df_pasif["Mülk türü"].isin(sec_tur)]
+        # NOT: Mahalle/Mülk Türü filtresi artık BURADA uygulanmıyor —
+        # ham veri saklanıyor, filtre her rerun'da ayrıca uygulanıyor
+        # (bkz. "RAPOR GÖRÜNTÜLEME" öncesi blok). Böylece "Filtrele"
+        # butonu Revy'ye gitmeden anında çalışabiliyor.
 
         _baslik_parcalar = []
         if sec_ilce: _baslik_parcalar.append(" / ".join(sec_ilce))
-        if sec_mah:  _baslik_parcalar.append(", ".join(sec_mah))
         if sec_islem: _baslik_parcalar.append(" + ".join(sec_islem))
         if sec_mulk:  _baslik_parcalar.append(" + ".join(sec_mulk))
-        if sec_tur:   _baslik_parcalar.append(", ".join(sec_tur[:2]))
         _baslik_parcalar.append(pasif_gun)
         auto_baslik = " · ".join(_baslik_parcalar)
 
-        st.session_state["rpr_aktif"] = df_aktif
-        st.session_state["rpr_pasif"] = df_pasif
+        st.session_state["rpr_aktif_ham"] = df_aktif
+        st.session_state["rpr_pasif_ham"] = df_pasif
         st.session_state["rpr_meta"] = {
             "ilce": sec_ilce, "mah": sec_mah, "islem": sec_islem,
             "mulk": sec_mulk, "tur": sec_tur, "donem": pasif_gun,
@@ -325,6 +416,7 @@ if analiz_btn:
         }
 
         rapor_gecmis_kaydet(st.session_state["rpr_meta"], len(df_aktif), len(df_pasif))
+        rpr_gecmis_kaydet_yerel(df_aktif, df_pasif, st.session_state["rpr_meta"])
         pb.progress(100, text="Tamamlandı!")
         durum_ph.success(f"✅ Aktif: {len(df_aktif)} ilan | Pasif ({pasif_gun}): {len(df_pasif)} ilan")
 
@@ -333,12 +425,30 @@ if analiz_btn:
         pb.empty()
 
 # ─── RAPOR GÖRÜNTÜLEME ────────────────────────────────────────────────────────
-if "rpr_aktif" not in st.session_state:
-    st.info("👆 Filtreleri seçip **Pazar Analizi Yap** butonuna basın.")
+if "rpr_aktif_ham" not in st.session_state:
+    st.info("👆 Filtreleri seçip **Yeni Sorgu** butonuna basın.")
     st.stop()
 
-df_a = st.session_state["rpr_aktif"]
-df_p = st.session_state["rpr_pasif"]
+# Mahalle / Mülk Türü — HAM veri üzerinde HER ÇALIŞMADA uygulanan yerel filtre
+# (Revy'ye gitmeden, "Filtrele" butonuna da ihtiyaç duymadan zaten anında
+# uygulanır — buton sadece kullanıcıya görsel bir "uygulandı" hissi verir).
+df_a = st.session_state["rpr_aktif_ham"].copy()
+df_p = st.session_state["rpr_pasif_ham"].copy()
+
+if sec_mah:
+    if not df_a.empty and "Mahalle" in df_a.columns:
+        df_a = df_a[df_a["Mahalle"].isin(sec_mah)]
+    if not df_p.empty and "Mahalle" in df_p.columns:
+        df_p = df_p[df_p["Mahalle"].isin(sec_mah)]
+
+if sec_tur:
+    if not df_a.empty and "Mülk türü" in df_a.columns:
+        df_a = df_a[df_a["Mülk türü"].isin(sec_tur)]
+    if not df_p.empty and "Mülk türü" in df_p.columns:
+        df_p = df_p[df_p["Mülk türü"].isin(sec_tur)]
+
+st.session_state["rpr_aktif"] = df_a
+st.session_state["rpr_pasif"] = df_p
 meta = st.session_state["rpr_meta"]
 
 if df_a.empty and df_p.empty:
@@ -346,7 +456,23 @@ if df_a.empty and df_p.empty:
     st.stop()
 
 def hazirla(df, pasif=False):
-    if df.empty: return df
+    if df.empty:
+        # Boş sonuç da geçerli bir durum (örn. aktif ilan yok) —
+        # aşağıdaki rapor kodu __birim/__fiyat/__m2/__sure/__ofis
+        # sütunlarını bulamazsa KeyError verir. 0 satırlı ama
+        # doğru sütunlu bir df döndürerek bunu önlüyoruz.
+        df = df.copy()
+        df["__fiyat"] = pd.Series(dtype=float)
+        df["__m2"]    = pd.Series(dtype=float)
+        df["__birim"] = pd.Series(dtype=float)
+        df["__sure"]  = pd.Series(dtype=float)
+        df["__ofis"]  = pd.Series(dtype=str)
+        df["__tarih"] = pd.Series(dtype="datetime64[ns]")
+        df["__ay"]    = pd.Series(dtype=object)
+        if pasif:
+            df["__kalktarih"] = pd.Series(dtype="datetime64[ns]")
+            df["__kalk_ay"]   = pd.Series(dtype=object)
+        return df
     df = df.copy()
     df["__fiyat"] = df.get("Fiyat", pd.Series(dtype=float)).apply(parse_num)
     df["__m2"]    = pd.to_numeric(df.get("M2", pd.Series(dtype=float)), errors="coerce")
@@ -414,7 +540,37 @@ absorp = (kapanan / donem_bas_stok_n * 100) if donem_bas_stok_n > 0 else 0
 med_sure_p = df_p["__sure"].median() if not df_p.empty else None
 med_sure_a = df_a["__sure"].median() if not df_a.empty else None
 
-if absorp > 70:
+# ── TÜİK İLÇE HACİM SINIFI ──────────────────────────────────────────────────
+# Bu, DUSUK_HACIM_ESIGI kontrolünden FARKLI bir şey: o, BU RAPORUN kendi
+# örneklem büyüklüğüne (stok/kapanan sayısı) bakıyordu — mahalle bazlı
+# filtrelemede bile küçük çıkabilir. Bu ise TÜİK'in resmi 2025 verisine göre
+# İLÇENİN GENELİNDE pazar ne kadar büyük, onu gösteriyor — ikisi birlikte
+# daha eksiksiz bir bağlam veriyor.
+_ilce_hacim_sinifi_seti = set(hacim_sinifi(i) for i in meta["ilce"]) if meta.get("ilce") else set()
+if len(_ilce_hacim_sinifi_seti) == 1:
+    tuik_hacim = next(iter(_ilce_hacim_sinifi_seti))
+elif len(_ilce_hacim_sinifi_seti) > 1:
+    tuik_hacim = f"Karma ({len(meta['ilce'])} ilçe)"
+else:
+    tuik_hacim = "Bilinmiyor"
+
+# ── DÜŞÜK HACİM KONTROLÜ ─────────────────────────────────────────────────────
+# NOT: Dönem başı stok çok küçükse (ör. 5), yüzde (absorpsiyon) rakamı
+# istatistiksel olarak anlamsız/gürültülü oluyor — 5 stoktan 13 kapanış
+# %260 gibi aşırı bir sayı üretip yanlışlıkla "Hızlı Piyasa" etiketine yol
+# açabiliyor, hele "şu an 0 aktif ilan" varken bu hiç doğru bir sinyal değil.
+# Bu yüzden örneklem çok küçükse (stok VEYA kapanan sayısı eşik altındaysa)
+# hız sınıflandırması yerine "Yetersiz Veri / Düşük Hacim" etiketi veriyoruz.
+DUSUK_HACIM_ESIGI = 10
+yetersiz_veri = (donem_bas_stok_n < DUSUK_HACIM_ESIGI) or (kapanan < DUSUK_HACIM_ESIGI)
+
+if yetersiz_veri:
+    pazar_hiz = "⚠️ Yetersiz Veri / Düşük Hacim"
+    pazar_tip = (
+        f"Bu bölgede ilan sirkülasyonu çok düşük (dönem başı stok: {donem_bas_stok_n}, "
+        f"kapanan: {kapanan}) — yüzdesel pazar hızı bu örneklemde güvenilir değil, yorumlanmamalı"
+    )
+elif absorp > 70:
     pazar_hiz = "🔥 Hızlı Piyasa"
     pazar_tip = "Satıcı piyasası — ilanlar hızlı kapanıyor, fiyatlar yükseliş baskısında"
 elif absorp > 45:
@@ -427,18 +583,31 @@ else:
     pazar_hiz = "❄️ Yavaş Piyasa"
     pazar_tip = "Alıcı piyasası — çok ilan var, az alıcı. Satıcılar fiyat indirimine açık"
 
+# Hız + TÜİK hacim birleşik yorum (rapor metnine ek bağlam olarak eklenir)
+if not yetersiz_veri and tuik_hacim not in ("Bilinmiyor", ""):
+    if tuik_hacim in ("Yüksek Hacim", "Orta-Üst Hacim"):
+        hacim_notu = f"Bu ilçe TÜİK 2025 verisine göre **{tuik_hacim.lower()}** bir pazar — bu oran güvenilir bir sinyal."
+    else:
+        hacim_notu = (
+            f"Ancak bu ilçe TÜİK 2025 verisine göre **{tuik_hacim.lower()}** bir pazar — "
+            f"yüzdesel oran doğru olsa da, ilçe genelinde işlem hacmi zaten düşük, temkinli yorumla."
+        )
+else:
+    hacim_notu = ""
+
 # ── PATCH 2: FSBO — kesin eşleşme ("Mülk Sahibi") ────────────────────────────
 fsbo_a = (df_a["İlan sahibi türü"] == "Mülk Sahibi").sum() if "İlan sahibi türü" in df_a.columns else 0
 fsbo_p = (df_p["İlan sahibi türü"] == "Mülk Sahibi").sum() if "İlan sahibi türü" in df_p.columns else 0
 fsbo_oran = fsbo_a / len(df_a) * 100 if len(df_a) > 0 else 0
 
-k = st.columns(5)
+k = st.columns(6)
 kart_data = [
     ("Şu An Piyasadaki İlan",   str(len(df_a)),                "aktif ilanlar",           "#1e2d3d"),
     (f"Kapanan İlan ({meta['donem']})", str(len(df_p)),        "satılan/yayından kalkan",  "#1e2d3d"),
-    ("Pazar Hızı",              f"%{absorp:.0f}",               pazar_hiz,                 "#059669" if absorp > 45 else "#d97706"),
+    ("Pazar Hızı",              f"%{absorp:.0f}",               pazar_hiz,                 ("#64748b" if yetersiz_veri else ("#059669" if absorp > 45 else "#d97706"))),
     ("Medyan Satış Fiyatı/m²",  _fmt(df_a["__birim"].median()), "aktif ilanlar",           "#1e40af"),
     ("Acentesiz İlan (FSBO)",   f"{fsbo_a} aktif",             f"geçmişte: {fsbo_p} ilan · %{fsbo_oran:.0f} pazar payı", "#7c3aed"),
+    ("İlçe Hacim Sınıfı (TÜİK)", tuik_hacim,                    "2025 resmi konut satış verisine göre", hacim_rozet_rengi(tuik_hacim)),
 ]
 for col, (lbl, val, sub, color) in zip(k, kart_data):
     col.markdown(f"""<div style="background:white;border:1px solid #dce4ee;border-radius:10px;
@@ -491,6 +660,8 @@ if pd.notna(med_sure_a) and pd.notna(med_sure_p):
 st.info(f"""**📊 Pazar Değerlendirmesi**
 
 **{pazar_hiz}** — {pazar_tip}.
+
+{hacim_notu}
 
 {fiyat_trend} {sure_yorum}
 
@@ -923,7 +1094,7 @@ st.divider()
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown("### 📥 Rapor Çıktısı")
 
-dl1, dl2 = st.columns(2)
+dl1, dl2, dl3 = st.columns(3)
 
 with dl1:
     if st.button("📄 PDF Raporu Oluştur", use_container_width=True, key="rpr_pdf"):
@@ -1203,3 +1374,58 @@ with dl2:
                 st.success("✅ Word hazır!")
             except Exception as e:
                 st.error(f"Word hatası: {e}")
+
+with dl3:
+    if st.button("📊 Excel Raporu Oluştur", use_container_width=True, key="rpr_excel"):
+        with st.spinner("Excel oluşturuluyor..."):
+            try:
+                import io as _io
+
+                df_a_x = df_a.copy()
+                df_a_x["Durum"] = "Aktif"
+                df_p_x = df_p.copy()
+                df_p_x["Durum"] = "Pasif"
+                df_excel = pd.concat([df_a_x, df_p_x], ignore_index=True, sort=False)
+
+                # İç hesaplama sütunlarını okunabilir isimlere çevir
+                rename_map = {
+                    "__birim": "m² Fiyatı",
+                    "__fiyat": "Fiyat",
+                    "__m2": "M²",
+                    "__sure": "İlan Süresi (gün)",
+                    "__ay": "Giriş Ayı",
+                    "__kalk_ay": "Kalkış Ayı",
+                    "__ofis": "Ofis",
+                    "__ofis_g": "Ofis (Düzeltilmiş)",
+                }
+                df_excel = df_excel.rename(columns={k: v for k, v in rename_map.items() if k in df_excel.columns})
+
+                # Kalan yardımcı/geçici sütunları (__dom, __yas, _dk vb.) çıkar
+                _drop = [c for c in df_excel.columns if c.startswith("__") or c.startswith("_")]
+                df_excel = df_excel.drop(columns=_drop, errors="ignore")
+
+                # Durum en başa, ardından okunabilir sıralama
+                _cols = ["Durum"] + [c for c in df_excel.columns if c != "Durum"]
+                df_excel = df_excel[_cols]
+
+                buf = _io.BytesIO()
+                with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+                    df_excel.to_excel(writer, index=False, sheet_name="İlanlar")
+                    ws = writer.sheets["İlanlar"]
+                    ws.freeze_panes = "A2"
+                    ws.auto_filter.ref = ws.dimensions
+                    for i, col in enumerate(df_excel.columns, start=1):
+                        try:
+                            maxlen = max(df_excel[col].astype(str).map(len).max(), len(str(col))) + 2
+                        except Exception:
+                            maxlen = len(str(col)) + 2
+                        ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = min(maxlen, 42)
+                buf.seek(0)
+                dosya_adi = f"pazar_ilanlari_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+                st.download_button("⬇️ Excel İndir", data=buf.getvalue(),
+                    file_name=dosya_adi,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True, key="rpr_excel_dl")
+                st.success(f"✅ Excel hazır! ({len(df_excel)} ilan — {len(df_a)} aktif, {len(df_p)} pasif)")
+            except Exception as e:
+                st.error(f"Excel hatası: {e}")

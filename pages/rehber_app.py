@@ -1,6 +1,8 @@
 import base64
 import re
+from io import BytesIO
 from pathlib import Path
+from datetime import datetime
 from urllib.parse import quote
 
 import pandas as pd
@@ -90,45 +92,101 @@ KPI_IKONLAR = {
 
 @st.cache_data(ttl=3600)
 def load_data():
-    """Supabase'den ofis ve danışman verilerini çek."""
+    """Supabase'den ofis ve danışman verilerini tam sayfalı çek."""
     import os
+
+    def _select_all_active(supa, table_name, order_cols=None, page_size=1000):
+        """
+        Supabase tek istekte varsayılan olarak sınırlı sayıda satır döndürebilir.
+        Rehber danışman sayısı 1000'i geçtiği için tüm sayfaları range() ile çeker.
+        """
+        rows = []
+        start = 0
+        order_cols = order_cols or []
+
+        while True:
+            query = supa.table(table_name).select("*").eq("aktif", True)
+
+            # Sayfalama stabil olsun diye sıralama ekliyoruz.
+            for col in order_cols:
+                query = query.order(col)
+
+            res = query.range(start, start + page_size - 1).execute()
+            batch = res.data or []
+            rows.extend(batch)
+
+            if len(batch) < page_size:
+                break
+
+            start += page_size
+
+        return rows
+
     try:
         from supabase import create_client
+
         url = (os.environ.get("SUPABASE_URL")
                or st.secrets.get("SUPABASE_URL", "")
                or st.secrets.get("supabase", {}).get("url", ""))
-        key = (os.environ.get("SUPABASE_KEY")
+
+        key = (os.environ.get("SUPABASE_SERVICE_KEY")
+               or os.environ.get("SUPABASE_KEY")
+               or st.secrets.get("SUPABASE_SERVICE_KEY", "")
                or st.secrets.get("SUPABASE_KEY", "")
-               or st.secrets.get("supabase", {}).get("publishable_key", "")
-               or st.secrets.get("supabase", {}).get("secret_key", ""))
+               or st.secrets.get("supabase", {}).get("service_key", "")
+               or st.secrets.get("supabase", {}).get("secret_key", "")
+               or st.secrets.get("supabase", {}).get("publishable_key", ""))
+
         supa = create_client(url, key)
 
-        ofis_res    = supa.table("rehber_ofisler").select("*").eq("aktif", True).execute()
-        danisman_res = supa.table("rehber_danismanlar").select("*").eq("aktif", True).execute()
+        ofis_data = _select_all_active(
+            supa,
+            "rehber_ofisler",
+            order_cols=["ofis_adi"],
+            page_size=1000,
+        )
 
-        ofis     = pd.DataFrame(ofis_res.data).fillna("")
-        danisman = pd.DataFrame(danisman_res.data).fillna("")
+        danisman_data = _select_all_active(
+            supa,
+            "rehber_danismanlar",
+            order_cols=["ofis_adi", "isim"],
+            page_size=1000,
+        )
+
+        ofis = pd.DataFrame(ofis_data).fillna("")
+        danisman = pd.DataFrame(danisman_data).fillna("")
 
         # Kolon adlarını rehber_app.py ile uyumlu hale getir
-        ofis     = ofis.rename(columns={"ofis_adi": "ofis"})
+        ofis = ofis.rename(columns={"ofis_adi": "ofis"})
         danisman = danisman.rename(columns={"ofis_adi": "ofis"})
 
     except Exception as e:
         st.error(f"Supabase bağlantı hatası: {e}")
-        ofis     = pd.DataFrame(columns=["ofis","telefon","mail","il","ilce",
-                                          "mahalle","adres","ofis_link","bolge_tipi",
-                                          "bolge_aksi","logo_url","logo_dosya"])
-        danisman = pd.DataFrame(columns=["ofis","isim","unvan","telefon",
-                                          "mail","foto_url","profil_link"])
+        ofis = pd.DataFrame(columns=["ofis", "telefon", "mail", "il", "ilce",
+                                     "mahalle", "adres", "ofis_link", "bolge_tipi",
+                                     "bolge_aksi", "logo_url", "logo_dosya"])
+        danisman = pd.DataFrame(columns=["ofis", "isim", "unvan", "telefon",
+                                         "mail", "foto_url", "profil_link"])
 
-    # Danışman sayısını ofis tablosuna ekle
+    # Boş veri ihtimalinde groupby/merge patlamasın.
+    if "ofis" not in ofis.columns:
+        ofis["ofis"] = ""
+    if "ofis" not in danisman.columns:
+        danisman["ofis"] = ""
+
+    # Danışman sayısını ofis tablosuna gerçek danışman tablosundan ekle.
     sayilar = danisman.groupby("ofis").size().reset_index(name="danisman_sayisi")
-    ofis    = ofis.drop(columns=["danisman_sayisi"], errors="ignore")
-    ofis    = ofis.merge(sayilar, on="ofis", how="left")
+    ofis = ofis.drop(columns=["danisman_sayisi"], errors="ignore")
+    ofis = ofis.merge(sayilar, on="ofis", how="left")
     ofis["danisman_sayisi"] = ofis["danisman_sayisi"].fillna(0).astype(int)
 
+    # Danışman satırlarına ofis bölge bilgilerini ekle.
+    gerekli_kolonlar = ["ofis", "il", "ilce", "mahalle", "bolge_aksi"]
+    for col in gerekli_kolonlar:
+        if col not in ofis.columns:
+            ofis[col] = ""
     danisman = danisman.merge(
-        ofis[["ofis", "il", "ilce", "mahalle", "bolge_aksi"]],
+        ofis[gerekli_kolonlar],
         on="ofis",
         how="left",
         suffixes=("", "_ofis")
@@ -161,6 +219,10 @@ def logo_b64(yol):
     except (FileNotFoundError, OSError):
         return None
 
+
+if st.button("🔄 Rehber verisini yenile"):
+    load_data.clear()
+    st.rerun()
 
 danisman_df, ofis_df = load_data()
 
@@ -666,6 +728,49 @@ for col, (label, value, ikon_anahtari) in zip(
             f'</div>',
             unsafe_allow_html=True,
         )
+
+@st.cache_data
+def rehber_excel_hazirla(ofis_df: pd.DataFrame, danisman_df: pd.DataFrame) -> bytes:
+    """Tüm Startkey ofislerini ve danışmanlarını iki sekmeli bir Excel dosyası olarak hazırlar."""
+    ofis_export = ofis_df.drop(columns=["logo_url", "logo_dosya"], errors="ignore").copy()
+    danisman_export = danisman_df.drop(columns=["foto_url"], errors="ignore").copy()
+
+    kolon_adlari_ofis = {
+        "ofis": "Ofis Adı", "telefon": "Telefon", "mail": "Mail", "il": "İl",
+        "ilce": "İlçe", "mahalle": "Mahalle", "adres": "Adres",
+        "ofis_link": "Ofis Linki", "bolge_tipi": "Bölge Tipi",
+        "bolge_aksi": "Bölge / Aks", "danisman_sayisi": "Danışman Sayısı",
+    }
+    kolon_adlari_dan = {
+        "ofis": "Ofis Adı", "isim": "İsim", "unvan": "Unvan", "telefon": "Telefon",
+        "mail": "Mail", "profil_link": "Profil Linki", "il": "İl", "ilce": "İlçe",
+        "mahalle": "Mahalle", "bolge_aksi": "Bölge / Aks",
+    }
+    ofis_export = ofis_export.rename(columns=kolon_adlari_ofis)
+    danisman_export = danisman_export.rename(columns=kolon_adlari_dan)
+
+    buf = BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        ofis_export.to_excel(writer, index=False, sheet_name="Ofisler")
+        danisman_export.to_excel(writer, index=False, sheet_name="Danışmanlar")
+    buf.seek(0)
+    return buf.getvalue()
+
+dl_bosluk, dl_yenile, dl_buton = st.columns([4.2, 1.4, 1.4])
+with dl_yenile:
+    if st.button("🔄 Rehberi Yenile", use_container_width=True,
+                 help="Supabase'den taze veri çeker (normalde 1 saat önbelleğe alınır)"):
+        load_data.clear()
+        st.toast("Rehber yenilendi ✓")
+        st.rerun()
+with dl_buton:
+    st.download_button(
+        "📥 Rehberi Excel'e Aktar",
+        data=rehber_excel_hazirla(ofis_df, danisman_df),
+        file_name=f"startkey_rehber_{datetime.now().strftime('%Y%m%d')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+    )
 
 aks_ozet = (
     ofis_df.groupby("bolge_aksi")
