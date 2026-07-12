@@ -19,14 +19,57 @@ if st.button("← Çalışma Alanına Dön", key="tm_geri_kokpit"):
     st.switch_page("pages/gd_calisma_alani.py")
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+def _mail_metni_temizle(ham_html):
+    """Ham HTML mail gövdesini okunabilir düz metne çevirir. Mail istemcileri
+    (Yandex, Outlook vb.) gövdeyi HTML olarak sakladığı için (<div>, <br />
+    gibi etiketlerle) bu dönüşüm olmadan etiketler ekranda çıplak metin gibi
+    görünüyordu. <br>/</div> gibi satır-sonu niteliğindeki etiketleri gerçek
+    satır sonuna çevirir, kalan etiketleri siler, &nbsp; gibi HTML karakter
+    kodlarını çözer."""
+    if not ham_html:
+        return ""
+    metin = re.sub(r'(?i)<br\s*/?>', '\n', ham_html)
+    metin = re.sub(r'(?i)</(div|p|li|tr)>', '\n', metin)
+    metin = re.sub(r'(?i)<[^>]+>', '', metin)
+    metin = html.unescape(metin)
+    metin = re.sub(r'\n{3,}', '\n\n', metin)
+    return metin.strip()
+
+
+def _sayfali_cek(sorgu_fn, sayfa_boyutu=1000):
+    """Supabase/PostgREST varsayılan olarak tek sorguda en fazla 1000 satır
+    döndürür. .range() kullanmadan büyük bir tabloyu (örn. haftalık tüm İzmir
+    taraması sonrası şişen izmir_pazar_ilanlar) okumaya çalışırsan, hata
+    ALMADAN sessizce ilk 1000 kaydı döndürür — eşleşme motoru geri kalanını
+    hiç görmez. Bu yardımcı fonksiyon, sorgu bitene kadar sayfa sayfa okur.
+
+    sorgu_fn(baslangic, bitis) -> Supabase response nesnesi almalı
+    (yani .range(baslangic, bitis).execute() çağrısını içeren bir lambda)."""
+    tum_satirlar = []
+    baslangic = 0
+    while True:
+        resp = sorgu_fn(baslangic, baslangic + sayfa_boyutu - 1)
+        satirlar = resp.data or []
+        tum_satirlar.extend(satirlar)
+        if len(satirlar) < sayfa_boyutu:
+            break
+        baslangic += sayfa_boyutu
+    return tum_satirlar
+
+
 @st.cache_data(ttl=120)
 def _tum_portfoyler_esleme_icin():
     """Eşleşme motoru için TÜM portföyleri çeker — aktif/pasif ayrımını
     match_engine kendi içinde yapıyor (coalesce(aktif,true) mantığı),
-    burada filtre uygulamıyoruz. Sadece okuma, veritabanına yazmıyor."""
+    burada filtre uygulamıyoruz. Sadece okuma, veritabanına yazmıyor.
+
+    ÖNEMLİ DÜZELTME: Eskiden .range() olmadan select("*").execute()
+    kullanılıyordu — portfoyler tablosu 1000 satırı geçtiğinde eşleşme
+    motoru sessizce eksik veriyle çalışırdı. Artık sayfalanmış okunuyor."""
     try:
-        r = get_client().table("portfoyler").select("*").execute()
-        return r.data or []
+        return _sayfali_cek(
+            lambda b, s: get_client().table("portfoyler").select("*").range(b, s).execute()
+        )
     except Exception:
         return []
 
@@ -35,16 +78,23 @@ def _tum_portfoyler_esleme_icin():
 def _startkey_agi_ilanlari_esleme_icin():
     """izmir_pazar_ilanlar'dan Startkey ağı ilanlarını çeker (marka filtresi
     match_engine içinde uygulanıyor, burada sadece aktif olanları çekip
-    veri boyutunu makul tutuyoruz). Sadece okuma."""
+    veri boyutunu makul tutuyoruz). Sadece okuma.
+
+    ÖNEMLİ DÜZELTME: Haftalık tüm İzmir taraması gibi büyük hacimli
+    çekimlerden sonra bu tablo kolayca 1000 satırı geçebilir. Eskiden
+    .range() olmadan çekiliyordu, bu da sessiz veri kaybına yol açardı.
+    Artık sayfalanmış okunuyor."""
     try:
-        r = (
-            get_client().table("izmir_pazar_ilanlar")
-            .select("*")
-            .eq("marka", "startkey")
-            .eq("aktif", True)
-            .execute()
+        return _sayfali_cek(
+            lambda b, s: (
+                get_client().table("izmir_pazar_ilanlar")
+                .select("*")
+                .eq("marka", "startkey")
+                .eq("aktif", True)
+                .range(b, s)
+                .execute()
+            )
         )
-        return r.data or []
     except Exception:
         return []
 
@@ -1256,8 +1306,10 @@ def render_eslesme_karti(sonuc, index=0, talep_kaydi=None):
             # Artık ilan_linki olmayan HER kayıt Taleplerim sayfasından
             # ayrılmadan, satır içi açılıyor.
             detay_key = f"tm_esleme_detay_acik_{index}_{p['id']}"
-            if st.button("Detay", key=f"tm_esleme_detay_btn_{index}_{p['id']}", use_container_width=True):
-                st.session_state[detay_key] = not st.session_state.get(detay_key, False)
+            detay_acik = st.session_state.get(detay_key, False)
+            if st.button("✕ Kapat" if detay_acik else "Detay", key=f"tm_esleme_detay_btn_{index}_{p['id']}",
+                         use_container_width=True, type="primary" if detay_acik else "secondary"):
+                st.session_state[detay_key] = not detay_acik
         else:
             st.button("İlan Aç", key=f"tm_no_link_{index}", disabled=True, use_container_width=True)
     with a2:
@@ -1267,8 +1319,10 @@ def render_eslesme_karti(sonuc, index=0, talep_kaydi=None):
             st.rerun(scope="app")
     with a3:
         note_toggle_key = f"tm_match_note_open_{talep_id}_{index}"
-        if st.button("Not", key=f"tm_note_match_{talep_id}_{index}", use_container_width=True):
-            st.session_state[note_toggle_key] = not st.session_state.get(note_toggle_key, False)
+        not_acik = st.session_state.get(note_toggle_key, False)
+        if st.button("✕ Kapat" if not_acik else "Not", key=f"tm_note_match_{talep_id}_{index}",
+                     use_container_width=True, type="primary" if not_acik else "secondary"):
+            st.session_state[note_toggle_key] = not not_acik
 
     st.markdown('<div class="match-action-note">Portföyü müşteriye göndermek için önce “Seç” ile gönderim paketine ekleyin.</div>', unsafe_allow_html=True)
 
@@ -1294,6 +1348,7 @@ def render_eslesme_karti(sonuc, index=0, talep_kaydi=None):
                         <b>Danışman:</b> {htmlesc(tam_kayit.get("talep_eden_danisan") or "—")}<br>
                         <b>Ofis:</b> {htmlesc(ofis_etiketi(tam_kayit))}<br>
                         <b>Tarih:</b> {htmlesc(tam_tarih)}<br>
+                        <b>Özet:</b> {htmlesc(tam_kayit.get("ozet") or "—")}<br>
                         <b>Özellikler:</b> {htmlesc(tam_kayit.get("ozellikler") or "—")}<br>
                         <b>Oda/m²:</b> {htmlesc(tam_kayit.get("oda_sayisi_m2") or "—")}<br>
                         <b>İşlem/Mülk:</b> {htmlesc(tam_kayit.get("islem_tipi") or "—")} · {htmlesc(tam_kayit.get("mulk_tipi") or "—")}
@@ -1301,6 +1356,10 @@ def render_eslesme_karti(sonuc, index=0, talep_kaydi=None):
                     ''',
                     unsafe_allow_html=True,
                 )
+                tam_mail_icerik = tam_kayit.get("mail_icerigi") or ""
+                if tam_mail_icerik:
+                    with st.expander("📧 Mail İçeriği"):
+                        st.text(_mail_metni_temizle(str(tam_mail_icerik))[:2000])
 
     if st.session_state.get(note_toggle_key):
         note_text = st.text_area("Eşleşme notu", key=f"tm_match_note_text_{talep_id}_{index}", height=70,
@@ -1405,7 +1464,7 @@ def render_talep_detayi_panel(sel):
     mail_icerik = sel.get("mail_icerigi", "")
     if mail_icerik:
         with st.expander("📧 Mail İçeriği"):
-            st.text(str(mail_icerik)[:2000])
+            st.text(_mail_metni_temizle(str(mail_icerik))[:2000])
 
     st.markdown('<hr class="dp-divider">', unsafe_allow_html=True)
     ab1, ab2 = st.columns([1, 1])
@@ -1774,6 +1833,7 @@ def render_talep_liste_view(liste, prefix, musteri_map=None):
         kaynak_lbl, kaynak_fg, kaynak_bg = _kaynak_tag_style(v)
         tarih_lbl, tarih_fg, tarih_bg = _talep_panel_date_badge(v)
         durum_lbl, durum_fg, durum_bg = _talep_panel_status(v)
+        row_bg = "#EEF4FA" if idx % 2 == 1 else "#ffffff"
 
         row_cols = st.columns([1.0, .7, .65, 2.15, 1.1, 1.0, .9, .75, .5, .38], gap="small")
         active_wrap_open = '<div class="talep-list-row-active-marker">' if secili else ''
@@ -1781,34 +1841,36 @@ def render_talep_liste_view(liste, prefix, musteri_map=None):
 
         with row_cols[0]:
             st.markdown(
-                f'<div class="talep-compact-cell">{active_wrap_open}<span class="talep-compact-tag" style="background:#EEF4FA;color:#355C7D;">{htmlesc(ui["ilce"])}</span>{active_wrap_close}</div>',
+                f'<div class="talep-compact-cell" style="background:{row_bg};">{active_wrap_open}<span class="talep-compact-tag" style="background:#EEF4FA;color:#355C7D;">{htmlesc(ui["ilce"])}</span>{active_wrap_close}</div>',
                 unsafe_allow_html=True,
             )
         with row_cols[1]:
             st.markdown(
-                f'<div class="talep-compact-cell"><span class="talep-compact-tag" style="background:{tip_bg};color:{tip_fg};">{htmlesc(tip_lbl)}</span></div>',
+                f'<div class="talep-compact-cell" style="background:{row_bg};"><span class="talep-compact-tag" style="background:{tip_bg};color:{tip_fg};">{htmlesc(tip_lbl)}</span></div>',
                 unsafe_allow_html=True,
             )
         with row_cols[2]:
             st.markdown(
-                f'<div class="talep-compact-cell"><span class="talep-compact-tag" style="background:{kaynak_bg};color:{kaynak_fg};">{htmlesc(kaynak_lbl)}</span></div>',
+                f'<div class="talep-compact-cell" style="background:{row_bg};"><span class="talep-compact-tag" style="background:{kaynak_bg};color:{kaynak_fg};">{htmlesc(kaynak_lbl)}</span></div>',
                 unsafe_allow_html=True,
             )
         with row_cols[3]:
             st.markdown(
-                f'<div class="talep-compact-cell" style="display:block;padding-top:4px;"><span class="talep-compact-title">{htmlesc(ui["baslik"])}</span><span class="talep-compact-desc">{htmlesc(ui["desc"])}</span></div>',
+                f'<div class="talep-compact-cell" style="display:block;padding-top:4px;background:{row_bg};"><span class="talep-compact-title">{htmlesc(ui["baslik"])}</span><span class="talep-compact-desc">{htmlesc(ui["desc"])}</span></div>',
                 unsafe_allow_html=True,
             )
         with row_cols[4]:
-            st.markdown(f'<div class="talep-compact-cell"><span class="talep-compact-price">{htmlesc(ui["butce"])}</span></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="talep-compact-cell" style="background:{row_bg};"><span class="talep-compact-price">{htmlesc(ui["butce"])}</span></div>', unsafe_allow_html=True)
         with row_cols[5]:
-            st.markdown(f'<div class="talep-compact-cell"><span class="talep-compact-muted">{htmlesc(ui["musteri"])}</span></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="talep-compact-cell" style="background:{row_bg};"><span class="talep-compact-muted">{htmlesc(ui["musteri"])}</span></div>', unsafe_allow_html=True)
         with row_cols[6]:
-            st.markdown(f'<div class="talep-compact-cell"><span class="talep-compact-date" style="background:{tarih_bg};color:{tarih_fg};">{htmlesc(tarih_lbl)}</span></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="talep-compact-cell" style="background:{row_bg};"><span class="talep-compact-date" style="background:{tarih_bg};color:{tarih_fg};">{htmlesc(tarih_lbl)}</span></div>', unsafe_allow_html=True)
         with row_cols[7]:
-            st.markdown(f'<div class="talep-compact-cell"><span class="talep-compact-kpi" style="background:{durum_bg};color:{durum_fg};">{htmlesc(durum_lbl)}</span></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="talep-compact-cell" style="background:{row_bg};"><span class="talep-compact-kpi" style="background:{durum_bg};color:{durum_fg};">{htmlesc(durum_lbl)}</span></div>', unsafe_allow_html=True)
         with row_cols[8]:
-            if st.button("✕ Kapat" if secili else "Aç", key=f"{prefix}_liste_open_{kid}_{idx}", use_container_width=True, type="primary" if secili else "secondary"):
+            if st.button("✕" if secili else "Aç", key=f"{prefix}_liste_open_{kid}_{idx}", use_container_width=True,
+                         type="primary" if secili else "secondary",
+                         help="Kapat" if secili else "Talebi aç"):
                 if secili:
                     st.session_state["tm_selected_id"] = None
                 else:
