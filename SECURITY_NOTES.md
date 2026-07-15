@@ -223,11 +223,55 @@ Tur boyunca elde edilenler:
 
 ---
 
-## Bu turun dışında bırakılan, ayrı bir tur olarak ele alınacak konular
+## İkinci tur — RBAC (rol/ofis bazlı sayfa erişimi)
 
-- **RBAC / rol bazlı sayfa erişimi** — şu an sadece "giriş yapmış mı" kontrol
-  ediliyor, "hangi rol neyi görebilir" henüz yok (`ui_helpers.py`'deki `_can_see`
-  altyapısı var ama tüm izin listeleri boş `[]`)
+**Başlangıç:** 16 Temmuz 2026
+**Kapsam:** Birinci turda sadece "giriş yapmış mı" kontrolü eklenmişti; bu turda
+"hangi rol neyi görebilir" sorusu ele alındı.
+
+### ✅ Kullanıcı Görünümü (`kullanici_sec.py`) ve Mail İşlem (`5_Mail_Islem.py`)'e rol/ofis bazlı erişim
+
+**Karar süreci:** Roller ve kapsamları elicitation ile netleştirildi:
+- **Mail İşlem** → `admin`, `broker`, `yonetici`, `ofis_asistani` erişebilir
+- **Kullanıcı Görünümü** → aynı 4 rol erişebilir, ama ek olarak **ofis kapsamı**
+  filtresi var
+
+**Ofis kapsamı — beklenmedik bir keşif:** Yeni bir Supabase kolonu ya da Excel
+sütunu eklemeye gerek kalmadı — `zeta_personel_listesi.xlsx`'teki `ofis_id`
+sütunu zaten bu ayrımı taşıyordu:
+```
+ofis_id = "zeta_all"  → tüm ofisleri görür (Meltem/admin, Adnan/broker gibi
+                         birden fazla/tüm ofise ortak olanlar)
+ofis_id = "zeta1"/"zeta2" → sadece o ofisi görür (Tolga/broker, Duygu ve
+                         Pınar/yonetici gibi tek ofise bağlı olanlar)
+```
+Kural: `rol == "admin"` **veya** kendi `ofis_id`'si `"zeta_all"` ise → herkesi
+görür; değilse → sadece kendi `ofis_id`'siyle eşleşen personeli görür.
+
+**Bulunan ve düzeltilen yan sorun:** İlk uygulamada rol kontrolü
+`render_navbar()`'dan **önce** çalışıyordu — yani erişimi olmayan biri "yetkin
+yok" mesajını gördüğünde sidebar hiç render olmuyordu, kullanıcı boş bir
+sayfada mahsur kalıyordu (tarayıcı geri tuşundan başka çıkış yolu yoktu). Bu,
+bizim eklediğimiz yeni bir hata değildi — `kullanici_sec.py`'de zaten
+(admin/broker kısıtlamasıyla) vardı, biz sadece daha fazla rolün bu duruma
+düşme ihtimalini artırdık, fark edip düzelttik. `render_navbar()` artık rol
+kontrolünden önce çağrılıyor — erişim reddedilse bile sidebar görünür kalıyor.
+
+**Değişen dosyalar:** `pages/kullanici_sec.py`, `pages/5_Mail_Islem.py`
+
+**Test durumu:** ✅ Tamamlandı ve push edildi (16 Temmuz 2026). Admin (herkesi
+görür), Tolga/broker (sadece Zeta 2, 10 kişi doğrulandı), Kemal/gd (her iki
+sayfaya da erişimi yok, sidebar görünür kaldı) senaryolarıyla test edildi.
+
+**Bilinçli olarak ele alınmayan konu:** GD'lerin sadece kendi verisine
+(müşteri/portföy kayıtları) erişmesi — bu satır bazlı (row-level) bir erişim
+kontrolü, sayfa bazlı RBAC'ten farklı bir konu. Kullanıcının kendi ifadesiyle
+"şu anda kurgulamaya gerek yok", ileride ayrı ele alınacak.
+
+---
+
+## Bu turların dışında bırakılan, ayrı bir tur olarak ele alınacak konular
+
 - **3 navigasyon kaynağının tekilleştirilmesi** (`app.py`'deki `st.Page` kayıtları,
   `ui_helpers.py`'deki `_NAV_SECTIONS`, eski `get_panel_links()`) — bazı sayfalar
   sidebar'dan düşmüş durumda (`eslestirme_motoru.py`, `portfoy_listesi.py`)
@@ -236,10 +280,12 @@ Tur boyunca elde edilenler:
 - **Kozmetik/performans maddeleri** — logo/avatar base64 cache'lenmiyor,
   `render_navbar()` 301 satırlık tek fonksiyon, `portfoylerím.py` dosya adındaki
   ASCII olmayan karakter, aktif sayfa CSS sarmalama tekniğinin güvenilirliği
+- **GD'lerin sadece kendi verisine erişmesi** (satır bazlı erişim kontrolü) —
+  bilinçli olarak ertelendi, ürün kararı netleşince ele alınacak
 
 ---
 
-## Genel prensip (bu tur boyunca izlenen)
+## Genel prensip (her iki tur boyunca izlenen)
 
 Değişiklikler **tek tek, sırayla** uygulandı — hepsini tek pakette yapmak yerine her
 adım ayrı test edilip onaylandıktan sonra bir sonrakine geçildi. Bu, bir şey ters
