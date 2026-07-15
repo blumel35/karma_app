@@ -4,7 +4,7 @@
 import streamlit as st
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from core.auth import giris_yap, sifremi_sifirla
+from core.auth import giris_yap, sifremi_sifirla, set_session_fields
 from core.personel_manager import save_login_session, load_login_session, enrich_session_from_personel
 
 st.markdown("""
@@ -90,22 +90,10 @@ with center:
                         # Excel personel kaydıyla zenginleştir (rol, foto_path, ofis vb.)
                         kullanici = enrich_session_from_personel(kullanici)
 
-                        # ── Güvenli ad / rol üretimi ────────────────────────
-                        ad = (
-                            kullanici.get("ad_soyad")
-                            or kullanici.get("ad")
-                            or kullanici.get("email", "").split("@")[0]
-                        )
-                        rol = kullanici.get("rol") or "danisan"
-
-                        # ── Standart session_state alanları ─────────────────
-                        st.session_state["kullanici"]      = kullanici
-                        st.session_state["user_role"]      = rol
-                        st.session_state["user_name"]      = ad
-                        st.session_state["user_initials"]  = "".join(
-                            w[0].upper() for w in ad.split()[:2] if w
-                        )
-                        st.session_state["kullanici_id"]   = kullanici.get("id", "")
+                        # ── Standart session_state alanları — merkezi fonksiyon ──
+                        set_session_fields(kullanici)
+                        ad = st.session_state["user_name"]
+                        rol = st.session_state["user_role"]
 
                         # ── Local geliştirme: login session'ı kaydet ────────
                         # (Cloud'da load_login_session() kendini otomatik

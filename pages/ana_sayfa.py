@@ -15,16 +15,14 @@ if not oturum_kontrol():
     st.stop()
 
 from core.ui_helpers import render_navbar
+from core.auth import set_session_fields
 
-# ── SESSION SYNC (oturum_kontrol zaten senkronize ediyor, burada
-#    son bir kez daha garanti altına alıyoruz) ───────────────────────────
+# ── SESSION SYNC — merkezi fonksiyon üzerinden (core/auth.py) ─────────────
+# (oturum_kontrol zaten senkronize ediyor, burada son bir kez daha
+#  garanti altına alıyoruz — artık kendi kopya mantığı yok.)
 _k = st.session_state.get("kullanici", {})
-_ad = _k.get("ad_soyad") or _k.get("ad") or _k.get("email", "").split("@")[0]
-st.session_state["user_role"] = _k.get("rol") or "danisan"
-st.session_state["user_name"] = _ad
-st.session_state["user_initials"] = "".join(
-    w[0].upper() for w in _ad.split()[:2] if w
-)
+if _k:
+    set_session_fields(_k)
 
 render_navbar(
     user_role=st.session_state.get("user_role", "danisan"),

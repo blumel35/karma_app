@@ -237,11 +237,13 @@ def _local_restore_enabled() -> bool:
 LOCAL_SESSION_RESTORE = _local_restore_enabled()
 
 
-def _set_session_fields(kullanici: dict) -> None:
+def set_session_fields(kullanici: dict) -> None:
     """
     Standart session_state alanlarını güvenli şekilde yaz.
-    Tüm dosyalarda (giris.py, app.py, oturum_kontrol) aynı
-    mantık kullanılsın diye merkezi hale getirildi.
+    Tüm dosyalarda (giris.py, app.py, profil.py, oturum_kontrol) aynı
+    mantık kullanılsın diye merkezi hale getirildi — session_state'e
+    kullanıcı adı/rolü/baş harfleri yazan HER yer bu fonksiyonu
+    çağırmalı, kendi kopyasını yazmamalı.
     """
     ad = (
         kullanici.get("ad_soyad")
@@ -272,7 +274,7 @@ def oturum_kontrol() -> bool:
     if st.session_state.get("kullanici"):
         # Session zaten var ama diğer alanlar eksik/tutarsız olabilir —
         # her ihtimale karşı standart alanları senkronize et.
-        _set_session_fields(st.session_state["kullanici"])
+        set_session_fields(st.session_state["kullanici"])
         return True
 
     if not LOCAL_SESSION_RESTORE:
@@ -292,7 +294,7 @@ def oturum_kontrol() -> bool:
         if not kullanici.get("email") and not kullanici.get("user_key"):
             return False
 
-        _set_session_fields(kullanici)
+        set_session_fields(kullanici)
         return True
     except Exception:
         return False

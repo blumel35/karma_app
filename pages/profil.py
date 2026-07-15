@@ -6,16 +6,13 @@ import streamlit.components.v1 as components
 import io, sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from PIL import Image
-from core.auth import oturum_kontrol, profil_guncelle, foto_yukle, cikis_yap
+from core.auth import oturum_kontrol, profil_guncelle, foto_yukle, cikis_yap, set_session_fields
 from core.revy_kimlik import revy_hesap_kaydet, revy_hesap_sil, revy_hesap_getir
 
-# Session sync — her zaman kullanici dict'inden yaz
+# Session sync — her zaman kullanici dict'inden yaz (merkezi fonksiyon)
 _k = st.session_state.get("kullanici", {})
 if _k:
-    _ad = _k.get("ad_soyad") or _k.get("ad", "")
-    st.session_state["user_role"]     = _k.get("rol", "danisan")
-    st.session_state["user_name"]     = _ad
-    st.session_state["user_initials"] = "".join(w[0].upper() for w in _ad.split()[:2] if w)
+    set_session_fields(_k)
 
 if not st.session_state.get("kullanici"):
     st.switch_page("pages/giris.py")
@@ -193,23 +190,29 @@ with tab1:
                                   key="p_ig", placeholder="@kullanici")
 
     if st.button("💾 Bilgileri Kaydet", type="primary", key="save_info"):
+        # NOT: Ad görüntülenirken önce "ad_soyad" alanına bakılıyor, o yoksa
+        # "ad"a düşülüyor (bkz. set_session_fields). Bu form sadece "ad"ı
+        # güncelliyordu — eğer kullanıcıda eski bir "ad_soyad" değeri
+        # kayıtlıysa, "ad" değiştirilse bile sidebar'da eski isim görünmeye
+        # devam ediyordu. Artık ikisi birlikte güncelleniyor.
         ok = profil_guncelle(kullanici["id"], {
-            "ad": ad, "telefon": telefon, "unvan": unvan,
+            "ad": ad, "ad_soyad": ad, "telefon": telefon, "unvan": unvan,
             "website": website, "instagram": instagram,
         })
         if ok:
-            # Session güncelle
+            # Session güncelle — merkezi fonksiyon
             st.session_state["kullanici"].update({
-                "ad": ad, "telefon": telefon, "unvan": unvan,
+                "ad": ad, "ad_soyad": ad, "telefon": telefon, "unvan": unvan,
             })
-            st.session_state["user_name"] = ad
-            st.session_state["user_initials"] = "".join(
-                w[0].upper() for w in ad.split()[:2]
-            )
+            set_session_fields(st.session_state["kullanici"])
             st.success("✅ Bilgiler güncellendi!")
         else:
             st.warning("Kaydedilemedi (Supabase bağlantısı yok). Oturum boyunca geçerli.")
-            st.session_state["kullanici"].update({"ad": ad, "telefon": telefon})
+            st.session_state["kullanici"].update({"ad": ad, "ad_soyad": ad, "telefon": telefon})
+            # NOT: Daha önce bu dalda user_name/initials güncellenmiyordu —
+            # ad değişse bile sidebar'da eski isim kalabiliyordu. Artık
+            # her iki dalda da senkronize ediliyor.
+            set_session_fields(st.session_state["kullanici"])
 
 with tab2:
     st.markdown("**Profil Fotoğrafı**")

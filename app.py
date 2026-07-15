@@ -42,24 +42,14 @@ if not st.session_state.get("kullanici", {}).get("_impersonated"):
     st.session_state.pop("_impersonate_original", None)
 
 # ─────────────────────────────────────────────────────
-# USER SYNC — güvenli ad/rol üretimi (boş alan fallback'leri)
+# USER SYNC — merkezi fonksiyon üzerinden (core/auth.py)
 # ─────────────────────────────────────────────────────
+from core.auth import set_session_fields
+
 _k = st.session_state.get("kullanici", {})
 
 if _k:
-    _ad = (
-        _k.get("ad_soyad")
-        or _k.get("ad")
-        or _k.get("email", "").split("@")[0]
-    )
-    _rol = _k.get("rol") or "danisan"
-
-    st.session_state["user_role"] = _rol
-    st.session_state["user_name"] = _ad
-    st.session_state["user_initials"] = "".join(
-        w[0].upper() for w in _ad.split()[:2] if w
-    )
-    st.session_state["kullanici_id"] = _k.get("id", "")
+    set_session_fields(_k)
 
 # ─────────────────────────────────────────────────────
 # PAGES
