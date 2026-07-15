@@ -16,10 +16,18 @@ def _get_supa(use_service_key: bool = False):
                    or st.secrets.get("supabase", {}).get("secret_key", "")
                    or st.secrets.get("supabase", {}).get("service_key", ""))
         else:
+            # ÖNEMLİ: Normal (yetkisiz seviye) client burada YALNIZCA
+            # publishable/anon anahtar kullanmalı. Daha önce burada bir
+            # `secret_key` fallback'i vardı — publishable_key secrets'ta
+            # tanımlı değilse client sessizce service/secret yetkisine
+            # düşüyordu, bu da RLS'i (row-level security) fiilen devre
+            # dışı bırakabiliyordu. Artık publishable anahtar yoksa
+            # `key` boş kalır, aşağıdaki `if url and key` False olur ve
+            # fonksiyon None döner — çağıran kod zaten `if not supa: ...`
+            # ile bunu güvenli şekilde ele alıyor.
             key = (os.environ.get("SUPABASE_KEY")
                    or st.secrets.get("SUPABASE_KEY", "")
-                   or st.secrets.get("supabase", {}).get("publishable_key", "")
-                   or st.secrets.get("supabase", {}).get("secret_key", ""))
+                   or st.secrets.get("supabase", {}).get("publishable_key", ""))
         if url and key:
             return create_client(url, key)
     except Exception:
