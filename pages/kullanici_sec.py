@@ -18,16 +18,20 @@ from core.auth import oturum_kontrol
 if not oturum_kontrol():
     st.switch_page("pages/giris.py")
 
-_rol = st.session_state.get("kullanici", {}).get("rol", "")
-if _rol not in ("admin", "broker"):
-    st.error("Bu sayfaya erişim yetkiniz yok.")
-    st.stop()
-
+# NOT: render_navbar() bilerek rol kontrolünden ÖNCE çağrılıyor. Erişimi
+# olmayan biri "yetkin yok" mesajını görse bile sidebar çizili kalsın diye —
+# aksi halde kullanıcı boş bir sayfada mahsur kalıyor, tarayıcı geri
+# tuşundan başka çıkış yolu olmuyor.
 render_navbar(
     user_role=st.session_state.get("user_role", "danisan"),
     user_name=st.session_state.get("user_name", ""),
     user_initials=st.session_state.get("user_initials", ""),
 )
+
+_rol = st.session_state.get("kullanici", {}).get("rol", "")
+if _rol not in ("admin", "broker", "yonetici", "ofis_asistani"):
+    st.error("Bu sayfaya erişim yetkiniz yok.")
+    st.stop()
 
 render_page_header(
     "👁 Kullanıcı Görünümü",
@@ -68,6 +72,18 @@ if _my_email and "email" in df.columns:
     df_liste = df[df["email"].str.strip().str.lower() != _my_email.strip().lower()].copy()
 else:
     df_liste = df.copy()
+
+# ── Ofis kapsamı — RBAC ────────────────────────────────────────────────────
+# admin ve ofis_id="zeta_all" olan kullanıcılar (broker'lar dahil, örn. tüm
+# ofislerin ortağı olan biri) herkesi görür. Diğer herkes (broker, yonetici,
+# ofis_asistani) sadece kendi ofis_id'siyle eşleşen kişileri görür — örn.
+# tek bir ofise ortak olan broker sadece o ofisi, bir ofis yöneticisi sadece
+# kendi ofisini görür.
+_benim_ofis_id = str(st.session_state.get("kullanici", {}).get("ofis_id", "")).strip().lower()
+if _rol != "admin" and _benim_ofis_id != "zeta_all" and "ofis_id" in df_liste.columns:
+    df_liste = df_liste[
+        df_liste["ofis_id"].str.strip().str.lower() == _benim_ofis_id
+    ].copy()
 
 # ── Filtre ────────────────────────────────────────────────────────────────────
 col_ara, col_ofis, col_rol = st.columns([2, 1.5, 1.5])

@@ -13,11 +13,19 @@ from core.auth import oturum_kontrol
 if not oturum_kontrol():
     st.switch_page("pages/giris.py")
 
+# NOT: render_navbar() bilerek rol kontrolünden ÖNCE çağrılıyor — erişimi
+# olmayan biri "yetkin yok" mesajını görse bile sidebar çizili kalsın diye,
+# aksi halde boş bir sayfada mahsur kalıyor.
 render_navbar(
     user_role=st.session_state.get("user_role", "danisan"),
     user_name=st.session_state.get("user_name", ""),
     user_initials=st.session_state.get("user_initials", ""),
 )
+
+_rol = st.session_state.get("kullanici", {}).get("rol", "")
+if _rol not in ("admin", "broker", "yonetici", "ofis_asistani"):
+    st.error("Bu sayfaya erişim yetkiniz yok.")
+    st.stop()
 st.title("Mail İşlem")
 
 st.caption(
