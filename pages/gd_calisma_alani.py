@@ -14,16 +14,9 @@ from pathlib import Path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.ui_helpers import render_navbar, render_page_header
 from core.supabase_client import get_client
+from core.auth import oturum_kontrol
 
-# ── Session sync ──────────────────────────────────────────────────────────
-_k = st.session_state.get("kullanici", {})
-if _k:
-    _ad = _k.get("ad_soyad") or _k.get("ad", "")
-    st.session_state["user_role"] = _k.get("rol", "danisan")
-    st.session_state["user_name"] = _ad
-    st.session_state["user_initials"] = "".join(w[0].upper() for w in _ad.split()[:2] if w)
-
-if not st.session_state.get("kullanici"):
+if not oturum_kontrol():
     st.switch_page("pages/giris.py")
 
 render_navbar(

@@ -12,19 +12,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.personel_manager import load_personel_listesi, resolve_personel_photo
 from core.ui_helpers import render_navbar, render_page_header
-
-# ── Session sync ──────────────────────────────────────────────────────────────
-_k = st.session_state.get("kullanici", {})
-if _k:
-    _ad = _k.get("ad_soyad") or _k.get("ad", "")
-    st.session_state["user_role"]     = _k.get("rol", "danisan")
-    st.session_state["user_name"]     = _ad
-    st.session_state["user_initials"] = "".join(
-        w[0].upper() for w in _ad.split()[:2] if w
-    )
+from core.auth import oturum_kontrol
 
 # ── Erişim kontrolü ──────────────────────────────────────────────────────────
-if not st.session_state.get("kullanici"):
+if not oturum_kontrol():
     st.switch_page("pages/giris.py")
 
 _rol = st.session_state.get("kullanici", {}).get("rol", "")
