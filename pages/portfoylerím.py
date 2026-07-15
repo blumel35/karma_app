@@ -12,6 +12,11 @@ from core.mail_paylas import render_mail_paylas_widget
 # ─────────────────────────────────────────────────────────────────────────────
 # NAVBAR
 # ─────────────────────────────────────────────────────────────────────────────
+from core.auth import oturum_kontrol
+
+if not oturum_kontrol():
+    st.switch_page("pages/giris.py")
+
 render_navbar(
     user_role=st.session_state.get("user_role", "danisan"),
     user_name=st.session_state.get("user_name", ""),

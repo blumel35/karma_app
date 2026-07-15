@@ -8,6 +8,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.mail_job import run_mail_fetch_job, run_pending_ai_parse_job
 
+from core.auth import oturum_kontrol
+
+if not oturum_kontrol():
+    st.switch_page("pages/giris.py")
+
 render_navbar(
     user_role=st.session_state.get("user_role", "danisan"),
     user_name=st.session_state.get("user_name", ""),

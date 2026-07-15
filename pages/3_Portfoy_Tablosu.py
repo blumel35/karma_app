@@ -10,6 +10,12 @@ import re
 from datetime import date, timedelta, datetime
 from email.utils import parsedate_to_datetime
 
+# ── PERF DEBUG ────────────────────────────────────────────────────────────────
+# P0 performans stabilizasyonu sonrası geçici gözlem anahtarı.
+# True yapılırsa ekranda render edilen kayıt sayıları küçük bir caption olarak
+# gösterilir. Varsayılan olarak kapalı, kalıcı debug arayüzü DEĞİLDİR.
+PERF_DEBUG = False
+
 
 # ── Yardımcı fonksiyonlar ─────────────────────────────────────────────────
 
@@ -34,6 +40,9 @@ PORTFOY_UI_DEFAULTS = {
     "aktif_portfoy_workspace": "Tümü",
     "pft_gorunum": "Tablo",
     "show_portfoy_filters_panel": False,
+    "pft_islem_sekme": "Satılık",
+    "pft_donem": "Son 7 Gün",
+    "pft_ilce_kapsam": "Tüm İlçeler",
 }
 
 st.markdown("""
@@ -270,6 +279,11 @@ for _k, _v in PORTFOY_UI_DEFAULTS.items():
         st.session_state[_k] = _v
 
 # ── SIDEBAR — erken çağır (collapsed sorunu önler) ───────────────────────────
+from core.auth import oturum_kontrol
+
+if not oturum_kontrol():
+    st.switch_page("pages/giris.py")
+
 render_navbar(
     user_role=st.session_state.get("user_role", "danisan"),
     user_name=st.session_state.get("user_name", ""),
@@ -286,6 +300,123 @@ def portfoy_secim_butonu(label, value, state_key, key_prefix):
     ):
         st.session_state[state_key] = value
         st.rerun()
+
+
+# ── YENİ FİLTRE MİMARİSİ: İşlem Tipi / Dönem / İlçe Kapsamı ──────────────────
+# Bu bölüm 2_Talep_Tablosu.py'deki aynı helper'ların bu dosyaya özel
+# kopyasıdır (ortak modül refactor'u bu görevin kapsamı dışında tutulmuştur).
+
+ISLEM_SEKME_OPTIONS = ["Satılık", "Kiralık", "Tespit Edilmemiş"]
+DONEM_OPTIONS = ["Son 7 Gün", "Son 30 Gün", "Son 60 Gün"]
+ILCE_KAPSAM_OPTIONS = ["Tüm İlçeler", "Favori İlçeler"]
+
+
+def _islem_tipi_norm(v):
+    """islem_tipi alanını üç sabit değere normalize eder: Satılık / Kiralık /
+    Tespit Edilmemiş. Türkçe karakter varyasyonlarına karşı dayanıklıdır."""
+    ham = str(v.get("islem_tipi") or "").strip()
+    if not ham:
+        return "Tespit Edilmemiş"
+    low = ham.lower().replace("ı", "i").replace("İ", "i")
+    if "kirali" in low:
+        return "Kiralık"
+    if "satili" in low:
+        return "Satılık"
+    return "Tespit Edilmemiş"
+
+
+def _islem_sekmesi_degistir(state_key, value):
+    st.session_state[state_key] = value
+
+
+def _render_islem_sekmesi(state_key, counts):
+    """Satılık / Kiralık / Tespit Edilmemiş seçimi. st.segmented_control
+    mevcutsa onu (format_func ile sayaç göstererek), değilse üç native
+    st.button kullanır."""
+    if state_key not in st.session_state or st.session_state[state_key] not in ISLEM_SEKME_OPTIONS:
+        st.session_state[state_key] = "Satılık"
+
+    if hasattr(st, "segmented_control"):
+        widget_key = f"{state_key}_widget"
+        if st.session_state.get(widget_key) not in ISLEM_SEKME_OPTIONS:
+            st.session_state[widget_key] = st.session_state[state_key]
+        secim = st.segmented_control(
+            "İşlem Tipi", ISLEM_SEKME_OPTIONS, key=widget_key,
+            format_func=lambda opt: f"{opt} · {counts.get(opt, 0)}",
+            label_visibility="collapsed",
+        )
+        if secim is not None and secim != st.session_state[state_key]:
+            st.session_state[state_key] = secim
+    else:
+        aktif = st.session_state[state_key]
+        cols = st.columns(3)
+        for col, opt in zip(cols, ISLEM_SEKME_OPTIONS):
+            with col:
+                label = f"{opt} · {counts.get(opt, 0)}"
+                st.button(
+                    label, key=f"{state_key}_btn_{safe_key(opt)}", use_container_width=True,
+                    type="primary" if aktif == opt else "secondary",
+                    on_click=_islem_sekmesi_degistir, args=(state_key, opt),
+                )
+
+
+def _donem_degistir(donem_key, value, hizli_key, aralik_key, bas_key, bit_key):
+    """Dönem butonlarının on_click callback'i. Tek bir source of truth
+    (donem_key) günceller ve eski/paralel tarih state'lerini çakışmayacak
+    şekilde sıfırlar. NOT: Havuz sayfasında azami dönem 60 gündür —
+    "Tüm Zamanlar" seçeneği bilinçli olarak kaldırıldı (60 günden eski
+    kayıtlar yalnızca Arşiv Merkezi'nden erişilebilir)."""
+    st.session_state[donem_key] = value
+    st.session_state[aralik_key] = False
+    st.session_state.pop(bas_key, None)
+    st.session_state.pop(bit_key, None)
+    if value == "Son 60 Gün":
+        st.session_state[hizli_key] = "Son 60 gün"
+    elif value == "Son 7 Gün":
+        st.session_state[hizli_key] = "Son 7 gün"
+    elif value == "Son 30 Gün":
+        st.session_state[hizli_key] = "Son 30 gün"
+
+
+def _render_donem_secimi(donem_key, counts, hizli_key, aralik_key, bas_key, bit_key):
+    """Son 7 Gün / Son 30 Gün / Son 60 Gün seçimi. Callback tabanlı,
+    manuel st.rerun() çağırmaz."""
+    if donem_key not in st.session_state:
+        st.session_state[donem_key] = "Son 7 Gün"
+    aktif = st.session_state[donem_key]
+    cols = st.columns(3)
+    for col, opt in zip(cols, DONEM_OPTIONS):
+        with col:
+            label = f"{opt} · {counts.get(opt, 0)}"
+            st.button(
+                label, key=f"{donem_key}_btn_{safe_key(opt)}", use_container_width=True,
+                type="primary" if aktif == opt else "secondary",
+                on_click=_donem_degistir,
+                args=(donem_key, opt, hizli_key, aralik_key, bas_key, bit_key),
+            )
+
+
+def _ilce_kapsami_degistir(kapsam_key, value, fav_secili_key):
+    st.session_state[kapsam_key] = value
+    if value == "Tüm İlçeler":
+        st.session_state[fav_secili_key] = None
+
+
+def _render_ilce_kapsami(kapsam_key, fav_secili_key, counts):
+    """Tüm İlçeler / Favori İlçeler kapsam seçimi. 'Tüm İlçeler' seçilince
+    seçili favori ilçe otomatik temizlenir."""
+    if kapsam_key not in st.session_state:
+        st.session_state[kapsam_key] = "Tüm İlçeler"
+    aktif = st.session_state[kapsam_key]
+    cols = st.columns(2)
+    for col, opt in zip(cols, ILCE_KAPSAM_OPTIONS):
+        with col:
+            label = f"{opt} · {counts.get(opt, 0)}"
+            st.button(
+                label, key=f"{kapsam_key}_btn_{safe_key(opt)}", use_container_width=True,
+                type="primary" if aktif == opt else "secondary",
+                on_click=_ilce_kapsami_degistir, args=(kapsam_key, opt, fav_secili_key),
+            )
 
 
 def html_temizle(text):
@@ -338,13 +469,21 @@ def avatar_html(isim, aks_r):
     )
 
 def tarih_parse(s):
+    """ISO 8601 (mikrosaniye/timezone/Z dahil) ve RFC2822 (mail) formatlarını destekler.
+    DÜZELTME: Eski strptime[:len(fmt)] deseni format string'inin karakter sayısını
+    tarih uzunluğu sanıyordu, bu yüzden gerçek ISO tarihleri ayrıştırılamıyordu."""
     if not s: return None
-    try: return parsedate_to_datetime(str(s))
-    except: pass
-    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
-        try: return datetime.strptime(str(s)[:len(fmt)], fmt)
-        except: continue
-    return None
+    if isinstance(s, datetime): return s
+    text = str(s).strip()
+    if not text: return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        pass
+    try:
+        return parsedate_to_datetime(text)
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 def en_iyi_tarih(v):
     return (
@@ -524,13 +663,13 @@ def render_compact_aks_haritasi(kayitlar, state_key, key_prefix, entity_label="k
 def favori_guncelle(kid, mevcut):
     try:
         get_client().table("portfoyler").update({"favori": not mevcut}).eq("id", kid).execute()
-        st.cache_data.clear(); st.rerun()
+        verileri_yukle.clear(); st.rerun()
     except Exception as e: st.error(f"Hata: {e}")
 
 def not_kaydet(kid, metin):
     try:
         get_client().table("portfoyler").update({"not_alani": metin}).eq("id", kid).execute()
-        st.cache_data.clear(); st.rerun()
+        verileri_yukle.clear(); st.rerun()
     except Exception as e: st.error(f"Hata: {e}")
 
 def kayit_guncelle(kid, data):
@@ -538,7 +677,7 @@ def kayit_guncelle(kid, data):
         get_client().table("portfoyler").update(data).eq("id", kid).execute()
         st.session_state.pop(f"duzen_{kid}", None)
         st.session_state[f"guncellendi_{kid}"] = True
-        st.cache_data.clear(); st.rerun()
+        verileri_yukle.clear(); st.rerun()
     except Exception as e: st.error(f"Hata: {e}")
 
 def belirtilmemise_tasi(kid):
@@ -547,7 +686,7 @@ def belirtilmemise_tasi(kid):
             {"il":"","ilce":"","ilceler":[],"mahalle":"","bolge":""}
         ).eq("id", kid).execute()
         st.session_state[f"guncellendi_{kid}"] = True
-        st.cache_data.clear(); st.rerun()
+        verileri_yukle.clear(); st.rerun()
     except Exception as e: st.error(f"Hata: {e}")
 
 
@@ -555,7 +694,7 @@ def portfoy_sil(kid):
     """Sadece manuel girilen portföyleri sil."""
     try:
         get_client().table("portfoyler").delete().eq("id", kid).execute()
-        st.cache_data.clear()
+        verileri_yukle.clear()
         st.rerun()
     except Exception as e:
         st.error(f"Silme hatası: {e}")
@@ -563,7 +702,7 @@ def portfoy_sil(kid):
 def kayit_gizle(kid):
     try:
         get_client().table("portfoyler").update({"gizli": True}).eq("id", kid).execute()
-        st.cache_data.clear(); st.rerun()
+        verileri_yukle.clear(); st.rerun()
     except Exception as e: st.error(f"Hata: {e}")
 
 @st.cache_data(ttl=3600)
@@ -587,7 +726,7 @@ def favori_ilce_guncelle(ilceler):
         get_client().table("kullanici_tercihleri")\
             .update({"favori_ilceler": ilceler})\
             .eq("kullanici_ad","varsayilan").execute()
-        st.cache_data.clear()
+        favori_ilceleri_cek.clear()
     except Exception as e: st.error(f"Hata: {e}")
 
 @st.cache_data(ttl=30)
@@ -706,7 +845,7 @@ JSON formatı:
 def portfoy_kaydet(veri: dict):
     try:
         get_client().table("portfoyler").insert(veri).execute()
-        st.cache_data.clear()
+        verileri_yukle.clear()
         return True
     except Exception as e:
         st.error(f"Kayıt hatası: {e}")
@@ -1060,9 +1199,18 @@ def mahalle_ile_ilce_bul(metin: str) -> dict:
     return {}
 
 def filtre_temizle():
-    for k in ["pft_ara","pft_il","pft_ilce","pft_danisan","pft_mulk","pft_islem",
-              "pft_siralama","pft_tarih_mod","pft_hizli","pft_bas","pft_bit","pft_fav",
-              "pfav_secili_ilce","pfav_ekle_ac"]:
+    """DÜZELTME: Eskiden "pft_tarih_mod" siliniyordu ama gerçek widget key'i
+    "pft_tarih_mod_cb" idi (hiç temizlenmiyordu). Ayrıca pft_fiyat_alt,
+    pft_fiyat_ust, pft_oda, pft_esyali, pft_site_ici, pft_kullanim,
+    pft_bina_yasi, pft_kat ve pft_gizli filtre panelinde kullanılan gerçek
+    widget key'leri olmasına rağmen listede hiç yoktu. Liste artık filtre
+    panelindeki (bkz. ~satır 2050-2086) gerçek key'lerle birebir eşleşiyor."""
+    for k in ["pft_ara", "pft_il", "pft_ilce", "pft_danisan", "pft_mulk",
+              "pft_fiyat_alt", "pft_fiyat_ust", "pft_oda", "pft_esyali",
+              "pft_site_ici", "pft_kullanim", "pft_bina_yasi", "pft_kat",
+              "pft_siralama", "pft_tarih_mod_cb", "pft_bas", "pft_bit",
+              "pft_hizli", "pft_fav", "pft_gizli",
+              "pfav_secili_ilce", "pfav_ekle_ac", "pft_donem", "pft_ilce_kapsam"]:
         st.session_state.pop(k, None)
     st.rerun()
 
@@ -1382,7 +1530,7 @@ def portfoy_karti(v, ilce_sec):
         if st.button(giz_label, key=f"giz_{kid}", use_container_width=True):
             if gizli:
                 get_client().table("portfoyler").update({"gizli": False}).eq("id", kid).execute()
-                st.cache_data.clear(); st.rerun()
+                verileri_yukle.clear(); st.rerun()
             else:
                 kayit_gizle(kid)
 
@@ -1668,6 +1816,12 @@ def liste_goster(kayitlar, ilce_filtre_aktif, ilce_sec, fav_secili, key_prefix="
 # Tüm kaynakları tek seferde yükle
 veriler = verileri_yukle(None)
 
+# DÜZELTME: "hiç kayıt yok" (veritabanı boş) ile "gizli filtresi tüm kayıtları
+# elediği için sonuç boş" durumları ayrılıyor. Eskiden ikisi de aynı st.stop()
+# ile karışıyordu ve tüm kayıtlar gizliyken kullanıcı "Gizli" filtresine hiç
+# ulaşamıyordu çünkü toolbar/filtre paneli st.stop()'tan sonra render ediliyordu.
+_veriler_ham_bos = not veriler
+
 if not st.session_state.get("pft_gizli", False):
     veriler = [v for v in veriler if not v.get("gizli", False)]
 
@@ -1680,10 +1834,6 @@ if "pfav_secili_ilce" not in st.session_state:
     st.session_state["pfav_secili_ilce"] = None
 if "portfoy_goruldu_ids" not in st.session_state:
     st.session_state["portfoy_goruldu_ids"] = set()
-
-allowed_hizli = ["Tümü", "Bugün", "Son 7 gün", "Son 30 gün"]
-if st.session_state.get("pft_hizli", "Son 7 gün") not in allowed_hizli:
-    st.session_state["pft_hizli"] = "Son 7 gün"
 
 hizli = st.session_state.get("pft_hizli", "Son 7 gün")
 
@@ -1713,61 +1863,196 @@ with _hdr1:
     render_page_header("Portföy Merkezi")
 with _hdr2:
     if st.button("↺", key="portfoy_yenile", help="Yenile", use_container_width=True):
-        st.cache_data.clear(); st.rerun()
+        verileri_yukle.clear(); st.rerun()
 
-if not veriler:
+if _veriler_ham_bos:
     st.info("Henüz portföy bulunamadı.")
     st.stop()
 
-hizli_sayilar = {
-    "Tümü": len(veriler),
-    "Bugün": bugun_sayisi,
-    "Son 7 gün": son_7_sayisi,
-    "Son 30 gün": son_30_sayisi,
-}
+# NOT: Filtrelenmiş `veriler` boş olabilir (ör. tüm kayıtlar gizli ve "Gizli"
+# filtresi kapalı) — bu durumda sayfayı burada durdurmuyoruz, toolbar/filtre
+# paneli her zaman render edilir ki kullanıcı "Gizli" kutusunu işaretleyip
+# kayıtlara ulaşabilsin. Filtrelenmiş sonuç boşsa aşağıdaki "not f" bloğu
+# zaten "Bu filtreyle eşleşen portföy bulunamadı." mesajını gösteriyor.
 
-tb1, tb2, tb3, tb4, t_spacer, tb5 = st.columns([1, 1, 1, 1, 3.8, 1.2])
-
-hizli_button_map = [
-    ("Son 7 gün",  f"7 Gün · {hizli_sayilar['Son 7 gün']}"),
-    ("Son 30 gün", f"30 Gün · {hizli_sayilar['Son 30 gün']}"),
-    ("Bugün",      f"Bugün · {hizli_sayilar['Bugün']}"),
-    ("Tümü",       f"Tümü · {hizli_sayilar['Tümü']}"),
-]
-
-for col, deger, label in [
-    (tb1, *hizli_button_map[0]),
-    (tb2, *hizli_button_map[1]),
-    (tb3, *hizli_button_map[2]),
-    (tb4, *hizli_button_map[3]),
-]:
-    with col:
-        portfoy_secim_butonu(label, deger, "pft_hizli", "hizli_btn")
+# ── AŞAMA 1: Gelişmiş filtre değerlerini oku ─────────────────────────────────
+# Panel kapalıyken de widget değerleri session_state'te durur; panel açıksa
+# aşağıdaki widget'lar aynı key'lerle bu değerleri günceller.
+il_filtre = st.session_state.get("pft_il", "Tümü")
+ilce_filtre = st.session_state.get("pft_ilce", "Tümü")
+danisan_filtre = st.session_state.get("pft_danisan", "Tümü")
+mulk_filtre = st.session_state.get("pft_mulk", "Tümü")
+siralama = st.session_state.get("pft_siralama", "Tarih ↓")
+tarih_mod = bool(st.session_state.get("pft_tarih_mod_cb", False))
+bas_tarih = st.session_state.get("pft_bas", None) if tarih_mod else None
+bit_tarih = st.session_state.get("pft_bit", None) if tarih_mod else None
+ara = st.session_state.get("pft_ara", "")
+favori_filtre = st.session_state.get("pft_fav", False)
+gizlileri_goster = st.session_state.get("pft_gizli", False)
+fiyat_alt = st.session_state.get("pft_fiyat_alt", 0)
+fiyat_ust = st.session_state.get("pft_fiyat_ust", 0)
+oda_filtre = st.session_state.get("pft_oda", "Tümü")
+esyali_filtre = st.session_state.get("pft_esyali", "Tümü")
+site_ici_filtre = st.session_state.get("pft_site_ici", "Tümü")
+kullanim_filtre = st.session_state.get("pft_kullanim", "Tümü")
+bina_yasi_filtre = st.session_state.get("pft_bina_yasi", "Tümü")
+kat_filtre = st.session_state.get("pft_kat", "Tümü")
 
 aktif_filtre_sayisi = 0
-if st.session_state.get("pft_il", "Tümü") != "Tümü": aktif_filtre_sayisi += 1
-if st.session_state.get("pft_ilce", "Tümü") != "Tümü": aktif_filtre_sayisi += 1
-if st.session_state.get("pft_danisan", "Tümü") != "Tümü": aktif_filtre_sayisi += 1
-if st.session_state.get("pft_mulk", "Tümü") != "Tümü": aktif_filtre_sayisi += 1
-if st.session_state.get("pft_islem", "Tümü") != "Tümü": aktif_filtre_sayisi += 1
-if st.session_state.get("pft_siralama", "Tarih ↓") != "Tarih ↓": aktif_filtre_sayisi += 1
-if st.session_state.get("pft_ara", "").strip(): aktif_filtre_sayisi += 1
-if st.session_state.get("pft_fav", False): aktif_filtre_sayisi += 1
-if st.session_state.get("pft_gizli", False): aktif_filtre_sayisi += 1
+if il_filtre != "Tümü": aktif_filtre_sayisi += 1
+if ilce_filtre != "Tümü": aktif_filtre_sayisi += 1
+if danisan_filtre != "Tümü": aktif_filtre_sayisi += 1
+if mulk_filtre != "Tümü": aktif_filtre_sayisi += 1
+if siralama != "Tarih ↓": aktif_filtre_sayisi += 1
+if ara.strip(): aktif_filtre_sayisi += 1
+if favori_filtre: aktif_filtre_sayisi += 1
+if gizlileri_goster: aktif_filtre_sayisi += 1
+if tarih_mod: aktif_filtre_sayisi += 1
+if fiyat_alt > 0: aktif_filtre_sayisi += 1
+if fiyat_ust > 0: aktif_filtre_sayisi += 1
+if oda_filtre != "Tümü": aktif_filtre_sayisi += 1
+if esyali_filtre != "Tümü": aktif_filtre_sayisi += 1
+if site_ici_filtre != "Tümü": aktif_filtre_sayisi += 1
+if kullanim_filtre != "Tümü": aktif_filtre_sayisi += 1
+if bina_yasi_filtre != "Tümü": aktif_filtre_sayisi += 1
+if kat_filtre != "Tümü": aktif_filtre_sayisi += 1
 
-filtre_btn_text = f"Filtreler · {aktif_filtre_sayisi}" if aktif_filtre_sayisi > 0 else "Filtreler"
+filtre_btn_text = f"⚙ Filtreler {aktif_filtre_sayisi}" if aktif_filtre_sayisi > 0 else "⚙ Filtreler"
 
-with tb5:
+# ── AŞAMA 2: gelişmiş filtreleri uygula ──────────────────────────────────────
+f = veriler
+if ara:
+    f = [v for v in f if any(
+        ara.lower() in str(v.get(k,"")).lower()
+        for k in ["talep_eden_danisan","bolge_mahalle","mahalle","bolge","ilce","mail_konusu","ozet"]
+    )]
+if il_filtre == "Belirtilmemiş": f = [v for v in f if not il_grubu(v)]
+elif il_filtre != "Tümü": f = [v for v in f if il_grubu(v) == il_filtre]
+if ilce_filtre != "Tümü": f = [v for v in f if ilce_filtre in (v.get("ilceler") or [])]
+if danisan_filtre != "Tümü": f = [v for v in f if isim_ayikla(v.get("talep_eden_danisan","")) == danisan_filtre]
+if mulk_filtre == "Belirtilmemiş": f = [v for v in f if v.get("mulk_tipi","") in ("","Belirsiz","Belirtilmemiş",None)]
+elif mulk_filtre != "Tümü": f = [v for v in f if v.get("mulk_tipi","") == mulk_filtre]
+if favori_filtre: f = [v for v in f if v.get("favori", False)]
+if oda_filtre != "Tümü": f = [v for v in f if str(v.get("oda_sayisi_m2","")).strip() == oda_filtre]
+if bina_yasi_filtre != "Tümü": f = [v for v in f if str(v.get("bina_yasi","")).strip() == bina_yasi_filtre]
+if kat_filtre != "Tümü": f = [v for v in f if str(v.get("bulundugu_kat","")).strip() == kat_filtre]
+if esyali_filtre == "Evet": f = [v for v in f if any(k in (str(v.get("ozellikler",""))+str(v.get("ozet",""))).lower() for k in ["eşyalı","eşyali","mobilyalı"])]
+elif esyali_filtre == "Hayır": f = [v for v in f if not any(k in (str(v.get("ozellikler",""))+str(v.get("ozet",""))).lower() for k in ["eşyalı","eşyali","mobilyalı"])]
+if site_ici_filtre == "Evet": f = [v for v in f if any(k in (str(v.get("ozellikler",""))+str(v.get("ozet",""))).lower() for k in ["site içi","siteiçi"])]
+elif site_ici_filtre == "Hayır": f = [v for v in f if not any(k in (str(v.get("ozellikler",""))+str(v.get("ozet",""))).lower() for k in ["site içi","siteiçi"])]
+if kullanim_filtre != "Tümü": f = [v for v in f if kullanim_filtre.lower() in (str(v.get("kullanim_durumu",""))+str(v.get("ozet",""))).lower()]
+if fiyat_alt > 0: f = [v for v in f if fiyat_sayisal(v.get("fiyat","")) >= fiyat_alt]
+if fiyat_ust > 0: f = [v for v in f if fiyat_sayisal(v.get("fiyat","")) <= fiyat_ust]
+
+# ── AŞAMA 3: TARİH KAPSAMI (Dönem) — önce sayaç, sonra uygulama ─────────────
+# NOT: Havuz'da azami dönem 60 gündür — "Tüm Zamanlar" seçeneği kaldırıldı.
+# 60 günden eski kayıtlar yalnızca Arşiv Merkezi'nden erişilebilir.
+_donem_sayilar = {
+    "Son 7 Gün": sum(1 for v in f if tarih_gun_farki(en_iyi_tarih(v)) <= 7),
+    "Son 30 Gün": sum(1 for v in f if tarih_gun_farki(en_iyi_tarih(v)) <= 30),
+    "Son 60 Gün": sum(1 for v in f if tarih_gun_farki(en_iyi_tarih(v)) <= 60),
+}
+
+hizli = st.session_state.get("pft_hizli", "Son 7 gün")
+if hizli != "Tümü":
+    gl = {"Son 7 gün":7,"Son 30 gün":30,"Son 60 gün":60,"Son 90 gün":90}.get(hizli,9999)
+    f = [v for v in f if tarih_gun_farki(en_iyi_tarih(v)) <= gl]
+if bas_tarih and bit_tarih:
+    f = [v for v in f if (d:=tarih_parse(en_iyi_tarih(v))) and bas_tarih <= (d.date() if hasattr(d,"date") and callable(d.date) else d) <= bit_tarih]
+
+# ── AŞAMA 4: İŞLEM TİPİ SEKMESİ — önce sayaç, sonra uygulama ────────────────
+_islem_sayilar = {"Satılık": 0, "Kiralık": 0, "Tespit Edilmemiş": 0}
+for v in f:
+    _islem_sayilar[_islem_tipi_norm(v)] += 1
+
+pft_islem_sekme_secili = st.session_state.get("pft_islem_sekme", "Satılık")
+f = [v for v in f if _islem_tipi_norm(v) == pft_islem_sekme_secili]
+
+# ── AŞAMA 5: FAVORİ / TÜM İLÇELER KAPSAMI — önce sayaç, sonra uygulama ──────
+fav_ilceler_for_filter = favori_ilceleri_cek()
+def favori_portfoy_kaydi_mi(v, fav_il):
+    return any(i in fav_il for i in (v.get("ilceler") or []))
+
+_ilce_kapsam_sayilar = {
+    "Tüm İlçeler": len(f),
+    "Favori İlçeler": sum(1 for v in f if favori_portfoy_kaydi_mi(v, fav_ilceler_for_filter)),
+}
+pft_ilce_kapsam_secili = st.session_state.get("pft_ilce_kapsam", "Tüm İlçeler")
+
+if pft_ilce_kapsam_secili == "Favori İlçeler":
+    f_favori_kapsam = [v for v in f if favori_portfoy_kaydi_mi(v, fav_ilceler_for_filter)]
+else:
+    f_favori_kapsam = f
+
+fav_secili = st.session_state.get("pfav_secili_ilce")
+if pft_ilce_kapsam_secili == "Favori İlçeler" and fav_secili:
+    f = [v for v in f_favori_kapsam if fav_secili in (v.get("ilceler") or [])]
+else:
+    f = f_favori_kapsam
+
+f = siralama_uygula(f, siralama)
+
+# ── P0-4: FİLTRE/GÖRÜNÜM İMZASI → SAYFA RESET ────────────────────────────────
+# İşlem sekmesi, dönem veya ilçe kapsamı değiştiğinde de favori/ana sayfa 1'e
+# dönmeli (yeni filtre mimarisi kabul testi #9/#10).
+_portfoy_filter_signature = (
+    hizli, il_filtre, ilce_filtre, danisan_filtre, mulk_filtre,
+    str(ara), siralama, bool(favori_filtre), bool(gizlileri_goster), bool(tarih_mod),
+    str(bas_tarih), str(bit_tarih), fiyat_alt, fiyat_ust,
+    oda_filtre, esyali_filtre, site_ici_filtre, kullanim_filtre,
+    bina_yasi_filtre, kat_filtre,
+    st.session_state.get("pft_gorunum", "Tablo"),
+    pft_islem_sekme_secili, st.session_state.get("pft_donem", "Son 7 Gün"),
+    pft_ilce_kapsam_secili, fav_secili,
+)
+if st.session_state.get("pft_pagination_signature") != _portfoy_filter_signature:
+    st.session_state["pft_pagination_signature"] = _portfoy_filter_signature
+    st.session_state["pft_fav_page"] = 1
+    st.session_state["pft_main_page"] = 1
+    st.session_state["pft_fav_page_select"] = 1
+    st.session_state["pft_main_page_select"] = 1
+
+favori_f = [v for v in f if favori_portfoy_kaydi_mi(v, fav_ilceler_for_filter)]
+
+st.caption(f"**{len(f)}** / {len(veriler)} portföy" + (f" · {gizli_sayi} gizlenmiş" if gizli_sayi > 0 else ""))
+
+# ── YENİ KONTROL SIRASI: İşlem Tipi → Dönem → İlçe Kapsamı ──────────────────
+st.markdown(
+    '<div style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:0.06em;'
+    'text-transform:uppercase;margin:4px 0 3px 0;">İşlem Tipi</div>',
+    unsafe_allow_html=True,
+)
+_render_islem_sekmesi("pft_islem_sekme", _islem_sayilar)
+
+st.markdown(
+    '<div style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:0.06em;'
+    'text-transform:uppercase;margin:10px 0 3px 0;">Dönem</div>',
+    unsafe_allow_html=True,
+)
+_render_donem_secimi(
+    "pft_donem", _donem_sayilar,
+    "pft_hizli", "pft_tarih_mod_cb", "pft_bas", "pft_bit",
+)
+
+st.markdown(
+    '<div style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:0.06em;'
+    'text-transform:uppercase;margin:10px 0 3px 0;">İlçe Kapsamı</div>',
+    unsafe_allow_html=True,
+)
+_kapsam_col, _filtre_btn_col = st.columns([3, 1])
+with _kapsam_col:
+    _render_ilce_kapsami("pft_ilce_kapsam", "pfav_secili_ilce", _ilce_kapsam_sayilar)
+with _filtre_btn_col:
     if st.button(
         filtre_btn_text,
         key="toggle_portfoy_filter_panel_btn",
         use_container_width=True,
-        type="secondary"
+        type="primary" if st.session_state.get("show_portfoy_filters_panel") else "secondary",
     ):
         st.session_state["show_portfoy_filters_panel"] = not st.session_state["show_portfoy_filters_panel"]
         st.rerun()
 
-# ── Filtreler ─────────────────────────────────────────────────────────────
+# ── FİLTRE PANELİ (gelişmiş) ─────────────────────────────────────────────────
 
 tum_iller = sorted(set(il_grubu(v) for v in veriler if il_grubu(v)))
 tum_ilceler = sorted(set(
@@ -1789,115 +2074,56 @@ if st.session_state.get("pft_danisan") not in (["Tümü"] + danismanlar):
     st.session_state["pft_danisan"] = "Tümü"
 if st.session_state.get("pft_mulk") not in ["Tümü", "Konut", "İşyeri", "Arsa", "Belirtilmemiş"]:
     st.session_state["pft_mulk"] = "Tümü"
-if st.session_state.get("pft_islem") not in ["Tümü", "Satılık", "Kiralık", "Belirtilmemiş"]:
-    st.session_state["pft_islem"] = "Tümü"
 if st.session_state.get("pft_siralama") not in ["Tarih ↓", "Tarih ↑", "İlçe A→Z", "İlçe Z→A", "Fiyat ↑", "Fiyat ↓"]:
     st.session_state["pft_siralama"] = "Tarih ↓"
 
 if st.session_state.get("show_portfoy_filters_panel", False):
     with st.container(border=True):
-        # Satır 1: Temel filtreler
-        c1, c2, c3, c4, c5 = st.columns([1.1, 1.1, 1.7, 1.1, 1.1])
-        with c1: il_filtre = st.selectbox("İl", ["Tümü"] + tum_iller + ["Belirtilmemiş"], key="pft_il")
-        with c2: ilce_filtre = st.selectbox("İlçe", ["Tümü"] + tum_ilceler, key="pft_ilce")
-        with c3: danisan_filtre = st.selectbox("Danışman", ["Tümü"] + danismanlar, key="pft_danisan")
-        with c4: mulk_filtre = st.selectbox("Mülk", ["Tümü","Konut","İşyeri","Arsa","Belirtilmemiş"], key="pft_mulk")
-        with c5: islem_filtre = st.selectbox("İşlem", ["Tümü","Satılık","Kiralık","Belirtilmemiş"], key="pft_islem")
+        # Satır 1: Temel filtreler (İşlem Tipi kaldırıldı — ana sekmede)
+        c1, c2, c3, c4 = st.columns([1.2, 1.2, 1.9, 1.2])
+        with c1: st.selectbox("İl", ["Tümü"] + tum_iller + ["Belirtilmemiş"], key="pft_il")
+        with c2: st.selectbox("İlçe", ["Tümü"] + tum_ilceler, key="pft_ilce")
+        with c3: st.selectbox("Danışman", ["Tümü"] + danismanlar, key="pft_danisan")
+        with c4: st.selectbox("Mülk", ["Tümü","Konut","İşyeri","Arsa","Belirtilmemiş"], key="pft_mulk")
 
         # Satır 2: Fiyat + Özellikler
         g1, g2, g3, g4, g5, g6 = st.columns([1.2, 1.2, 1.2, 1.2, 1.2, 1.2])
         with g1:
             st.caption("Fiyat Alt (TL)")
-            fiyat_alt = st.number_input("", min_value=0, step=100000, key="pft_fiyat_alt", label_visibility="collapsed")
+            st.number_input("", min_value=0, step=100000, key="pft_fiyat_alt", label_visibility="collapsed")
         with g2:
             st.caption("Fiyat Üst (TL)")
-            fiyat_ust = st.number_input("", min_value=0, step=100000, key="pft_fiyat_ust", label_visibility="collapsed")
+            st.number_input("", min_value=0, step=100000, key="pft_fiyat_ust", label_visibility="collapsed")
         oda_opts = ["Tümü"] + sorted(set(str(v.get("oda_sayisi_m2","")).strip() for v in veriler if v.get("oda_sayisi_m2","") not in ("","None",None)))
-        with g3: oda_filtre = st.selectbox("Oda / M²", oda_opts, key="pft_oda")
-        with g4: esyali_filtre = st.selectbox("Eşyalı", ["Tümü","Evet","Hayır"], key="pft_esyali")
-        with g5: site_ici_filtre = st.selectbox("Site İçi", ["Tümü","Evet","Hayır"], key="pft_site_ici")
-        with g6: kullanim_filtre = st.selectbox("Kullanım", ["Tümü","Boş","Kiracılı","Malik"], key="pft_kullanim")
+        with g3: st.selectbox("Oda / M²", oda_opts, key="pft_oda")
+        with g4: st.selectbox("Eşyalı", ["Tümü","Evet","Hayır"], key="pft_esyali")
+        with g5: st.selectbox("Site İçi", ["Tümü","Evet","Hayır"], key="pft_site_ici")
+        with g6: st.selectbox("Kullanım", ["Tümü","Boş","Kiracılı","Malik"], key="pft_kullanim")
 
         # Satır 3: Yapı + Arama + Sıralama
         h1, h2, h3, h4, h5 = st.columns([1.2, 1.2, 1.2, 1.8, 1.4])
         byas_opts = ["Tümü"] + sorted(set(str(v.get("bina_yasi","")).strip() for v in veriler if v.get("bina_yasi","") not in ("","None",None)))
-        with h1: bina_yasi_filtre = st.selectbox("Bina Yaşı", byas_opts, key="pft_bina_yasi")
+        with h1: st.selectbox("Bina Yaşı", byas_opts, key="pft_bina_yasi")
         kat_opts = ["Tümü"] + sorted(set(str(v.get("bulundugu_kat","")).strip() for v in veriler if v.get("bulundugu_kat","") not in ("","None",None)))
-        with h2: kat_filtre = st.selectbox("Kat", kat_opts, key="pft_kat")
-        with h3: siralama = st.selectbox("Sıralama", ["Tarih ↓","Tarih ↑","İlçe A→Z","İlçe Z→A","Fiyat ↑","Fiyat ↓"], key="pft_siralama")
-        with h4: ara = st.text_input("Arama", placeholder="Başlık, ilçe, özellik...", key="pft_ara")
+        with h2: st.selectbox("Kat", kat_opts, key="pft_kat")
+        with h3: st.selectbox("Sıralama", ["Tarih ↓","Tarih ↑","İlçe A→Z","İlçe Z→A","Fiyat ↑","Fiyat ↓"], key="pft_siralama")
+        with h4: st.text_input("Arama", placeholder="Başlık, ilçe, özellik...", key="pft_ara")
         with h5:
-            tarih_aralik_cb = st.checkbox("Tarih Aralığı", key="pft_tarih_mod_cb")
-            if tarih_aralik_cb:
-                bas_tarih = st.date_input("Başlangıç", value=date.today()-timedelta(days=30), max_value=date.today(), key="pft_bas", label_visibility="collapsed")
-                bit_tarih = st.date_input("Bitiş", value=date.today(), max_value=date.today(), key="pft_bit", label_visibility="collapsed")
-            else:
-                bas_tarih, bit_tarih = None, None
-            tarih_mod = tarih_aralik_cb
+            st.checkbox("Tarih Aralığı", key="pft_tarih_mod_cb")
+            if st.session_state.get("pft_tarih_mod_cb", False):
+                st.date_input("Başlangıç", value=date.today()-timedelta(days=30), max_value=date.today(), key="pft_bas", label_visibility="collapsed")
+                st.date_input("Bitiş", value=date.today(), max_value=date.today(), key="pft_bit", label_visibility="collapsed")
 
         # Satır 4: Checkboxlar + Temizle
-        e1, e2, e3, e4, e5 = st.columns([1, 1, 1, 1.2, 5.8])
-        with e1: favori_filtre = st.checkbox("Favori", key="pft_fav")
-        with e2: gizlileri_goster = st.checkbox("Gizli", key="pft_gizli")
-        # tarih aralığı h5 içinde
-        with e4: st.write(""); st.button("Temizle", key="portfoy_filtre_temizle_btn", use_container_width=True, on_click=filtre_temizle)
+        e1, e2, e3, e4 = st.columns([1, 1, 1.2, 5.8])
+        with e1: st.checkbox("Favori", key="pft_fav")
+        with e2: st.checkbox("Gizli", key="pft_gizli")
+        with e3: st.write(""); st.button("Temizle", key="portfoy_filtre_temizle_btn", use_container_width=True, on_click=filtre_temizle)
 
-else:
-    hizli = st.session_state.get("pft_hizli", "Son 7 gün")
-    il_filtre = st.session_state.get("pft_il", "Tümü")
-    ilce_filtre = st.session_state.get("pft_ilce", "Tümü")
-    danisan_filtre = st.session_state.get("pft_danisan", "Tümü")
-    mulk_filtre = st.session_state.get("pft_mulk", "Tümü")
-    islem_filtre = st.session_state.get("pft_islem", "Tümü")
-    siralama = st.session_state.get("pft_siralama", "Tarih ↓")
-    tarih_mod = bool(st.session_state.get("pft_tarih_mod_cb", False))
-    bas_tarih = st.session_state.get("pft_bas", None) if tarih_mod else None
-    bit_tarih = st.session_state.get("pft_bit", None) if tarih_mod else None
-    ara = st.session_state.get("pft_ara", "")
-    favori_filtre = st.session_state.get("pft_fav", False)
-    gizlileri_goster = st.session_state.get("pft_gizli", False)
-    fiyat_alt = st.session_state.get("pft_fiyat_alt", 0)
-    fiyat_ust = st.session_state.get("pft_fiyat_ust", 0)
-    oda_filtre = st.session_state.get("pft_oda", "Tümü")
-    esyali_filtre = st.session_state.get("pft_esyali", "Tümü")
-    site_ici_filtre = st.session_state.get("pft_site_ici", "Tümü")
-    kullanim_filtre = st.session_state.get("pft_kullanim", "Tümü")
-    bina_yasi_filtre = st.session_state.get("pft_bina_yasi", "Tümü")
-    kat_filtre = st.session_state.get("pft_kat", "Tümü")
-
-# ── Filtreleme ────────────────────────────────────────────────────────────
-
-f = veriler
-if ara:
-    f = [v for v in f if any(
-        ara.lower() in str(v.get(k,"")).lower()
-        for k in ["talep_eden_danisan","bolge_mahalle","mahalle","bolge","ilce","mail_konusu","ozet"]
-    )]
-if il_filtre == "Belirtilmemiş": f = [v for v in f if not il_grubu(v)]
-elif il_filtre != "Tümü": f = [v for v in f if il_grubu(v) == il_filtre]
-if ilce_filtre != "Tümü": f = [v for v in f if ilce_filtre in (v.get("ilceler") or [])]
-if danisan_filtre != "Tümü": f = [v for v in f if isim_ayikla(v.get("talep_eden_danisan","")) == danisan_filtre]
-if mulk_filtre == "Belirtilmemiş": f = [v for v in f if v.get("mulk_tipi","") in ("","Belirsiz","Belirtilmemiş",None)]
-elif mulk_filtre != "Tümü": f = [v for v in f if v.get("mulk_tipi","") == mulk_filtre]
-if islem_filtre == "Belirtilmemiş": f = [v for v in f if v.get("islem_tipi","") in ("","Belirsiz","Belirtilmemiş",None)]
-elif islem_filtre != "Tümü": f = [v for v in f if v.get("islem_tipi","") == islem_filtre]
-if hizli != "Tümü":
-    gl = {"Son 7 gün":7,"Son 30 gün":30,"Son 60 gün":60,"Son 90 gün":90}.get(hizli,9999)
-    f = [v for v in f if tarih_gun_farki(en_iyi_tarih(v)) <= gl]
-if bas_tarih and bit_tarih:
-    f = [v for v in f if (d:=tarih_parse(en_iyi_tarih(v))) and bas_tarih <= (d.date() if hasattr(d,"date") and callable(d.date) else d) <= bit_tarih]
-if favori_filtre: f = [v for v in f if v.get("favori", False)]
-if oda_filtre != "Tümü": f = [v for v in f if str(v.get("oda_sayisi_m2","")).strip() == oda_filtre]
-if bina_yasi_filtre != "Tümü": f = [v for v in f if str(v.get("bina_yasi","")).strip() == bina_yasi_filtre]
-if kat_filtre != "Tümü": f = [v for v in f if str(v.get("bulundugu_kat","")).strip() == kat_filtre]
-if esyali_filtre == "Evet": f = [v for v in f if any(k in (str(v.get("ozellikler",""))+str(v.get("ozet",""))).lower() for k in ["eşyalı","eşyali","mobilyalı"])]
-elif esyali_filtre == "Hayır": f = [v for v in f if not any(k in (str(v.get("ozellikler",""))+str(v.get("ozet",""))).lower() for k in ["eşyalı","eşyali","mobilyalı"])]
-if site_ici_filtre == "Evet": f = [v for v in f if any(k in (str(v.get("ozellikler",""))+str(v.get("ozet",""))).lower() for k in ["site içi","siteiçi"])]
-elif site_ici_filtre == "Hayır": f = [v for v in f if not any(k in (str(v.get("ozellikler",""))+str(v.get("ozet",""))).lower() for k in ["site içi","siteiçi"])]
-if kullanim_filtre != "Tümü": f = [v for v in f if kullanim_filtre.lower() in (str(v.get("kullanim_durumu",""))+str(v.get("ozet",""))).lower()]
-if fiyat_alt > 0: f = [v for v in f if fiyat_sayisal(v.get("fiyat","")) >= fiyat_alt]
-if fiyat_ust > 0: f = [v for v in f if fiyat_sayisal(v.get("fiyat","")) <= fiyat_ust]
-f = siralama_uygula(f, siralama)
+        st.caption(
+            "Not: İşlem Tipi artık yukarıdaki ana sekmeden seçiliyor; bu panelde "
+            "ayrı bir İşlem Tipi filtresi bulunmuyor (çakışmayı önlemek için kaldırıldı)."
+        )
 
 # ── Yeni Çalışma Alanı: favoriler + aks haritası ──────────────────────────
 workspace_options = ["Haftalık Liste", "Favori İlçeler", "İzmir Aksları", "Diğer İlçeler"]
@@ -1906,47 +2132,47 @@ if st.session_state.get("aktif_portfoy_workspace") not in workspace_options:
 if "portfoy_aks_secili_ilce" not in st.session_state:
     st.session_state["portfoy_aks_secili_ilce"] = None
 
-# ── Favori ilçe chip'leri — session_state native (talep tablosuyla aynı mekanizma) ──
+# ── Favori ilçe chip'leri — yalnızca "Favori İlçeler" kapsamı seçiliyken ────
+# ESKİ SİSTEM KALDIRILDI: HTML <a href="?pfav_ilce=..."> + query_params tabanlı
+# chip mekanizması, Talep Tablosu'ndaki ile aynı native st.button mekanizmasına
+# geçirildi (yeni filtre mimarisi görevi, madde 3).
 _pfav_list = favori_ilceleri_cek()
 _pfav_secili = st.session_state.get("pfav_secili_ilce")
 
-# query_params ile tıklama — talep tablosuyla aynı pattern
-_qp = st.query_params
-if "pfav_ilce" in _qp:
-    _gelen = _qp["pfav_ilce"]
-    if _gelen == "__tumu__":
-        st.session_state["pfav_secili_ilce"] = None
-        st.session_state["ana_portfoy_sekme"] = "Favorilerim"
-        del st.query_params["pfav_ilce"]
-        st.rerun()
-    elif _gelen == "__ekle__":
-        st.session_state["pfav_ekle_ac"] = True
-        del st.query_params["pfav_ilce"]
-        st.rerun()
-    else:
-        st.session_state["pfav_secili_ilce"] = None if _pfav_secili == _gelen else _gelen
-        st.session_state["ana_portfoy_sekme"] = "Favorilerim"
-        del st.query_params["pfav_ilce"]
-        st.rerun()
+if pft_ilce_kapsam_secili == "Favori İlçeler" and _pfav_list:
+    _pfav_toplam = sum(ilce_istatistik(i, f_favori_kapsam)[0] for i in _pfav_list[:5])
+    pfav_cols = st.columns([1.35] + [1.05] * min(len(_pfav_list[:5]), 5) + [1.0], gap="small")
 
-_pfav_secili = st.session_state.get("pfav_secili_ilce")
+    with pfav_cols[0]:
+        if st.button(
+            f"★ Tüm Favoriler · {_pfav_toplam}",
+            key="pfav_chip_tum_favoriler",
+            use_container_width=True,
+            type="primary" if not _pfav_secili else "secondary",
+        ):
+            st.session_state["pfav_secili_ilce"] = None
+            st.rerun()
 
-# Chip HTML — talep tablosuyla birebir aynı CSS class'ları
-_chip_html = '<div class="firsat-row">'
-if _pfav_list:
-    _pfav_toplam = sum(ilce_istatistik(i, f)[0] for i in _pfav_list[:5])
-    _tumu_cls = "fchip fchip-tumu active" if not _pfav_secili else "fchip fchip-tumu"
-    _chip_html += f'<a href="?pfav_ilce=__tumu__" style="text-decoration:none;"><button class="{_tumu_cls}">★ Tüm Favoriler &nbsp;{_pfav_toplam}</button></a>'
-    for _pfilce in _pfav_list[:5]:
-        _pftoplam, _pfyeni = ilce_istatistik(_pfilce, f)
-        if _pftoplam == 0: continue
+    for idx, _pfilce in enumerate(_pfav_list[:5], start=1):
+        _pftoplam, _pfyeni = ilce_istatistik(_pfilce, f_favori_kapsam)
+        if _pftoplam == 0:
+            continue
         _pfsecili = _pfav_secili == _pfilce
-        _ilce_cls = "fchip fchip-ilce active" if _pfsecili else "fchip fchip-ilce"
-        _yeni_html = f'<span class="fchip-yeni">{_pfyeni} yeni</span>' if _pfyeni > 0 else ""
-        _chip_html += f'<a href="?pfav_ilce={_pfilce}" style="text-decoration:none;"><button class="{_ilce_cls}">★ {_pfilce} &nbsp;{_pftoplam}{_yeni_html}</button></a>'
-    _chip_html += '<a href="?pfav_ilce=__ekle__" style="text-decoration:none;"><button class="fchip fchip-ekle">+ Favori Ekle</button></a>'
-_chip_html += '</div>'
-st.markdown(_chip_html, unsafe_allow_html=True)
+        _label = f"★ {_pfilce} · {_pftoplam}" + (f" · {_pfyeni} yeni" if _pfyeni > 0 else "")
+        with pfav_cols[idx]:
+            if st.button(
+                _label,
+                key=f"pfav_chip_{safe_key(_pfilce)}",
+                use_container_width=True,
+                type="primary" if _pfsecili else "secondary",
+            ):
+                st.session_state["pfav_secili_ilce"] = None if _pfsecili else _pfilce
+                st.rerun()
+
+    with pfav_cols[-1]:
+        if st.button("+ Favori Ekle", key="pfav_chip_ekle", use_container_width=True):
+            st.session_state["pfav_ekle_ac"] = True
+            st.rerun()
 
 if st.session_state.get("pfav_ekle_ac", False):
     eklenebilir = [i for i in ilce_sec if i not in _pfav_list]
@@ -1968,21 +2194,6 @@ for _si, _val, _vlbl in [(_gsc[1],"Kart","  🃏 Kart  "),(_gsc[2],"Tablo","  �
             st.session_state["pft_gorunum"] = _val
             st.rerun()
 
-fav_secili = st.session_state.get("pfav_secili_ilce")
-
-# Favori ilçe chip seçimine göre filtrele
-if fav_secili:
-    f = [v for v in f if fav_secili in (v.get("ilceler") or [])]
-
-# Favoriler ve tüm liste
-fav_ilceler_for_filter = favori_ilceleri_cek()
-def favori_portfoy_kaydi_mi(v, fav_il):
-    return any(i in fav_il for i in (v.get("ilceler") or []))
-
-favori_f = [v for v in f if favori_portfoy_kaydi_mi(v, fav_ilceler_for_filter)]
-
-st.caption(f"**{len(f)}** / {len(veriler)} portföy" + (f" · {gizli_sayi} gizlenmiş" if gizli_sayi > 0 else ""))
-
 # ── Render ────────────────────────────────────────────────────────────────
 
 gorunum = st.session_state.get("pft_gorunum", "Tablo")
@@ -2000,6 +2211,111 @@ st.markdown(
     '</div>',
     unsafe_allow_html=True
 )
+
+# ── P0 SAYFALAMA HELPER'LARI ──────────────────────────────────────────────────
+# 2_Talep_Tablosu.py'deki aynı helper'ların bu dosyaya özel kopyasıdır.
+# Ortak modül refactor'u bu görevin kapsamı dışında tutulmuştur.
+#
+# P0 HOTFIX: Sayfa numarası artık TEK kaynaktan yönetiliyor. Prev/Next ve
+# selectbox, callback'ler aracılığıyla hem ana page key'ini hem de
+# selectbox'ın kendi widget key'ini ({key}_select) birlikte günceller.
+# Böylece rerun sonrası selectbox'ın eski değeri page state'ine geri yazamaz.
+
+# Sayfa değişiminde/filtre değişiminde temizlenecek per-kayıt state prefix'leri.
+_PORTFOY_PAGE_CLEANUP_PREFIXES = ["duzen_", "pmore_", "tpmore_"]
+
+
+def _clear_stale_page_state(key, prefixes=_PORTFOY_PAGE_CLEANUP_PREFIXES):
+    """Liste tamamen boşaldığı için _page_slice() hiç çağrılmadığında,
+    bir önceki sayfada açık kalan duzen/pmore/tpmore gibi per-id state'leri
+    temizler ve prev_ids'i boş sete çeker (P0 hotfix — ek küçük düzeltme)."""
+    prev_ids_key = f"{key}_prev_ids"
+    eski_ids = st.session_state.get(prev_ids_key, set())
+    for kid in eski_ids:
+        for pfx in prefixes:
+            st.session_state.pop(f"{pfx}{kid}", None)
+    st.session_state[prev_ids_key] = set()
+
+
+def _pagination_set_page(page_key, select_key, value):
+    """Prev/Next butonlarının on_click callback'i — iki state'i birlikte günceller."""
+    value = int(value)
+    st.session_state[page_key] = value
+    st.session_state[select_key] = value
+
+
+def _pagination_select_changed(page_key, select_key):
+    """Selectbox'ın on_change callback'i — ana page key'ini selectbox'a göre günceller."""
+    st.session_state[page_key] = int(st.session_state[select_key])
+
+
+def _page_slice(liste, key, per_page):
+    """Verilen listeyi session_state'teki sayfa numarasına göre dilimler.
+    Sayfa numarası geçersiz hale geldiyse (ör. filtre daraldı) 1'e çeker ve
+    selectbox widget state'ini ({key}_select) de aynı değere senkronize eder.
+    Ayrıca bir önceki render'da görünen ama artık görünmeyen kayıtların
+    duzen/pmore/tpmore gibi per-id state'lerini temizler (P0-5)."""
+    select_key = f"{key}_select"
+    total = len(liste)
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    page = int(st.session_state.get(key, 1) or 1)
+    if page < 1 or page > total_pages:
+        page = 1
+        st.session_state[key] = 1
+    # P0 HOTFIX madde 5: clamp sonrası selectbox state'i de senkron olmalı.
+    if st.session_state.get(select_key) != page:
+        st.session_state[select_key] = page
+
+    start = (page - 1) * per_page
+    page_items = liste[start:start + per_page]
+
+    prev_ids_key = f"{key}_prev_ids"
+    yeni_ids = {str(v.get("id", "")) for v in page_items}
+    eski_ids = st.session_state.get(prev_ids_key, set())
+    if eski_ids != yeni_ids:
+        for kid in (eski_ids - yeni_ids):
+            for pfx in _PORTFOY_PAGE_CLEANUP_PREFIXES:
+                st.session_state.pop(f"{pfx}{kid}", None)
+        st.session_state[prev_ids_key] = yeni_ids
+
+    return page_items, page, total_pages, start
+
+
+def _render_pagination_controls(key, page, total_pages, total, start, per_page, label_suffix=""):
+    select_key = f"{key}_select"
+    if total_pages <= 1:
+        if total:
+            st.caption(f"Gösterilen: 1-{total} / {total} portföy{label_suffix}")
+        return
+
+    options = list(range(1, total_pages + 1))
+    # Selectbox oluşturulmadan önce state'i geçerli bir değere sabitle —
+    # aksi halde total_pages daraldığında eski değer options dışında kalabilir.
+    if st.session_state.get(select_key) not in options:
+        st.session_state[select_key] = page
+
+    p1, p2, p3, p4 = st.columns([.75, 1.35, .75, 5.2], gap="small")
+    with p1:
+        st.button(
+            "‹ Önceki", key=f"{key}_prev", use_container_width=True, disabled=page <= 1,
+            on_click=_pagination_set_page, args=(key, select_key, max(1, page - 1)),
+        )
+    with p2:
+        st.selectbox(
+            "Sayfa", options, key=select_key, label_visibility="collapsed",
+            on_change=_pagination_select_changed, args=(key, select_key),
+        )
+    with p3:
+        st.button(
+            "Sonraki ›", key=f"{key}_next", use_container_width=True, disabled=page >= total_pages,
+            on_click=_pagination_set_page, args=(key, select_key, min(total_pages, page + 1)),
+        )
+    with p4:
+        st.caption(
+            f"Gösterilen: {start + 1}-{min(start + per_page, total)} / {total} portföy · "
+            f"Sayfa {page}/{total_pages}{label_suffix}"
+        )
+
 
 def _portfoy_tablo_render(kayitlar, prefix):
     """Portföy tablosu satırlarını render et."""
@@ -2092,19 +2408,36 @@ def _portfoy_tablo_render(kayitlar, prefix):
             duzenleme_formu(v, ilce_sec)
 
 
-# ── Favori İlanlarım ─────────────────────────────────────────────────────────
+PFT_FAVORITE_PAGE_SIZE = 10
+PFT_MAIN_PAGE_SIZE = 25
+
+# Seçim açıklaması — İşlem Tipi · Dönem · İlçe Kapsamı(/seçili ilçe) · kayıt sayısı
+_pft_secim_kapsam_metin = (
+    fav_secili
+    if (pft_ilce_kapsam_secili == "Favori İlçeler" and fav_secili)
+    else pft_ilce_kapsam_secili
+)
+st.caption(
+    f"{pft_islem_sekme_secili} · {st.session_state.get('pft_donem', 'Son 7 Gün')} · "
+    f"{_pft_secim_kapsam_metin} · {len(f)} portföy"
+)
+
+# ── Favori Kayıtlar ──────────────────────────────────────────────────────────
 if favori_f:
     st.markdown(
         '<div style="font-size:11px;font-weight:800;color:#92400e;text-transform:uppercase;'
         'letter-spacing:0.08em;padding:10px 0 6px 0;border-bottom:1px solid #fde68a;margin-bottom:6px;">'
-        '★ Favori İlanlarım</div>',
+        '★ Favori Kayıtlar</div>',
         unsafe_allow_html=True
     )
+    pft_fav_page_items, pft_fav_page, pft_fav_total_pages, pft_fav_start = _page_slice(
+        favori_f, "pft_fav_page", PFT_FAVORITE_PAGE_SIZE
+    )
     if gorunum == "Tablo":
-        _portfoy_tablo_render(favori_f, "pfav")
+        _portfoy_tablo_render(pft_fav_page_items, "pfav")
     elif gorunum == "Kart":
         cols3 = st.columns(2, gap="medium")
-        for idx, v in enumerate(favori_f):
+        for idx, v in enumerate(pft_fav_page_items):
             with cols3[idx % 2]:
                 kid = v.get("id")
                 yeni = tarih_gun_farki(en_iyi_tarih(v)) <= 7
@@ -2139,25 +2472,56 @@ if favori_f:
                     with _m2:
                         if st.button("Gizle", key=f"pfav_giz_{kid}", use_container_width=True, type="secondary"):
                             get_client().table("portfoyler").update({"gizli": True}).eq("id", kid).execute()
-                            st.cache_data.clear(); st.rerun()
+                            verileri_yukle.clear(); st.rerun()
                 if st.session_state.get(f"duzen_{kid}", False):
                     duzenleme_formu(v, ilce_sec)
+    _render_pagination_controls(
+        "pft_fav_page", pft_fav_page, pft_fav_total_pages, len(favori_f),
+        pft_fav_start, PFT_FAVORITE_PAGE_SIZE, " · Favori Kayıtlar"
+    )
+else:
+    # Liste tamamen boşaldı — _page_slice() hiç çağrılmadı, stale state'i temizle.
+    _clear_stale_page_state("pft_fav_page")
 
-# ── Tüm İlanlar ──────────────────────────────────────────────────────────────
+# ── Diğer bölüm — başlık seçili İşlem Tipi sekmesine göre dinamik ───────────
+# P0-2 DÜZELTMESİ: Önceden bu bölümde favoriler dahil tüm `f` tekrar render
+# ediliyordu — favori kayıtlar iki kez basılıyordu. Artık yalnızca favori
+# OLMAYAN kayıtlar (diger_f) bu bölümde gösteriliyor.
+diger_f = [v for v in f if not favori_portfoy_kaydi_mi(v, fav_ilceler_for_filter)]
+
+if pft_islem_sekme_secili == "Tespit Edilmemiş":
+    _pft_diger_baslik = "İncelenecek Portföyler"
+else:
+    _pft_diger_baslik = f"Diğer {pft_islem_sekme_secili} Portföyler"
+
+if PERF_DEBUG:
+    st.caption(
+        f"[PERF] filtrelenmiş toplam: {len(f)} · favori: {len(favori_f)} · "
+        f"diğer: {len(diger_f)} · sayfa başına render: "
+        f"{min(len(favori_f), PFT_FAVORITE_PAGE_SIZE) + min(len(diger_f), PFT_MAIN_PAGE_SIZE)}"
+    )
+
 if not f:
     st.info("Bu filtreyle eşleşen portföy bulunamadı.")
+    _clear_stale_page_state("pft_main_page")
+elif not diger_f:
+    st.caption("Filtreyle eşleşen tüm portföyler yukarıdaki Favori Kayıtlar bölümünde gösteriliyor.")
+    _clear_stale_page_state("pft_main_page")
 else:
     st.markdown(
         f'<div style="font-size:11px;font-weight:800;color:#355C7D;text-transform:uppercase;'
         f'letter-spacing:0.08em;padding:14px 0 6px 0;border-bottom:1px solid #dce4ee;margin-bottom:6px;">'
-        f'Tüm İlanlar · <span style="font-weight:500;color:#64748b;">{len(f)} portföy</span></div>',
+        f'{_pft_diger_baslik} · <span style="font-weight:500;color:#64748b;">{len(diger_f)} portföy</span></div>',
         unsafe_allow_html=True
     )
+    pft_diger_page_items, pft_diger_page, pft_diger_total_pages, pft_diger_start = _page_slice(
+        diger_f, "pft_main_page", PFT_MAIN_PAGE_SIZE
+    )
     if gorunum == "Tablo":
-        _portfoy_tablo_render(f, "tum")
+        _portfoy_tablo_render(pft_diger_page_items, "tum")
     elif gorunum == "Kart":
         cols3 = st.columns(2, gap="medium")
-        for idx, v in enumerate(f):
+        for idx, v in enumerate(pft_diger_page_items):
             with cols3[idx % 2]:
                 kid = v.get("id")
                 yeni = tarih_gun_farki(en_iyi_tarih(v)) <= 7
@@ -2192,7 +2556,11 @@ else:
                     with _m2:
                         if st.button("Gizle", key=f"tum_giz_{kid}", use_container_width=True, type="secondary"):
                             get_client().table("portfoyler").update({"gizli": True}).eq("id", kid).execute()
-                            st.cache_data.clear(); st.rerun()
+                            verileri_yukle.clear(); st.rerun()
                 if st.session_state.get(f"duzen_{kid}", False):
                     duzenleme_formu(v, ilce_sec)
+    _render_pagination_controls(
+        "pft_main_page", pft_diger_page, pft_diger_total_pages, len(diger_f),
+        pft_diger_start, PFT_MAIN_PAGE_SIZE, f" · {_pft_diger_baslik}"
+    )
 

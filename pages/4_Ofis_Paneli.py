@@ -11,6 +11,12 @@ from datetime import datetime
 import streamlit.components.v1 as components
 import ast, difflib, html, re
 
+from core.auth import oturum_kontrol
+
+if not oturum_kontrol():
+    st.switch_page("pages/giris.py")
+
+
 
 st.markdown("""
 <style>
