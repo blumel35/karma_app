@@ -79,7 +79,11 @@ def giris_yap(email: str, sifre: str) -> dict | None:
                     pass
             return kullanici
     except Exception as e:
-        st.error(f"Giriş hatası: {e}")
+        # Ham hata detayı kullanıcıya gösterilmez — terminale/log'a yazılır.
+        # Kullanıcıya gösterilen genel mesaj giris.py'de "E-posta veya
+        # şifre hatalı." olarak zaten var.
+        import logging
+        logging.getLogger(__name__).exception("Giriş hatası: %s", e)
     return None
 
 

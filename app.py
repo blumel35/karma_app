@@ -22,12 +22,17 @@ if not st.session_state.get("kullanici"):
 
         if LOCAL_SESSION_RESTORE:
             _saved = load_login_session()
+
             if _saved:
                 _kullanici = enrich_session_from_personel(dict(_saved))
+
                 if _kullanici.get("email") or _kullanici.get("user_key"):
                     st.session_state["kullanici"] = _kullanici
     except Exception as e:
-        st.warning(f"Session restore hatası: {e}")
+        # Session restore başarısız olursa kullanıcıya ham hata gösterilmez —
+        # sessizce normal giriş akışına düşülür. Detay terminale loglanır.
+        import logging
+        logging.getLogger(__name__).exception("Session restore hatası: %s", e)
 
 # ─────────────────────────────────────────────────────
 # CLOUD GÜVENLİĞİ: impersonate flag'i tutarsız kalmışsa temizle

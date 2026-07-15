@@ -130,17 +130,6 @@ with center:
                         st.switch_page("pages/ana_sayfa.py")
                     else:
                         st.error("E-posta veya şifre hatalı.")
-                        # Debug — terminalde hata göster
-                        import traceback
-                        try:
-                            from supabase import create_client
-                            url = os.environ.get("SUPABASE_URL") or st.secrets.get("SUPABASE_URL","")
-                            key = os.environ.get("SUPABASE_KEY") or st.secrets.get("SUPABASE_KEY","")
-                            supa = create_client(url, key)
-                            res = supa.auth.sign_in_with_password({"email": email.strip(), "password": sifre})
-                            st.write(f"Debug: {res}")
-                        except Exception as ex:
-                            st.warning(f"Hata detayı: {ex}")
 
         else:  # Şifremi unuttum
             email_r = st.text_input("E-posta adresiniz", key="reset_email")
