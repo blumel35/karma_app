@@ -177,14 +177,52 @@ def tum_kullanicilar(ofis_id: str | None = None) -> list[dict]:
 
 
 # ─────────────────────────────────────────────────────
-# LOCAL SESSION RESTORE FLAG
-# Cloud'da kullanıcı karışması riski nedeniyle local
-# dosya tabanlı session restore kapatılmıştı. Local
-# geliştirme ortamında bunu tekrar açmak için True yap.
-# Cloud ortamı zaten load_login_session() içinde kendi
-# kendini devre dışı bırakıyor (HOME path kontrolü).
+# LOCAL SESSION RESTORE FLAG — FAIL-CLOSED
+#
+# Cloud'da kullanıcı karışması riski nedeniyle local dosya
+# tabanlı session restore var. Daha önce bu, ortamı bir
+# HOME path heuristiğiyle tahmin ederek "cloud'da otomatik
+# kapan" mantığına dayanıyordu — bu heuristik yanlıştı
+# (Streamlit Community Cloud'da HOME=/home/appuser'dır,
+# kontrol edilen /home/adminuser değil) ve bu yüzden
+# özellik cloud'da da aktif kalabiliyordu.
+#
+# Artık varsayılan KAPALI. Yalnızca açıkça, aşağıdaki
+# yollardan biriyle etkinleştirilirse (yalnızca yerel
+# geliştirmede yapılmalı) restore çalışır:
+#
+#   secrets.toml:
+#       [app]
+#       local_session_restore = true
+#
+#   ya da ortam değişkeni:
+#       LOCAL_SESSION_RESTORE=true
+#
+# Ayar tanımsızsa, okunamıyorsa ya da "true" dışında bir
+# değerse (örn. "1", "yes") KAPALI kabul edilir — belirsizlik
+# durumunda güvenli tarafta kalınır.
 # ─────────────────────────────────────────────────────
-LOCAL_SESSION_RESTORE = True
+def _local_restore_enabled() -> bool:
+    val = None
+    try:
+        _app_section = st.secrets.get("app", {})
+        val = _app_section.get("local_session_restore") if _app_section else None
+        if val is None:
+            val = st.secrets.get("local_session_restore")
+    except Exception:
+        val = None
+
+    if val is None:
+        val = os.environ.get("LOCAL_SESSION_RESTORE")
+
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, str):
+        return val.strip().lower() == "true"
+    return False
+
+
+LOCAL_SESSION_RESTORE = _local_restore_enabled()
 
 
 def _set_session_fields(kullanici: dict) -> None:

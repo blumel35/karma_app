@@ -248,9 +248,14 @@ def load_login_session() -> dict | None:
     Returns:
         {user_key, email, rol, ofis_id, timestamp} ya da None.
     """
-    # Cloud ortamında devre dışı — dosya sistemi tüm kullanıcılar arasında paylaşılıyor
+    # NOT: Asıl güvenlik sınırı artık core/auth.py'deki
+    # LOCAL_SESSION_RESTORE bayrağı — bu fonksiyon yalnızca
+    # o bayrak açıkça etkinleştirilmişse çağrılır. Aşağıdaki
+    # HOME kontrolü ek bir savunma katmanıdır, tek başına
+    # güvenilmemelidir (path'ler değişebilir).
+    # Streamlit Community Cloud'da HOME=/home/appuser olur.
     import os as _os
-    if _os.environ.get("HOME", "").startswith("/home/adminuser"):
+    if _os.environ.get("HOME", "").startswith("/home/appuser"):
         return None
 
     SESSION_FILE_PATH = _get_root() / ".streamlit" / "login_session.json"
