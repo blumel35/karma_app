@@ -270,11 +270,105 @@ kontrolü, sayfa bazlı RBAC'ten farklı bir konu. Kullanıcının kendi ifadesi
 
 ---
 
+## Üçüncü tur — Navigasyon tekilleştirme + performans geri bildirimi
+
+**Tarih:** 16 Temmuz 2026
+**Kapsam:** İkinci turun sonunda listelenen "3 navigasyon kaynağının tekilleştirilmesi"
+maddesi + bugün ayrıca ortaya çıkan "yasak işareti" (sayfa geçişlerinde donma) sorunu.
+
+### ✅ Adım 1-3 — Navigasyon tekilleştirme
+
+**Sorun neydi:** Üç ayrı navigasyon kaynağı vardı — `app.py`'deki `st.Page` kayıtları,
+`ui_helpers.py`'deki `_NAV_SECTIONS` (görünen sidebar), ve eski `get_panel_links()` /
+`render_page_title_selector()` sistemi. Bazı sayfalar (`eslestirme_motoru.py`,
+`portfoy_listesi.py`) `app.py`'de kayıtlı olduğu hâlde sidebar'da hiç görünmüyordu.
+`4_Ofis_Paneli.py`'deki eski popover, artık var olmayan `pages/operasyon_paneli.py`'ye
+işaret eden kırık bir link içeriyordu.
+
+**Ne yapıldı:**
+- Sidebar'a eksik rotalar eklendi (sonra `eslestirme_motoru.py` — Taleplerim'e zaten
+  gömülü olduğu, "yapım aşamasında" placeholder'ı yanıltıcı olduğu için tekrar
+  çıkarıldı; `portfoy_listesi.py` kaldı, sonra Adım 4'te o da kaldırıldı)
+- `4_Ofis_Paneli.py`'deki bozuk popover kaldırıldı, yerine diğer sayfalarla tutarlı
+  `render_page_header()` kondu
+- `ui_helpers.py`'den artık çağıranı kalmayan `get_panel_links()`,
+  `render_page_title_selector()`, `render_navbar_legacy()` silindi (~65 satır ölü kod)
+- `3_Portfoy_Tablosu.py`'deki kullanılmayan import temizlendi
+
+**Değişen dosyalar:** `core/ui_helpers.py`, `pages/4_Ofis_Paneli.py`,
+`pages/3_Portfoy_Tablosu.py`
+
+**Test durumu:** ✅ Tamamlandı ve push edildi.
+
+### ✅ Adım 4 — Sunum Merkezi, Proje Hafızası, Zeta İlanları kaldırıldı
+
+**Karar:** Kullanıcının ürün kararıyla üç sayfa navigasyondan tamamen çıkarıldı:
+- **Sunum Merkezi** (`Sunum_Merkezi_V2_Demo.py`) — istenen performansı vermedi,
+  Taleplerim/Portföylerim'deki "gönderiye hazırla" bölümü şimdilik yeterli
+- **Proje Hafızası** (`proje_hafizasi_app_v2.py`) — hantal kaldı, geliştirme artık
+  AI üzerinden yapılıyor
+- **Zeta İlanları** (`portfoy_listesi.py`) — Ofis Paneli ve Taleplerim'deki Zeta
+  ilanlarıyla mükerrer, fotoğraflı hâli şu an gerekmiyor (ileride ayrı bir uygulama
+  olarak değerlendirilebilir)
+
+**Not:** Sayfa dosyalarının kendisi silinmedi, sadece navigasyondan (hem `app.py`'deki
+kayıt hem `ui_helpers.py`'deki sidebar girişi) çıkarıldı.
+
+**Değişen dosyalar:** `app.py`, `core/ui_helpers.py`, `pages/ana_sayfa.py` (ROUTES dict
++ 4 ayrı kart/buton — hızlı erişim şeridi ve "Çalışma Kokpiti"nde iki farklı yerde
+tekrarlanıyordu), `pages/portfoylerím.py` ("🎨 Sunuma Hazırla" butonu kaldırıldı,
+iki sütunlu düzen tek sütuna çevrildi)
+
+**Test durumu:** ✅ Tamamlandı ve push edildi.
+
+### ✅ "Yasak işareti" (sayfa geçişi donması) teşhisi ve kısmi çözüm
+
+**Sorun neydi:** Özellikle ağır sayfalarda (Talep Tablosu, Portföy Tablosu, Arşiv
+Merkezi, Ofis Paneli) sayfa geçişleri sırasında tarayıcı "yasak" imleci gösterip
+donuyordu. Uzun bir teşhis sürecinden geçildi:
+- Önce dev-server/tarayıcı önbelleği şüphelenildi — InPrivate testiyle elendi
+- `fileWatcherType = "poll"` denendi — tek başına çözmedi
+- Konsolda **`Bad 'setIn' index` hatası** yakalandı — bu, bilinen bir Streamlit
+  frontend hatası: bir önceki sayfanın render'ı (delta akışı) tam bitmeden yeni bir
+  navigasyon başladığında oluşuyor
+- Kullanıcının "uzun bekleyince her sayfa açılıyor" gözlemi, sorunun bir çökme değil,
+  **geri bildirim eksikliği** olduğunu doğruladı — kullanıcı sayfa çalışırken erken
+  tekrar tıklıyor, bu da çakışmaya yol açıyor
+
+**Ne yapıldı:** Dört ağır sayfadaki ana veri çekme çağrıları `st.spinner()` ile
+sarmalandı (6 nokta: Talep Tablosu, Portföy Tablosu, Ofis Paneli ana + pasif veri,
+Arşiv Merkezi'nin iki sekmesi). Bu, kullanıcıya "çalışıyor, bekle" sinyali vererek
+erken tıklama dürtüsünü azaltıyor.
+
+**Önemli sınır:** Bu, **kök nedeni çözmüyor** — sayfalar hâlâ yavaş (performans turu
+hâlâ ayrı, bekleyen bir konu — bkz. aşağıdaki `select("*")` / tam tablo tarama
+maddesi). Sadece "çalışıyor" bilgisini görünür kılarak erken-tıklama kaynaklı
+çakışma riskini azaltıyor.
+
+**Ayrıca keşfedilen, aksiyon alınmayan bir performans sorunu:** `3_Portfoy_Tablosu.py`
+(ve muhtemelen `2_Talep_Tablosu.py`, `arsiv_merkezi.py`) her sayfa yüklemesinde
+**tüm tabloyu** (`select("*")` + `.range()` sayfalama, ~1878 kayıt) çekip filtrelemeyi
+**sonradan** Python tarafında yapıyor — dönem filtresi (7/30/60 gün) sorguya değil,
+sadece ekrana yansıtılıyor. Veritabanı seviyesinde bir tarih filtresi denenmeye
+çalışıldı ama **`en_iyi_tarih()` fonksiyonunun 7 farklı tarih alanına baktığı** ve
+`kayit_tarihi` gibi bazı alanların güvenilir olmayan formatta (RFC2822) olduğu, üstelik
+`olusturma_tarihi`'nin geçmişe dönük toplu yüklemeler (backfill) yüzünden gerçek ilan
+tarihini yansıtmayabileceği anlaşıldığı için **ertelendi** — yanlış bir filtre sessizce
+kayıt kaybına yol açabilirdi (bu kod tabanının daha önce iki kez yaşadığı hata sınıfı).
+Kalıcı çözüm muhtemelen tarih alanlarının normalize edilip ayrı, güvenilir bir sütuna
+yazılmasını gerektiriyor — veri modeli değişikliği, ayrıca planlanmalı.
+
+**Değişen dosyalar:** `pages/3_Portfoy_Tablosu.py`, `pages/2_Talep_Tablosu.py`,
+`pages/4_Ofis_Paneli.py`, `pages/arsiv_merkezi.py`, `.streamlit/config.toml` (yeni,
+`fileWatcherType = "poll"`)
+
+**Test durumu:** ✅ Spinner eklemesi push edildi ve doğrulandı (görünürlüğü cache'e
+bağlı — `ttl=30` içindeki tekrar ziyaretlerde görünmemesi normal).
+
+---
+
 ## Bu turların dışında bırakılan, ayrı bir tur olarak ele alınacak konular
 
-- **3 navigasyon kaynağının tekilleştirilmesi** (`app.py`'deki `st.Page` kayıtları,
-  `ui_helpers.py`'deki `_NAV_SECTIONS`, eski `get_panel_links()`) — bazı sayfalar
-  sidebar'dan düşmüş durumda (`eslestirme_motoru.py`, `portfoy_listesi.py`)
 - **HTML injection yüzeyinin kapatılması** — `unsafe_allow_html` içine escape'siz
   giren `user_name`, `role_label`, `_imp_ad` gibi alanlar
 - **Kozmetik/performans maddeleri** — logo/avatar base64 cache'lenmiyor,
@@ -282,10 +376,18 @@ kontrolü, sayfa bazlı RBAC'ten farklı bir konu. Kullanıcının kendi ifadesi
   ASCII olmayan karakter, aktif sayfa CSS sarmalama tekniğinin güvenilirliği
 - **GD'lerin sadece kendi verisine erişmesi** (satır bazlı erişim kontrolü) —
   bilinçli olarak ertelendi, ürün kararı netleşince ele alınacak
+- **Gerçek performans turu** — `select("*")` + tam tablo tarama deseninin
+  düzeltilmesi (Talep/Portföy Tablosu, Arşiv Merkezi); bunun için önce tarih
+  alanlarının (`ilan_tarihi`, `mail_tarihi`, `kayit_tarihi`, `olusturma_tarihi` vb.)
+  normalize edilip güvenilir, sorgulanabilir tek bir alana yazılması gerekiyor —
+  veri modeli kararı, ayrıca ele alınmalı
+- **`en_iyi_tarih()` fonksiyonunun 5 dosyada birebir kopyalanmış olması**
+  (`2_Talep_Tablosu.py`, `3_Portfoy_Tablosu.py`, `arsiv_merkezi.py`,
+  `portfoylerím.py`, `taleplerim.py`) — kod tekrarı, tekilleştirme adayı
 
 ---
 
-## Genel prensip (her iki tur boyunca izlenen)
+## Genel prensip (üç tur boyunca izlenen)
 
 Değişiklikler **tek tek, sırayla** uygulandı — hepsini tek pakette yapmak yerine her
 adım ayrı test edilip onaylandıktan sonra bir sonrakine geçildi. Bu, bir şey ters
