@@ -7,6 +7,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.ui_helpers import render_navbar, render_page_header
 from core.supabase_client import get_client
 from core.mail_paylas import render_mail_paylas_widget
+from core.auth import oturum_kontrol
+
+if not oturum_kontrol():
+    st.switch_page("pages/giris.py")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
