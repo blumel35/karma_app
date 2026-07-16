@@ -647,7 +647,8 @@ with tab_talep:
             st.error(f"Talep verisi yüklenemedi: {e}")
             return []
 
-    ta_veriler = talep_verileri_yukle(None)
+    with st.spinner("Talep arşivi yükleniyor..."):
+        ta_veriler = talep_verileri_yukle(None)
 
     if not ta_veriler:
         st.info("60 günden eski talep kaydı bulunamadı.")
@@ -817,7 +818,8 @@ with tab_portfoy:
             st.error(f"Portföy verisi yüklenemedi: {e}")
             return []
 
-    pf_veriler = portfoy_verileri_yukle(None)
+    with st.spinner("Portföy arşivi yükleniyor..."):
+        pf_veriler = portfoy_verileri_yukle(None)
 
     if not pf_veriler:
         st.info("60 günden eski portföy kaydı bulunamadı.")

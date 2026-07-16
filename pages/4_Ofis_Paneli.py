@@ -1,7 +1,7 @@
 import streamlit as st
 import sys as _sys, os as _os
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
-from core.ui_helpers import render_navbar, render_page_title_selector, render_page_header
+from core.ui_helpers import render_navbar, render_page_header
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.supabase_client import get_client
@@ -335,11 +335,7 @@ with h1:
     user_name=st.session_state.get("user_name", ""),
     user_initials=st.session_state.get("user_initials", ""),
 )
-    render_page_title_selector(
-        "🏛 Zeta Ofis Paneli",
-        current_page_path="pages/4_Ofis_Paneli.py",
-        panel="o",
-    )
+    render_page_header("🏛 Zeta Ofis Paneli", "Ofis performansı ve portföy takibi.")
 with h2:
     st.write("")
     if st.button("🔄 Yenile", key="yenile_btn", use_container_width=True):
@@ -358,7 +354,8 @@ if st.session_state.get("sync_calistirildi"):
     revy_sync_calistir()
 
 # Veri yükle
-veriler = veri_yukle()
+with st.spinner("Ofis verileri yükleniyor..."):
+    veriler = veri_yukle()
 
 if not veriler:
     st.info("Henüz Zeta portföy verisi yok. 'Zeta Portföylerini Güncelle' butonuna basarak Revy'den veri çekin.")
@@ -677,7 +674,8 @@ else:
 # ── Yayından Kalkanlar (Pasif İlanlar) ───────────────────────────────────────
 st.markdown('<div class="section-title">🚪 Yayından Kalkanlar (Pasif İlanlar)</div>', unsafe_allow_html=True)
 with st.expander("Pasif ilan listesini göster", expanded=False):
-    _pasif_ham = pasif_veri_yukle()
+    with st.spinner("Pasif ilanlar yükleniyor..."):
+        _pasif_ham = pasif_veri_yukle()
     _pasif_df = veriyi_hazirla(_pasif_ham)
 
     if ust_ofis == "ZETA 1":

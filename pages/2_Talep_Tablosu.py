@@ -2557,7 +2557,8 @@ def workspace_tab(label, value):
 # ── VERİ YÜKLEME ─────────────────────────────────────────────────────────────
 import time
 _t_talep0 = time.time()
-veriler = verileri_yukle(None)
+with st.spinner("Talepler yükleniyor..."):
+    veriler = verileri_yukle(None)
 if PERF_DEBUG:
     st.caption(f"[PERF] verileri_yukle: {time.time()-_t_talep0:.2f}s")
 

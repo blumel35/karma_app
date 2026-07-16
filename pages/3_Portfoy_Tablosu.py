@@ -1,7 +1,7 @@
 import streamlit as st
 import sys as _sys, os as _os
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
-from core.ui_helpers import render_navbar, render_page_title_selector, render_page_header
+from core.ui_helpers import render_navbar, render_page_header
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.supabase_client import get_client
@@ -1814,7 +1814,8 @@ def liste_goster(kayitlar, ilce_filtre_aktif, ilce_sec, fav_secili, key_prefix="
 # ── Sayfa ─────────────────────────────────────────────────────────────────
 
 # Tüm kaynakları tek seferde yükle
-veriler = verileri_yukle(None)
+with st.spinner("Portföyler yükleniyor..."):
+    veriler = verileri_yukle(None)
 
 # DÜZELTME: "hiç kayıt yok" (veritabanı boş) ile "gizli filtresi tüm kayıtları
 # elediği için sonuç boş" durumları ayrılıyor. Eskiden ikisi de aynı st.stop()
