@@ -12,11 +12,6 @@ from core.mail_paylas import render_mail_paylas_widget
 # ─────────────────────────────────────────────────────────────────────────────
 # NAVBAR
 # ─────────────────────────────────────────────────────────────────────────────
-from core.auth import oturum_kontrol
-
-if not oturum_kontrol():
-    st.switch_page("pages/giris.py")
-
 render_navbar(
     user_role=st.session_state.get("user_role", "danisan"),
     user_name=st.session_state.get("user_name", ""),
@@ -1390,42 +1385,34 @@ def render_portfoy_detay_panel(sel):
     st.markdown('<hr style="border:none;border-top:0.5px solid #e2e8f0;margin:10px 0;">', unsafe_allow_html=True)
     st.markdown('<p class="pm-lbl">Paylaş</p>', unsafe_allow_html=True)
 
-    p1, p2 = st.columns(2)
-
-    with p1:
-        _fiyat_etiket = (
-            "Kira Bedeli" if "kira" in islem.lower()
-            else "Satış Fiyatı" if "sat" in islem.lower()
-            else "Fiyat"
-        )
-        _ara_metin = (
-            f"{ilce}'da yer alan bu {islem.lower()} {mulk.lower()} ile ilgili "
-            f"temel bilgiler aşağıdadır."
-        )
-        render_mail_paylas_widget(
-            key_prefix=f"pm_paylas_{kid}",
-            gd_isim=gd_isim.split(" · ")[0].strip() if gd_isim and gd_isim != "—" else gd_isim,
-            konu_ozet=ozet[:60],
-            buton_etiketi="📧 Startkey'e Paylaş",
-            baslik=ozet,
-            ara_metin=_ara_metin,
-            rozetler=[ilce, mulk, islem],
-            bilgi_satirlari=[
-                ("Lokasyon", f"{il} / {ilce}" + (f" / {bolge}" if bolge and bolge != "—" else "")),
-                ("Kategori", mulk),
-                ("İşlem Tipi", islem),
-                ("Oda / M²", oda),
-                (_fiyat_etiket, fiyat),
-                ("Özellikler", ozellik),
-            ],
-            ilan_linki=link if link and link != "—" else None,
-            gorsel_urls=foto_urls if foto_urls else None,
-        )
-
-    with p2:
-        if st.button("🎨 Sunuma Hazırla", key=f"dp_sunum_inline_{kid}", use_container_width=True, type="primary"):
-            st.session_state["sunum_portfoy"] = sel
-            st.switch_page("pages/Sunum_Merkezi_V2_Demo.py")
+    _fiyat_etiket = (
+        "Kira Bedeli" if "kira" in islem.lower()
+        else "Satış Fiyatı" if "sat" in islem.lower()
+        else "Fiyat"
+    )
+    _ara_metin = (
+        f"{ilce}'da yer alan bu {islem.lower()} {mulk.lower()} ile ilgili "
+        f"temel bilgiler aşağıdadır."
+    )
+    render_mail_paylas_widget(
+        key_prefix=f"pm_paylas_{kid}",
+        gd_isim=gd_isim.split(" · ")[0].strip() if gd_isim and gd_isim != "—" else gd_isim,
+        konu_ozet=ozet[:60],
+        buton_etiketi="📧 Startkey'e Paylaş",
+        baslik=ozet,
+        ara_metin=_ara_metin,
+        rozetler=[ilce, mulk, islem],
+        bilgi_satirlari=[
+            ("Lokasyon", f"{il} / {ilce}" + (f" / {bolge}" if bolge and bolge != "—" else "")),
+            ("Kategori", mulk),
+            ("İşlem Tipi", islem),
+            ("Oda / M²", oda),
+            (_fiyat_etiket, fiyat),
+            ("Özellikler", ozellik),
+        ],
+        ilan_linki=link if link and link != "—" else None,
+        gorsel_urls=foto_urls if foto_urls else None,
+    )
 
     ab1, ab2 = st.columns(2)
 

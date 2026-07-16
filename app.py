@@ -91,12 +91,6 @@ portfoylerím = st.Page(
     icon=":material/bookmark_heart:",
 )
 
-zeta_ilanlar = st.Page(
-    "pages/portfoy_listesi.py",
-    title="Zeta İlanları",
-    icon=":material/home_work:",
-)
-
 talep = st.Page(
     "pages/2_Talep_Tablosu.py",
     title="Talep Merkezi",
@@ -113,12 +107,6 @@ eslestirme = st.Page(
     "pages/eslestirme_motoru.py",
     title="Eşleştirme",
     icon=":material/hub:",
-)
-
-sunum = st.Page(
-    "pages/Sunum_Merkezi_V2_Demo.py",
-    title="Sunum Merkezi",
-    icon=":material/auto_awesome:",
 )
 
 ajandam = st.Page(
@@ -149,12 +137,6 @@ mail = st.Page(
     "pages/5_Mail_Islem.py",
     title="Mail İşlem",
     icon=":material/move_to_inbox:",
-)
-
-proje = st.Page(
-    "pages/proje_hafizasi_app_v2.py",
-    title="Proje Hafızası",
-    icon=":material/bookmark:",
 )
 
 kullanici = st.Page(
@@ -210,14 +192,12 @@ pg = st.navigation(
             gd_calisma_alani,
             taleplerim,
             portfoylerím,
-            zeta_ilanlar,
             ajandam,
             talep,
             portfoy,
             arsiv_merkezi,
             rehber,
             eslestirme,
-            sunum,
         ],
 
         "Ofis": [
@@ -234,7 +214,6 @@ pg = st.navigation(
 
         "Yönetici": [
             mail,
-            proje,
             kullanici,
         ],
     },

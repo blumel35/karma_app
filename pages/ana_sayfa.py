@@ -15,14 +15,16 @@ if not oturum_kontrol():
     st.stop()
 
 from core.ui_helpers import render_navbar
-from core.auth import set_session_fields
 
-# ── SESSION SYNC — merkezi fonksiyon üzerinden (core/auth.py) ─────────────
-# (oturum_kontrol zaten senkronize ediyor, burada son bir kez daha
-#  garanti altına alıyoruz — artık kendi kopya mantığı yok.)
+# ── SESSION SYNC (oturum_kontrol zaten senkronize ediyor, burada
+#    son bir kez daha garanti altına alıyoruz) ───────────────────────────
 _k = st.session_state.get("kullanici", {})
-if _k:
-    set_session_fields(_k)
+_ad = _k.get("ad_soyad") or _k.get("ad") or _k.get("email", "").split("@")[0]
+st.session_state["user_role"] = _k.get("rol") or "danisan"
+st.session_state["user_name"] = _ad
+st.session_state["user_initials"] = "".join(
+    w[0].upper() for w in _ad.split()[:2] if w
+)
 
 render_navbar(
     user_role=st.session_state.get("user_role", "danisan"),
@@ -36,8 +38,6 @@ ROUTES = {
     "gd_calisma_alani": "pages/gd_calisma_alani.py",
     "taleplerim":     "pages/taleplerim.py",
     "portfoylerim":   "pages/portfoylerím.py",
-    "zeta_ilanlar":   "pages/portfoy_listesi.py",
-    "sunum":          "pages/Sunum_Merkezi_V2_Demo.py",
     "ajandam":        "pages/ajandam.py",
     "talep_havuzu":   "pages/2_Talep_Tablosu.py",
     "portfoy_havuzu": "pages/3_Portfoy_Tablosu.py",
@@ -250,14 +250,6 @@ st.markdown('''
     <span class="quick-item-icon">🏠</span>
     <span class="quick-item-label">Yeni Portföy</span>
   </a>
-  <a class="quick-item" href="?nav=zeta_ilanlar">
-    <span class="quick-item-icon">🏢</span>
-    <span class="quick-item-label">Zeta İlanları</span>
-  </a>
-  <a class="quick-item" href="?nav=sunum">
-    <span class="quick-item-icon">📊</span>
-    <span class="quick-item-label">Sunum Oluştur</span>
-  </a>
 </div>
 ''', unsafe_allow_html=True)
 
@@ -288,11 +280,6 @@ st.markdown('''
     <a class="kokpit-row" href="?nav=portfoylerim">
       <div class="kokpit-row-icon">🏠</div>
       <span class="kokpit-row-label">Portföylerim</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-    <a class="kokpit-row" href="?nav=sunum">
-      <div class="kokpit-row-icon">📊</div>
-      <span class="kokpit-row-label">Sunum Merkezi</span>
       <span class="kokpit-row-arrow">›</span>
     </a>
     <a class="kokpit-row" href="?nav=ajandam">
@@ -402,16 +389,6 @@ st.markdown('''
     <a class="kokpit-row" href="?nav=portfoylerim">
       <div class="kokpit-row-icon">🏠</div>
       <span class="kokpit-row-label">Yeni Portföy</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-    <a class="kokpit-row" href="?nav=zeta_ilanlar">
-      <div class="kokpit-row-icon">🏢</div>
-      <span class="kokpit-row-label">Zeta İlanları</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-    <a class="kokpit-row" href="?nav=sunum">
-      <div class="kokpit-row-icon">📊</div>
-      <span class="kokpit-row-label">Sunum Oluştur</span>
       <span class="kokpit-row-arrow">›</span>
     </a>
   </div>

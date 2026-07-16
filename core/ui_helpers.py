@@ -1,75 +1,6 @@
 import streamlit as st
 
 
-def get_panel_links(panel):
-    if panel == "d":
-        return [
-            ("pages/ana_sayfa.py", "Ana Sayfa"),
-            ("pages/2_Talep_Tablosu.py", "Alıcı Talepleri"),
-            ("pages/3_Portfoy_Tablosu.py", "Portföyler"),
-            ("pages/5_Zeta_Radar.py", "Zeta Radar"),
-            ("pages/fsbo.py", "FSBO"),
-            ("pages/eslestirme_motoru.py", "Eşleştirme"),
-            ("pages/musteri_yonetimi.py", "Müşteri"),
-            ("pages/10_Sunum_Merkezi.py", "Sunum Merkezi"),
-            ("pages/4_AI_Asistan.py", "Yapay Zeka"),
-        ]
-    elif panel == "o":
-        return [
-            ("pages/ana_sayfa.py", "Ana Sayfa"),
-            ("pages/4_Ofis_Paneli.py", "Zeta Ofis Paneli"),
-            ("pages/operasyon_paneli.py", "Operasyon"),
-        ]
-    else:
-        return [
-            ("pages/ana_sayfa.py", "Ana Sayfa"),
-            ("pages/5_Mail_Islem.py", "Mail İşlem"),
-            ("pages/6_Veri_Temizle.py", "Veri Temizle"),
-            ("pages/ilan_senkron.py", "Ilan Sync"),
-            ("pages/proje_hafizasi_app_v2.py", "Proje"),
-        ]
-
-
-def render_page_title_selector(title, current_page_path=None, panel="d"):
-    links = get_panel_links(panel)
-    if current_page_path is None:
-        current_path = ""
-        try:
-            current_path = str(st.context.url)
-        except Exception:
-            current_path = ""
-        current_page_path = next((path for path, label in links if path in current_path), None)
-    available_paths = [path for path, label in links]
-    if current_page_path not in available_paths:
-        current_page_path = links[0][0]
-    active_index = next((idx for idx, (path, label) in enumerate(links) if path == current_page_path), 0)
-    page_key = f"page_title_selector_{panel}"
-    cols = st.columns([0.22, 0.04, 0.74])
-    with cols[0]:
-        st.markdown(f'<div class="page-title-heading">{title}</div>', unsafe_allow_html=True)
-    with cols[1]:
-        if hasattr(st, "popover"):
-            with st.popover("▾"):
-                for idx, (path, label) in enumerate(links):
-                    if st.button(label, key=f"{page_key}_btn_{idx}", use_container_width=True):
-                        st.switch_page(path)
-        else:
-            with st.container():
-                selected_page = st.selectbox(
-                    "", options=links, format_func=lambda x: x[1],
-                    index=active_index, key=page_key, label_visibility="collapsed",
-                )
-            if selected_page[0] != current_page_path:
-                st.switch_page(selected_page[0])
-    with cols[2]:
-        st.write("")
-
-
-def render_navbar_legacy():
-    """Eski üst navbar — henüz güncellenmemiş sayfalar için."""
-    pass
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # YENİ SOL SIDEBAR — st.sidebar kullanır, CSS ile stillendirilir
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -89,7 +20,6 @@ _NAV_SECTIONS = [
             ("pages/gd_calisma_alani.py", "GD Çalışma Alanı", "🧭", []),
             ("pages/taleplerim.py", "Taleplerim", "👤", []),
             ("pages/portfoylerím.py", "Portföylerim", "🏡", []),
-            ("pages/Sunum_Merkezi_V2_Demo.py", "Sunum Merkezi", "✨", []),
             ("pages/ajandam.py", "Ajandam", "🗓", []),
         ],
     },
@@ -126,7 +56,6 @@ _NAV_SECTIONS = [
         "label": "Yönetici / Eski Ekranlar",
         "pages": [
             ("pages/5_Mail_Islem.py", "Mail İşlem", "📨", []),
-            ("pages/proje_hafizasi_app_v2.py", "Proje Hafızası", "📌", []),
             ("pages/kullanici_sec.py", "Kullanıcı Görünümü", "👥", []),
         ],
     },
