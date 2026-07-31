@@ -174,19 +174,43 @@ def _mt_satir_to_kayit(row, aktif: bool):
 def merkezi_tabloya_yaz(birlesik: dict, hedef_ilceler: list, progress_cb=None):
     """Startkey'e filtrelemeden önceki TÜM markaları merkezi izmir_pazar_ilanlar
     tablosuna yazar (upsert). FSBO ve Pazar Radar bu tablodan okuyacak.
-    Hata olursa sessizce geçer — bu, ana Startkey akışını bozmamalı."""
+    Hata olursa sessizce geçer — bu, ana Startkey akışını bozmamalı.
+
+    TUR 2A (non_destructive_sync): Otomatik pasifleştirme BİLİNÇLİ OLARAK
+    KAPALI. Önceki davranış, kullanıcının seçtiği dar kapsamlı bir taramada
+    (örn. yalnızca "Arsa") taranmayan URL'leri o ilçedeki TÜM aktif kayıtlarla
+    (mülk tipi filtresi olmadan) karşılaştırıp farkı pasife alıyordu — bu,
+    doğrulama turunda kanıtlanan en kritik bulguydu: dar bir sorgu, aynı
+    ilçedeki başka mülk tiplerindeki gerçekten aktif ilanları toplu olarak
+    kapatabiliyordu. TUR 2B'de tam kapsam/hesap doğrulaması (complete_snapshot
+    sözleşmesi) kurulana kadar bu adım atlanıyor: yalnızca ekleme/güncelleme
+    yapılıyor, hiçbir kayıt pasifleştirilmiyor.
+    """
     try:
         sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
         from supabase_client import get_client
         supa = get_client()
     except Exception as e:
-        if progress_cb: progress_cb(f"⚠️ Merkezi tabloya yazılamadı (Supabase bağlantısı): {e}")
-        return
+        import logging, uuid
+        _takip_kodu = str(uuid.uuid4())[:8]
+        logging.getLogger(__name__).exception(
+            "Merkezi tabloya bağlantı hatası (takip kodu: %s): %s", _takip_kodu, e
+        )
+        if progress_cb:
+            progress_cb(f"⚠️ Merkezi tabloya yazılamadı. Takip kodu: {_takip_kodu}")
+        return {"basarili": False, "yazma_hatasi_sayisi": 0, "yazilan": 0}
 
     kayitlar = []
     taranan_urller = set()
+    _bilinmeyen_anahtarlar = set()
     for anahtar, df_ in (birlesik or {}).items():
         if df_ is None or df_.empty:
+            continue
+        if anahtar not in ("aktif", "yayindan_kalkan"):
+            # TUR 2A sonrası bulgu: beklenmeyen bir anahtar (rpc.pazar_cek()
+            # sonucu değişirse/typo olursa) sessizce "pasif" kabul ediliyordu.
+            # Artık bunu ayrıca işaretliyoruz — kullanıcı sonuçta uyarı görsün.
+            _bilinmeyen_anahtarlar.add(anahtar)
             continue
         aktif = (anahtar == "aktif")
         for _, row in df_.iterrows():
@@ -196,37 +220,74 @@ def merkezi_tabloya_yaz(birlesik: dict, hedef_ilceler: list, progress_cb=None):
                 if aktif:
                     taranan_urller.add(k["ilan_linki"])
 
+    if _bilinmeyen_anahtarlar and progress_cb:
+        progress_cb(
+            f"⚠️ Beklenmeyen sonuç anahtarı/anahtarları atlandı: "
+            f"{', '.join(sorted(_bilinmeyen_anahtarlar))} — bu veri merkezi tabloya yazılmadı."
+        )
+
     if not kayitlar:
-        return
+        return {"basarili": True, "yazma_hatasi_sayisi": 0, "yazilan": 0}
+
 
     if progress_cb: progress_cb(f"💾 Merkezi tabloya {len(kayitlar):,} kayıt yazılıyor...")
     yazilan = 0
+    yazma_hatasi_sayisi = 0
     for i in range(0, len(kayitlar), 500):
         parca = kayitlar[i:i+500]
         try:
             supa.table("izmir_pazar_ilanlar").upsert(parca, on_conflict="ilan_linki").execute()
             yazilan += len(parca)
         except Exception as e:
-            if progress_cb: progress_cb(f"⚠️ Merkezi tablo yazma hatası (parça {i}): {e}")
+            import logging, uuid
+            _takip_kodu = str(uuid.uuid4())[:8]
+            logging.getLogger(__name__).exception(
+                "Merkezi tablo yazma hatası (parça %d, takip kodu: %s): %s",
+                i, _takip_kodu, e,
+            )
+            yazma_hatasi_sayisi += 1
+            if progress_cb:
+                progress_cb(f"⚠️ Bir parça yazılamadı. Takip kodu: {_takip_kodu}")
 
-    # Taranan ilçelerde artık aktif export'ta görünmeyen ilanları pasifle
-    pasiflenen = 0
-    for ilce_ad in hedef_ilceler:
+    # ── TUR 2A: Otomatik pasifleştirme geçici olarak KAPALI ──────────────
+    # Yalnızca bilgi amaçlı: taranan ilçelerde export'ta görünmeyen ilan
+    # sayısını hesaplayıp gösteriyoruz, ama hiçbir kaydı pasifleştirmiyoruz.
+    if hedef_ilceler:
         try:
-            mevcut = supa.table("izmir_pazar_ilanlar") \
-                .select("ilan_linki").eq("ilce", ilce_ad).eq("aktif", True).execute()
-            eski = {r["ilan_linki"] for r in (mevcut.data or [])}
-            kapananlar = eski - taranan_urller
-            for url in kapananlar:
-                supa.table("izmir_pazar_ilanlar").update({
-                    "aktif": False, "guncelleme_tarihi": datetime.now().isoformat(),
-                }).eq("ilan_linki", url).execute()
-                pasiflenen += 1
+            toplam_gorunmeyen = 0
+            for ilce_ad in hedef_ilceler:
+                mevcut = supa.table("izmir_pazar_ilanlar") \
+                    .select("ilan_linki").eq("ilce", ilce_ad).eq("aktif", True).execute()
+                eski = {r["ilan_linki"] for r in (mevcut.data or [])}
+                toplam_gorunmeyen += len(eski - taranan_urller)
+            if toplam_gorunmeyen and progress_cb:
+                progress_cb(
+                    f"ℹ️ {toplam_gorunmeyen} ilan bu taramada görünmüyor ama "
+                    f"pasifleştirilmedi (otomatik pasifleştirme TUR 2B'ye kadar kapalı)."
+                )
         except Exception:
+            # Bu yalnızca bilgilendirme amaçlı bir sayım; başarısız olursa
+            # sessizce geçilir — ana akışı etkilememeli.
             pass
 
     if progress_cb:
-        progress_cb(f"✅ Merkezi tablo güncellendi: {yazilan:,} kayıt yazıldı, {pasiflenen} ilan pasife alındı.")
+        if yazma_hatasi_sayisi == 0:
+            progress_cb(
+                f"✅ Merkezi tablo güncellendi: {yazilan:,} kayıt yazıldı "
+                f"(pasifleştirme devre dışı — non_destructive_sync)."
+            )
+        else:
+            progress_cb(
+                f"⚠️ Merkezi tablo kısmen güncellendi: {yazilan:,} kayıt yazıldı, "
+                f"{yazma_hatasi_sayisi} parça başarısız oldu "
+                f"(pasifleştirme devre dışı — non_destructive_sync)."
+            )
+
+    return {
+        "basarili": yazma_hatasi_sayisi == 0,
+        "yazma_hatasi_sayisi": yazma_hatasi_sayisi,
+        "yazilan": yazilan,
+    }
 
 def gecmis_listele():
     if not GECMIS_INDEX.exists():
@@ -788,7 +849,7 @@ if listele_btn:
 
             # ── Merkezi tabloya yaz (Startkey'e filtrelemeden ÖNCE, tüm markalar) ──
             # Böylece FSBO ve Pazar Radar bu veriyi Revy'ye hiç gitmeden okuyabiliyor.
-            merkezi_tabloya_yaz(birlesik, hedef_ilceler, progress_cb=progress_cb)
+            _mt_sonuc = merkezi_tabloya_yaz(birlesik, hedef_ilceler, progress_cb=progress_cb)
 
             # Sadece Startkey markasını bırak (pazar_cek tüm markaları getirir)
             for anahtar in list(birlesik.keys()):
@@ -804,14 +865,34 @@ if listele_btn:
             cache_kaydet(birlesik)  # "son kullanılan" — sayfa açılışında otomatik yüklenir
             gecmis_kaydet(birlesik, hedef_ilceler)  # arşive de ekle — üzerine yazılmaz
 
-            durum_ph.success(
-                f"✅ {sum(len(v) for v in birlesik.values()):,} Startkey ilanı hazır! "
-                f"({len(hedef_ilceler)} ilçe tarandı)"
-            )
+            # NOT (düzeltme): Bu son mesaj eskiden merkezi_tabloya_yaz()'ın
+            # kendi "⚠️ kısmen güncellendi" uyarısını sessizce eziyordu — ikisi
+            # de aynı durum_ph placeholder'ını kullandığı için en son yazan
+            # kazanıyordu. Artık merkezi_tabloya_yaz()'ın sonucu kontrol
+            # edilip, kısmi hata varsa bu son mesaja da yansıtılıyor.
+            _sk_ilan_sayisi = sum(len(v) for v in birlesik.values())
+            if _mt_sonuc and not _mt_sonuc.get("basarili", True):
+                durum_ph.warning(
+                    f"⚠️ {_sk_ilan_sayisi:,} Startkey ilanı hazır, ancak merkezi tabloya "
+                    f"yazarken {_mt_sonuc.get('yazma_hatasi_sayisi', 0)} parça başarısız oldu "
+                    f"({len(hedef_ilceler)} ilçe tarandı)."
+                )
+            else:
+                durum_ph.success(
+                    f"✅ {_sk_ilan_sayisi:,} Startkey ilanı hazır! "
+                    f"({len(hedef_ilceler)} ilçe tarandı)"
+                )
             st.rerun()
 
         except Exception as e:
-            durum_ph.error(f"Hata: {e}")
+            import logging, uuid
+            _sk_takip_kodu = str(uuid.uuid4())[:8]
+            logging.getLogger(__name__).exception(
+                "startkey_portfoy_listesi sorgu hatası (takip kodu: %s): %s",
+                _sk_takip_kodu, e,
+            )
+            durum_ph.error(f"İşlem tamamlanamadı. Takip kodu: {_sk_takip_kodu}")
+
 
 # ─────────────────────────────────────────
 # ANALİZ
@@ -886,6 +967,8 @@ if m2_max > 0 and "M2" in df.columns:
     df = df[pd.to_numeric(df["M2"], errors="coerce").fillna(99999) <= m2_max]
 if fiyat_min > 0 and "Fiyat" in df.columns:
     df = df[df["Fiyat"].apply(lambda v: parse_num(v) or 0) >= fiyat_min * 1_000_000]
+if fiyat_max > 0 and "Fiyat" in df.columns:
+    df = df[df["Fiyat"].apply(lambda v: parse_num(v) or float("inf")) <= fiyat_max * 1_000_000]
 
 # KPI
 toplam   = len(df)

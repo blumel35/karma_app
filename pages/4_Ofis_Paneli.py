@@ -16,6 +16,13 @@ from core.auth import oturum_kontrol
 if not oturum_kontrol():
     st.switch_page("pages/giris.py")
 
+# Revy Sync butonu için rol kontrolü — bugünkü RBAC turumuzdaki
+# 5_Mail_Islem.py ile aynı desen. Sayfanın geri kalanı (ofis performansı,
+# portföy görünümü) tüm giriş yapmış kullanıcılara açık kalıyor; yalnızca
+# dış sisteme yazan/pasifleştiren Revy Sync işlemi kısıtlanıyor.
+_rol = st.session_state.get("kullanici", {}).get("rol", "")
+_SYNC_YETKILI_ROLLER = ("admin", "broker", "yonetici")
+
 
 
 st.markdown("""
@@ -153,7 +160,12 @@ def veri_yukle():
             bas += sayfa_boyu
         return tum_veri
     except Exception as e:
-        st.error(f"Veri yüklenemedi: {e}")
+        import logging as _logging, uuid as _uuid
+        _takip_kodu = str(_uuid.uuid4())[:8]
+        _logging.getLogger(__name__).exception(
+            "Aktif veri yüklenemedi (takip kodu: %s): %s", _takip_kodu, e
+        )
+        st.error(f"Veri yüklenemedi. Takip kodu: {_takip_kodu}")
         return []
 
 
@@ -179,7 +191,12 @@ def pasif_veri_yukle():
             bas += sayfa_boyu
         return tum_veri
     except Exception as e:
-        st.error(f"Pasif veri yüklenemedi: {e}")
+        import logging as _logging, uuid as _uuid
+        _takip_kodu = str(_uuid.uuid4())[:8]
+        _logging.getLogger(__name__).exception(
+            "Pasif veri yüklenemedi (takip kodu: %s): %s", _takip_kodu, e
+        )
+        st.error(f"Veri yüklenemedi. Takip kodu: {_takip_kodu}")
         return []
 
 
@@ -286,7 +303,12 @@ def revy_sync_calistir():
         "revy_sync.py"
     )
     if not os.path.exists(sync_path):
-        st.error(f"revy_sync.py bulunamadı: {sync_path}")
+        import logging as _logging, uuid as _uuid
+        _yol_takip_kodu = str(_uuid.uuid4())[:8]
+        _logging.getLogger(__name__).error(
+            "revy_sync.py bulunamadı (takip kodu: %s): %s", _yol_takip_kodu, sync_path
+        )
+        st.error(f"İşlem tamamlanamadı. Takip kodu: {_yol_takip_kodu}")
         return
 
     log_placeholder = st.empty()
@@ -310,19 +332,218 @@ def revy_sync_calistir():
 
         log("─" * 40)
         for ofis, s in sonuclar.items():
-            if "hata" in s:
-                log(f"❌ {ofis.upper()}: {s['hata']}")
-            else:
-                log(f"✅ {ofis.upper()}: {s['eklenen']} yeni, {s['guncellenen']} güncellendi, "
-                    f"{s.get('kapanan', 0)} pasife alındı")
+            log(_ofis_sonucunu_bicimlendir(ofis, s))
 
-        log("✅ Sync tamamlandı!")
-        st.cache_data.clear()
+        _genel_ozet_goster(log, sonuclar)
+        # Düzeltme (gözlemleyici AI, madde 5): cache yalnızca en az bir
+        # ofis success/partial_success döndüyse temizleniyor — tüm ofisler
+        # failed ise (hiçbir yazma olmadı) cache'i boşuna temizlemiyoruz.
+        if any(s.get("durum") in ("success", "partial_success") for s in sonuclar.values()):
+            st.cache_data.clear()
 
     except Exception as e:
-        log(f"❌ Hata: {e}")
-        import traceback
-        log(traceback.format_exc())
+        import logging, uuid
+        _takip_kodu = str(uuid.uuid4())[:8]
+        logging.getLogger(__name__).exception(
+            "Revy Sync hatası (takip kodu: %s): %s", _takip_kodu, e
+        )
+        log(f"❌ İşlem tamamlanamadı. Takip kodu: {_takip_kodu}")
+
+
+# ── TUR 2B sonuç sözleşmesi — Türkçe açıklamalar ────────────────────────────
+# İncelemeci AI + gözlemleyici AI'nın mutabakatıyla sabitlendi: ham neden
+# kodları (skip_reasons) kullanıcıya asla doğrudan gösterilmiyor, burada
+# günlük Türkçeye çevriliyor.
+_NEDEN_ACIKLAMALARI = {
+    "account_unverified": "Revy hesabı doğrulanamadı",
+    "office_unverified": "Ofis kimliği doğrulanamadı",
+    "office_context_invalid": "Hesap/ofis eşleşmesi tutarsız (parametre hatası)",
+    "schema_invalid": "Excel dosyası beklenen Revy alanlarını içermiyor",
+    "source_invalid": "Excel dosyasında geçerli ilan linki bulunamadı",
+    "existing_records_incomplete": "Mevcut kayıtlar Supabase'den eksiksiz çekilemedi",
+    "scope_incomplete": "Taramanın tüm ilanları kapsadığı henüz doğrulanmıyor",
+    "segment_failure": "Taramanın bir bölümü tamamlanamadı",
+    "parse_errors_present": "Bazı satırlarda geçersiz/eksik veri vardı",
+    "write_errors_present": "Bazı kayıtlar veritabanına yazılamadı",
+    "no_valid_records": "İşlenebilir geçerli kayıt bulunamadı",
+    "anomalous_record_drop": "Kayıt sayısında beklenmedik bir düşüş tespit edildi",
+    "feature_not_production_ready": "Pasifleştirme özelliği henüz üretime açılmadı",
+    "exception": "Beklenmeyen bir hata oluştu",
+}
+
+# mode → günlük Türkçe açıklama
+_MODE_ACIKLAMALARI = {
+    "blocked": "İşlem güvenli biçimde engellendi",
+    "non_destructive_sync": "Güvenli ekleme/güncelleme",
+    "controlled_deactivation": "Kontrollü pasifleştirme",
+}
+
+# durum → renk/simge
+_DURUM_SIMGE = {
+    "success": "✅",
+    "partial_success": "⚠️",
+    "failed": "❌",
+}
+
+
+def _neden_metni(kod_listesi):
+    """
+    Neden kodlarını Türkçeye çeviriyor. Düzeltme (gözlemleyici AI, madde 4):
+    sözlükte olmayan/yeni bir kod artık ham İngilizce hâliyle kullanıcıya
+    gösterilmiyor — güvenli, genel bir Türkçe fallback'e düşüyor. Ham kod
+    yalnızca sunucu loguna yazılıyor.
+    """
+    if not kod_listesi:
+        return ""
+    _GENEL_FALLBACK = "Tanımlanmamış bir güvenlik kontrolü işlemi etkiledi"
+    aciklamalar = []
+    for kod in kod_listesi:
+        if kod in _NEDEN_ACIKLAMALARI:
+            aciklamalar.append(_NEDEN_ACIKLAMALARI[kod])
+        else:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Bilinmeyen deactivation_skip_reason kodu: %s", kod
+            )
+            aciklamalar.append(_GENEL_FALLBACK)
+    # Tekrarlıları at (sırayı koruyarak) — aynı fallback birden fazla
+    # bilinmeyen kod için tekrar tekrar görünmesin.
+    return ", ".join(dict.fromkeys(aciklamalar))
+
+
+def _ofis_sonucunu_bicimlendir(ofis, s):
+    """
+    Tek bir ofis sonucunu (revy_sync.py'nin döndürdüğü sözleşme) kullanıcıya
+    gösterilecek Türkçe metne çeviriyor. Üç ayrı boyutu (durum/snapshot_status/
+    mode) karıştırmadan, ayrı ayrı yansıtıyor.
+    """
+    # Düzeltme (gözlemleyici AI, madde 2): _genel_ozet_goster() bilinmeyen
+    # bir durum değerini zaten "failed" sayıyordu, ama bu fonksiyon
+    # (ofis bazlı satır) aynı fail-safe'e sahip değildi — bilinmeyen bir
+    # durum "success/partial_success" dalına düşüp ❓ simgesiyle normal
+    # bir sonuçmuş gibi gösterilebiliyordu. Artık ikisi tutarlı.
+    durum = s.get("durum")
+    if durum not in ("success", "partial_success", "failed"):
+        durum = "failed"
+    simge = _DURUM_SIMGE.get(durum, "❓")
+
+    if durum == "failed":
+        gosterilecek_kod = s.get("takip_kodu") or s.get("sync_run_id") or "bilinmiyor"
+        neden = _neden_metni(s.get("deactivation_skip_reasons"))
+        satir = f"{simge} {ofis.upper()}: İşlem tamamlanamadı. Takip kodu: {gosterilecek_kod}"
+        if neden:
+            satir += f"\n   Neden: {neden}"
+        # Düzeltme (gözlemleyici AI, madde 3): başarısız sonuçta bile,
+        # varsa ne kadar veri işlenip işlenemediğine dair sayısal bilgi
+        # gösterilsin — "hata oldu" demek yerine kapsamı da anlatsın.
+        if s.get("write_error_count") or s.get("parse_error_count"):
+            satir += (
+                f"\n   📊 Geçersiz: {s.get('parse_error_count', 0)}"
+                f" · Yazma hatası: {s.get('write_error_count', 0)}"
+            )
+        return satir
+
+    # success / partial_success
+    mode = s.get("mode", "non_destructive_sync")
+    # Bilinmeyen bir mode kodu da artık ham gösterilmiyor (gözlemleyici AI,
+    # madde 2'nin ikinci kısmı).
+    mode_aciklama = _MODE_ACIKLAMALARI.get(mode, "Tanımlanmamış çalışma biçimi")
+    snapshot_status = s.get("snapshot_status", "partial")
+
+    satir = f"{simge} {ofis.upper()}: {s.get('eklenen', 0)} yeni, {s.get('guncellenen', 0)} güncellendi — {mode_aciklama}"
+
+    # Özel durum: durum=success + snapshot_status=partial +
+    # mode=non_destructive_sync — bu NORMAL ve BEKLENEN bir sonuç, hata
+    # veya eksik Sync olarak gösterilmemeli.
+    if durum == "success" and snapshot_status == "partial" and mode == "non_destructive_sync":
+        satir += "\n   ℹ️ Yazma işlemi başarıyla tamamlandı; veri tamlığı henüz pasifleştirme için doğrulanmadı."
+
+    if durum == "partial_success":
+        neden = _neden_metni(s.get("deactivation_skip_reasons"))
+        if neden:
+            satir += f"\n   ⚠️ {neden}"
+
+    # Düzeltme (gözlemleyici AI, madde 3): kompakt sayaç satırı — yeni
+    # sözleşmenin çoğu alanı eskiden hiç ekranda görünmüyordu.
+    _tekrar_sayisi = s.get("duplicate_record_count", 0) + s.get("runtime_duplicate_count", 0)
+    satir += (
+        f"\n   📊 Geçerli: {s.get('valid_record_count', 0)}"
+        f" · Geçersiz: {s.get('parse_error_count', 0)}"
+        f" · Tekrarlı: {_tekrar_sayisi}"
+        f" · Yazma hatası: {s.get('write_error_count', 0)}"
+    )
+    if s.get("reactivated"):
+        satir += f"\n   ♻️ {s['reactivated']} ilan yeniden aktifleştirildi."
+
+    # Pasifleştirme bilgisi — düzeltme (incelemeci AI, madde 2): mode'a
+    # göre ayrılıyor. controlled_deactivation + deactivated=0, "özellik
+    # kapalı" değil, "pasiflenecek kayıt bulunmadı" demek.
+    if s.get("deactivated"):
+        satir += f"\n   🔒 {s['deactivated']} ilan kontrollü şekilde pasife alındı."
+    elif mode == "controlled_deactivation":
+        satir += "\n   ℹ️ Kontrollü pasifleştirme açıktı; pasifleştirilecek kayıt bulunmadı."
+    else:
+        _aday_sayisi = s.get("deactivation_candidate_count", 0)
+        if _aday_sayisi:
+            satir += (
+                f"\n   ℹ️ {_aday_sayisi} ilan export'ta görünmüyor — "
+                f"aday kayıtların hiçbiri pasifleştirilmedi."
+            )
+
+    return satir
+
+
+def _genel_ozet_goster(log, sonuclar):
+    """
+    Düzeltme (her iki inceleme, madde 1): genel sonuç artık üç kategoriye
+    (success/partial_success/failed) doğru dağılıyor — eskiden "hiç failed
+    yoksa yeşil" mantığı, bir/iki ofis partial_success olsa bile yanlışlıkla
+    "Sync tamamlandı" diyordu.
+    """
+    if not sonuclar:
+        log("❌ Sync sonucu alınamadı.")
+        return
+
+    # Bilinmeyen/beklenmedik bir durum değeri güvenli tarafta (failed)
+    # sayılıyor — sessizce başarı sayılmıyor.
+    durumlar = [s.get("durum") if s.get("durum") in ("success", "partial_success", "failed")
+                else "failed" for s in sonuclar.values()]
+
+    basarili = durumlar.count("success")
+    kismi = durumlar.count("partial_success")
+    basarisiz = durumlar.count("failed")
+    toplam = len(durumlar)
+
+    if basarili == toplam:
+        genel_durum = "success"
+    elif basarisiz == toplam:
+        genel_durum = "failed"
+    else:
+        genel_durum = "partial_success"
+
+    # Düzeltme (gözlemleyici AI, madde 2): pasifleştirme mesajı artık
+    # mode'a göre ayrılıyor — "devre dışı" ile "aday kayıt yok" karışmıyor.
+    _toplam_pasiflenen = sum(s.get("deactivated", 0) for s in sonuclar.values())
+    _modlar = {s.get("mode") for s in sonuclar.values()}
+
+    if _toplam_pasiflenen > 0:
+        _pasif_mesaji = f"Toplam {_toplam_pasiflenen} ilan kontrollü şekilde pasife alındı."
+    elif _modlar == {"controlled_deactivation"}:
+        _pasif_mesaji = "Kontrollü pasifleştirme açıktı; pasifleştirilecek kayıt bulunmadı."
+    elif "controlled_deactivation" in _modlar:
+        _pasif_mesaji = "Karma çalışma biçimi (bazı ofislerde kontrollü pasifleştirme açık) — ofis bazlı ayrıntıya bakın."
+    else:
+        _pasif_mesaji = "Pasifleştirme kapalı; yalnızca ekleme/güncelleme yapıldı."
+
+    if genel_durum == "success":
+        log(f"✅ Sync tamamlandı — {basarili} ofis başarıyla güncellendi. ({_pasif_mesaji})")
+    elif genel_durum == "failed":
+        log("❌ Sync başarısız — hiçbir ofis güncellenemedi.")
+    else:
+        log(
+            f"⚠️ Sync kısmen tamamlandı — {basarili} başarılı, {kismi} kısmi, "
+            f"{basarisiz} başarısız. ({_pasif_mesaji})"
+        )
 
 
 # ── SAYFA ─────────────────────────────────────────────────────────────────
@@ -342,16 +563,27 @@ with h2:
         st.cache_data.clear()
         st.rerun()
 
-# Sync butonu
+# Sync butonu — yalnızca yetkili rollere gösteriliyor
 sync_col, _ = st.columns([2, 5])
 with sync_col:
-    if st.button("⚡ Zeta Portföylerini Güncelle (Revy Sync)", use_container_width=True, type="primary"):
-        st.session_state["sync_calistirildi"] = True
-        st.rerun()
+    if _rol in _SYNC_YETKILI_ROLLER:
+        if st.button("⚡ Zeta Portföylerini Güncelle (Revy Sync)", use_container_width=True, type="primary"):
+            st.session_state["sync_calistirildi"] = True
+            st.rerun()
+    else:
+        st.caption("⚡ Zeta Portföylerini Güncelle (Revy Sync) — bu işlem için yetkiniz yok.")
 
+# NOT: Bu, gerçek bir backend/servis katmanı kontrolü DEĞİL — aynı
+# Streamlit session'ı içinde ikinci bir UI-öncesi kontrol. `revy_sync.py`
+# başka bir yerden (script, farklı sayfa) doğrudan çağrılırsa bu kontrolün
+# hiçbir etkisi olmaz; gerçek yetkilendirme sınırı `revy_sync.py`'nin
+# kendisine veya bir servis katmanına taşınmalı (TUR 4/5, henüz yapılmadı).
 if st.session_state.get("sync_calistirildi"):
     st.session_state["sync_calistirildi"] = False
-    revy_sync_calistir()
+    if _rol in _SYNC_YETKILI_ROLLER:
+        revy_sync_calistir()
+    else:
+        st.error("Bu işlem için yetkiniz yok.")
 
 # Veri yükle
 with st.spinner("Ofis verileri yükleniyor..."):

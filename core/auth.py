@@ -46,6 +46,22 @@ def giris_yap(email: str, sifre: str) -> dict | None:
     try:
         res = supa.auth.sign_in_with_password({"email": email, "password": sifre})
         if res.user:
+            # KA-AUTH-001-R4 — BAŞARILI GİRİŞ TANIMI: yalnız res.user
+            # varlığı yeterli değildir. Kullanılabilir bir res.session
+            # ve okunabilir token alanları da GEREKİR — aksi hâlde
+            # "doğrulanmış giriş" sayılmaz, kilit KORUNUR ve None
+            # döndürülür. Bu kontrol bilerek açık yazıldı (dolaylı bir
+            # AttributeError/except Exception'a güvenilmiyor) çünkü
+            # kilit kaldırma kararı gibi güvenlik açısından kritik bir
+            # sonucun, örtük bir hata yakalamaya değil, açık bir iş
+            # kuralına dayanması gerekir.
+            if (
+                not res.session
+                or not getattr(res.session, "access_token", None)
+                or not getattr(res.session, "refresh_token", None)
+            ):
+                return None
+
             # Supabase user id ile kullanicilar tablosundan profil çek
             profil = _profil_cek(supa, res.user.id)
             kullanici = {
@@ -77,6 +93,32 @@ def giris_yap(email: str, sifre: str) -> dict | None:
                     kullanici["foto_bytes"] = _b64.b64decode(_foto_url.split(",", 1)[1])
                 except Exception:
                     pass
+
+            # KA-AUTH-001-R5 — GEÇERLİ AKTÖR DOĞRULAMASI: yalnız
+            # kullanılabilir session/token yeterli değildir. Oluşan
+            # `kullanici` sözlüğünün kendisi de gerçek bir kimlik
+            # taşımalıdır (id/email/user_key). Aksi hâlde (ör.
+            # res.user.id/email boş — bozuk/beklenmeyen bir Supabase
+            # cevabı) kilit KORUNUR, giriş başarısız sayılır. Bu kontrol
+            # olmadan, kimliksiz bir sözlük kilidi kaldırıp döndürülüyor,
+            # set_session_fields() onu daha SONRA reddediyordu — ama o
+            # noktada güvenlik kilidi zaten kalkmış oluyordu (R4 hatası,
+            # İnceleyici + Gözlemci AI tarafından bulundu).
+            if not _valid_actor(kullanici):
+                return None
+
+            # KA-AUTH-001-R4 — GÜVENLİ KİLİT KURTARMA (doğru konum):
+            # bu satıra yalnız kullanılabilir VE geçerli aktör kimliği
+            # taşıyan bir kullanici sözlüğü başarıyla kurulduktan SONRA,
+            # return'den hemen önce ulaşılır. res.session yoksa/bozuksa
+            # veya kullanici kimliksizse yukarıdaki erken `return None`
+            # dallarından biri zaten devreye girmiş olur ve bu satıra
+            # HİÇ gelinmez — bu yüzden kilit yalnız gerçekten
+            # tamamlanmış, kullanılabilir VE kimlikli bir Supabase auth
+            # sonucunda kaldırılır. Başarısız giriş denemeleri veya
+            # local session restore (bu fonksiyonu hiç çağırmaz) kilidi
+            # KALDIRAMAZ — yalnız burası ve cikis_yap() kaldırabilir.
+            _clear_identity_lock_on_verified_auth()
             return kullanici
     except Exception as e:
         # Ham hata detayı kullanıcıya gösterilmez — terminale/log'a yazılır.
@@ -103,7 +145,15 @@ def cikis_yap():
         except Exception:
             pass
     for k in ["kullanici", "user_role", "user_name", "user_initials",
-              "kullanici_id", "danisман_profil"]:
+              "kullanici_id", "danisман_profil",
+              # KA-AUTH-001-R1 — merkezi kimlik bağlamı ve impersonation alanları
+              "auth_user", "view_as_user",
+              "auth_user_id", "auth_role",
+              "view_user_id", "view_role",
+              "identity_context_valid",
+              "_impersonate_active", "_impersonate_original", "_impersonated_name",
+              # KA-AUTH-001-R2 — çakışma kilidi; yalnız gerçek logout kaldırır
+              "_identity_locked"]:
         st.session_state.pop(k, None)
 
 
@@ -237,13 +287,348 @@ def _local_restore_enabled() -> bool:
 LOCAL_SESSION_RESTORE = _local_restore_enabled()
 
 
-def set_session_fields(kullanici: dict) -> None:
+# ─────────────────────────────────────────────────────
+# KA-AUTH-001-R1 — MERKEZİ KİMLİK BAĞLAMI
+#
+# auth_user  → gerçekten oturum açan kullanıcı. Yetki/rol/yazma izni/audit
+#              kimliği buradan gelmeli (bu R1'de henüz hiçbir tüketici
+#              sayfa buna taşınmadı — bkz. KA-AUTH-001-R1 Delta).
+#              Impersonation sırasında DEĞİŞMEZ.
+# view_as_user → ekranda verisi görüntülenen kullanıcı. Yetki kazandırmaz,
+#              audit kimliği değildir.
+#
+# Bu blok yalnız KA-AUTH-001-R1 kapsamında eklendi. Aşağıdaki legacy
+# alanlar (kullanici/user_role/user_name/user_initials/kullanici_id) bu
+# R1'de HİÇBİR ŞEKİLDE değiştirilmedi — set_session_fields()'ın onları
+# yazan kısmı R1 öncesiyle birebir aynı kaldı. Yeni bağlam bunlara ek
+# olarak, ayrı bir adım halinde kuruluyor.
+#
+# auth_user ve view_as_user HER ZAMAN shallow dict() kopyasıdır — session
+# içindeki mutable sözlüğün doğrudan referansı asla tutulmaz/döndürülmez.
+# Gerekçe: profil.py mevcut "kullanici" sözlüğünü .update() ile yerinde
+# değiştirebiliyor; aynı nesne paylaşılsaydı auth ve view bağlamı birlikte
+# sessizce değişebilirdi. Mevcut kullanıcı sözlükleri düz (nested mutable
+# alan yok) olduğu için shallow copy bu R1 için yeterlidir — iç içe
+# mutable alan eklenirse KA-AUTH-001 yeniden açılmalıdır.
+# ─────────────────────────────────────────────────────
+
+def _identity_key(user: dict | None) -> str | None:
+    """
+    Kararlı kullanıcı kimliği. Öncelik: dolu id -> normalize email ->
+    user_key -> hiçbiri yoksa None (geçersiz).
+
+    Yalnız id'ye dayanılmıyor: impersonation hedefi dict'lerinde id
+    alanı bilerek boş bırakılıyor (bkz. pages/kullanici_sec.py, "Seç"
+    butonu) — bu gerçek koddan doğrulanmış bir durumdur.
+    """
+    if not user:
+        return None
+    _id = str(user.get("id") or "").strip()
+    if _id:
+        return f"id:{_id}"
+    _email = str(user.get("email") or "").strip().lower()
+    if _email:
+        return f"email:{_email}"
+    _uk = str(user.get("user_key") or "").strip().lower()
+    if _uk:
+        return f"user_key:{_uk}"
+    return None
+
+
+def _same_user(a: dict | None, b: dict | None) -> bool:
+    """İki kullanıcı sözlüğü aynı gerçek kişiyi mi temsil ediyor?"""
+    ka = _identity_key(a)
+    kb = _identity_key(b)
+    return ka is not None and ka == kb
+
+
+def _valid_actor(user: dict | None) -> bool:
+    """
+    KA-AUTH-001-R2: Bir sözlük geçerli bir AKTÖR (gerçek, kimlik taşıyan
+    ve kendisi impersonation hedefi olmayan) mi?
+
+    İki koşul birden gerekli:
+      - _identity_key(user) dolu olmalı (kimliksiz sözlük aktör olamaz)
+      - user["_impersonated"] True olmamalı (impersonation hedefi
+        kendisi asla auth_user kaynağı olamaz)
+    """
+    if not user:
+        return False
+    if user.get("_impersonated"):
+        return False
+    return _identity_key(user) is not None
+
+
+def _invalidate_identity_context() -> None:
+    """
+    KA-AUTH-001-R2: Kimlik bağlamını geçersiz kıl. Eski/stale auth_user,
+    view_as_user ve türetilmiş scalar alanlar (auth_user_id, auth_role,
+    view_user_id, view_role) yetki kaynağı olarak session'da KALMAZ —
+    hepsi temizlenir. Bu sayede get_auth_user()/get_auth_role() vb.
+    geçersiz bağlamda eski bir yetkiyi sızdırmaz.
+    """
+    st.session_state["identity_context_valid"] = False
+    st.session_state.pop("auth_user", None)
+    st.session_state.pop("view_as_user", None)
+    st.session_state["auth_user_id"] = ""
+    st.session_state["auth_role"]    = ""
+    st.session_state["view_user_id"] = ""
+    st.session_state["view_role"]    = ""
+
+
+def _derive_identity_ids() -> None:
+    """auth_user/view_as_user'dan türetilmiş scalar alanları yaz.
+
+    Bu alanlar (auth_user_id, auth_role, view_user_id, view_role)
+    bağımsız kimlik kaynağı değildir — her zaman ana sözlüklerden
+    türetilir, ayrıca set edilmezler.
+    """
+    _au = st.session_state.get("auth_user")
+    _vu = st.session_state.get("view_as_user")
+    st.session_state["auth_user_id"] = (_au or {}).get("id", "") or ""
+    st.session_state["auth_role"]    = (_au or {}).get("rol", "") or ""
+    st.session_state["view_user_id"] = (_vu or {}).get("id", "") or ""
+    st.session_state["view_role"]    = (_vu or {}).get("rol", "") or ""
+
+
+def _resolve_identity_context(incoming_user: dict) -> None:
+    """
+    KA-AUTH-001-R1 kararlı aktör çözümü. Kural kaynağı: KA-AUTH-001-R1
+    mutabakat sözleşmesi (Uygulayıcı + İnceleyici + Gözlemci AI).
+
+    incoming_user, set_session_fields()'a o an gelen ham sözlüktür —
+    normal giriş, local restore veya (app.py'nin her-rerun çağrısı
+    üzerinden) impersonation hedefi olabilir. incoming_user'ın kendisi
+    hiçbir zaman doğrudan saklanmaz; her zaman dict() kopyası alınır.
+    """
+    current_auth = st.session_state.get("auth_user")
+    incoming_impersonated = bool(incoming_user.get("_impersonated"))
+
+    if incoming_impersonated:
+        # İmpersonation hedefi hiçbir koşulda auth_user kaynağı olamaz.
+        if _valid_actor(current_auth):
+            # Kural 1 — mevcut GEÇERLİ auth_user korunur. (R2 fix 1:
+            # yalnız "current_auth truthy" yeterli değil — kimliksiz
+            # veya kendisi impersonation hedefi olan bir sözlük geçerli
+            # aktör sayılmaz, bkz. _valid_actor().)
+            st.session_state["auth_user"] = dict(current_auth)
+            st.session_state["view_as_user"] = dict(incoming_user)
+            st.session_state["identity_context_valid"] = True
+            _derive_identity_ids()
+            return
+
+        # current_auth yok VEYA geçersiz — Kural 5: yalnız geçerli ve
+        # impersonated OLMAYAN _impersonate_original üzerinden kurtarma
+        # yapılabilir.
+        _orig = st.session_state.get("_impersonate_original")
+        if _valid_actor(_orig):
+            st.session_state["auth_user"] = dict(_orig)
+            st.session_state["view_as_user"] = dict(incoming_user)
+            st.session_state["identity_context_valid"] = True
+            _derive_identity_ids()
+            return
+
+        # Kural 6 — degenere durum. Hedef aktöre yükseltilmez.
+        _invalidate_identity_context()
+        return
+
+    # Incoming impersonation hedefi değil — gerçek (ya da restore
+    # edilmiş) bir kullanıcı.
+    if _identity_key(incoming_user) is None:
+        # R2 fix 2 — kimliksiz normal incoming asla doğrudan aktör
+        # yapılmaz; current_auth'un durumundan bağımsız olarak geçersiz.
+        _invalidate_identity_context()
+        return
+
+    if _valid_actor(current_auth):
+        if _same_user(current_auth, incoming_user):
+            # Kural 2 — aynı gerçek kullanıcı; güncel bilgilerle yenile.
+            st.session_state["auth_user"] = dict(incoming_user)
+            st.session_state["view_as_user"] = dict(incoming_user)
+            st.session_state["identity_context_valid"] = True
+            _derive_identity_ids()
+            return
+        # Kural 3 — farklı bir gerçek kullanıcı. Sessiz aktör değişimi
+        # YOK; logout yapılmadan mevcut auth_user'ın yerini alamaz.
+        # KİLİT: yalnız identity_context_valid=False yeterli değil —
+        # _invalidate_identity_context() auth_user'ı session'dan
+        # SİLDİĞİ için, bir sonraki set_session_fields() çağrısında
+        # current_auth boş görünür ve "ilk kurulum" sanılabilir
+        # (özellikle oturum_kontrol()'ün aynı çakışan kullanıcıyı aynı
+        # rerun içinde tekrar set_session_fields()'a geçirmesi
+        # senaryosunda gerçek bir hata olarak doğrulandı). Bu yüzden
+        # gerçek çakışma tespit edildiğinde kalıcı bir kilit bırakılır;
+        # yalnız cikis_yap() bu kilidi kaldırabilir.
+        st.session_state["_identity_locked"] = True
+        _invalidate_identity_context()
+        return
+
+    if st.session_state.get("_identity_locked"):
+        # Daha önce gerçek bir çakışma (Kural 3) nedeniyle kilitlendi.
+        # current_auth artık boş görünse bile (temizlendiği için) bunu
+        # "ilk kurulum" sayıp incoming'i sessizce aktör yapmayız —
+        # yalnız gerçek logout (cikis_yap) bu kilidi kaldırabilir.
+        _invalidate_identity_context()
+        return
+
+    # Kural 4 — ilk kurulum (normal giriş / local restore; daha önce
+    # hiç gerçek bir çakışma yaşanmamış).
+    st.session_state["auth_user"] = dict(incoming_user)
+    st.session_state["view_as_user"] = dict(incoming_user)
+    st.session_state["identity_context_valid"] = True
+    _derive_identity_ids()
+
+
+def get_auth_user() -> dict | None:
+    """
+    Gerçek oturum sahibinin kopyasını döndürür (referans değil).
+    KA-AUTH-001-R2: identity_context_valid True değilse None döner —
+    geçersiz bağlamda eski/stale bir kimlik asla sızdırılmaz.
+    """
+    if st.session_state.get("identity_context_valid") is not True:
+        return None
+    au = st.session_state.get("auth_user")
+    return dict(au) if au else None
+
+
+def get_auth_role() -> str:
+    """
+    Gerçek oturum sahibinin rolü. KA-AUTH-001-R2: identity_context_valid
+    True değilse "" döner.
+    """
+    if st.session_state.get("identity_context_valid") is not True:
+        return ""
+    return st.session_state.get("auth_role", "") or ""
+
+
+def get_view_user() -> dict | None:
+    """
+    Ekranda görüntülenen kullanıcının kopyasını döndürür (referans değil).
+    KA-AUTH-001-R2: identity_context_valid True değilse None döner.
+    """
+    if st.session_state.get("identity_context_valid") is not True:
+        return None
+    vu = st.session_state.get("view_as_user")
+    return dict(vu) if vu else None
+
+
+def get_view_role() -> str:
+    """
+    Ekranda görüntülenen kullanıcının rolü. KA-AUTH-001-R2:
+    identity_context_valid True değilse "" döner.
+    """
+    if st.session_state.get("identity_context_valid") is not True:
+        return ""
+    return st.session_state.get("view_role", "") or ""
+
+
+def is_impersonating() -> bool:
+    """
+    True yalnız şu üçü birden sağlanınca döner:
+      - identity_context_valid == True
+      - auth_user ve view_as_user farklı gerçek kullanıcılar (_same_user)
+      - impersonation durumu aktif (_impersonate_active bayrağı)
+    """
+    if not st.session_state.get("identity_context_valid"):
+        return False
+    au = st.session_state.get("auth_user")
+    vu = st.session_state.get("view_as_user")
+    if not au or not vu:
+        return False
+    if _same_user(au, vu):
+        return False
+    return bool(st.session_state.get("_impersonate_active"))
+
+
+def _clear_invalid_session_identity() -> None:
+    """
+    Kimlik bağlamı geçersiz olduğunda legacy `kullanici` alanını (ve
+    diğer legacy/yeni kimlik + impersonation alanlarını) dolu BIRAKMAZ.
+
+    Gerekçe (R2): giris.py, `st.session_state.get("kullanici")` doluysa
+    "Oturumunuz açık" diyerek ana sayfaya yönlendirme butonu gösteriyor.
+    identity_context_valid=False olduğu hâlde `kullanici` dolu kalırsa,
+    kullanıcı giriş ekranına düşer ama orada "oturumunuz açık" görüp tekrar
+    ana sayfaya yönlendirilebilir — ana sayfa da oturum_kontrol()'ü tekrar
+    çağırıp yine False döneceği için bir yönlendirme döngüsü oluşabilir.
+
+    R3 güncellemesi: artık yalnız oturum_kontrol()'den değil,
+    set_session_fields() içinden ATOMİK olarak da çağrılıyor (bkz. Bölüm 3
+    — invalid sonuç aynı fonksiyon çağrısı içinde temizlenir, dışarı
+    sızdırılmaz). Impersonation alanları (_impersonate_active,
+    _impersonate_original, _impersonated_name) da artık temizleniyor —
+    geçersiz bağlamda eski impersonation state kalmasın.
+
+    `_identity_locked` BURADA POPLANMAZ — çakışma güvenlik kilidi yalnız
+    gerçek doğrulanmış giriş (`_clear_identity_lock_on_verified_auth()`)
+    veya tam `cikis_yap()` ile kaldırılabilir (bkz. Bölüm 2).
+
+    Local login session dosyası (.streamlit/login_session.json) burada
+    SİLİNMEZ — gerçek kullanıcı, geçerli bir local restore ile güvenle
+    yeniden kurulabilir; bu davranış bilerek korundu.
+    """
+    for k in ["kullanici", "user_role", "user_name", "user_initials",
+              "kullanici_id",
+              "auth_user", "view_as_user",
+              "auth_user_id", "auth_role",
+              "view_user_id", "view_role",
+              "_impersonate_active", "_impersonate_original", "_impersonated_name"]:
+        st.session_state.pop(k, None)
+    st.session_state["identity_context_valid"] = False
+
+
+def _clear_identity_lock_on_verified_auth() -> None:
+    """
+    KA-AUTH-001-R4 — Güvenli kilit kurtarma (düzeltilmiş konum).
+
+    Yalnız GERÇEK, kullanılabilir bir Supabase auth başarısından sonra
+    çağrılır — giris_yap() içinde, kullanılabilir `kullanici` sözlüğü
+    başarıyla kurulduktan SONRA, `return kullanici` satırının hemen
+    öncesinde. `res.user` varlığı TEK BAŞINA yeterli değildir; res.session
+    ve token alanları da okunabilir olmalıdır (R3'te bu çağrı yanlışlıkla
+    `res.user` doğrulanır doğrulanmaz, token okuma ve sözlük kurma
+    denemelerinden ÖNCE yapılıyordu — İnceleyici AI'nın bulduğu R3 hatası
+    buydu: eksik/bozuk res.session durumunda bile kilit temizleniyordu).
+
+    Hiçbir başka yerden çağrılmamalıdır — özellikle local session restore
+    akışı (oturum_kontrol()'ün restore dalı) bu fonksiyonu ÇAĞIRMAZ, bu
+    yüzden çakışma kilidini kaldıramaz (bilerek; Bölüm 5).
+
+    `_identity_locked` dahil önceki çakışmadan kalan tüm eski/geçersiz
+    kimlik, legacy ve impersonation state'ini temizler — böylece yeni
+    doğrulanmış kullanıcı set_session_fields() tarafından ilk aktör
+    olarak (Kural 4) kurulabilir.
+    """
+    for k in ["_identity_locked",
+              "auth_user", "view_as_user",
+              "auth_user_id", "auth_role",
+              "view_user_id", "view_role",
+              "identity_context_valid",
+              "kullanici", "user_role", "user_name", "user_initials", "kullanici_id",
+              "_impersonate_active", "_impersonate_original", "_impersonated_name"]:
+        st.session_state.pop(k, None)
+
+
+def set_session_fields(kullanici: dict) -> bool:
     """
     Standart session_state alanlarını güvenli şekilde yaz.
     Tüm dosyalarda (giris.py, app.py, profil.py, oturum_kontrol) aynı
     mantık kullanılsın diye merkezi hale getirildi — session_state'e
     kullanıcı adı/rolü/baş harfleri yazan HER yer bu fonksiyonu
     çağırmalı, kendi kopyasını yazmamalı.
+
+    KA-AUTH-001-R3: Artık bool döner (önceki sürümlerde dönüş değeri
+    None idi ve hiçbir mevcut çağıran onu kullanmıyordu — bu değişiklik
+    hiçbir çağıran dosyayı bozmaz).
+
+      True  -> kimlik bağlamı geçerli kuruldu (auth_user/view_as_user
+               tutarlı).
+      False -> kimlik bağlamı kurulamadı; bu DURUMDA legacy alanlar
+               (kullanici/user_role/user_name/user_initials/kullanici_id),
+               auth/view alanları ve impersonation state'i AYNI fonksiyon
+               çağrısı içinde atomik olarak temizlendi — geçersiz sonuç
+               hiçbir şekilde "yetkiliymiş gibi" dışarı sızdırılmaz,
+               çağıran kod dönüş değerini kullanmasa bile.
     """
     ad = (
         kullanici.get("ad_soyad")
@@ -260,6 +645,19 @@ def set_session_fields(kullanici: dict) -> None:
     )
     st.session_state["kullanici_id"]   = kullanici.get("id", "")
 
+    # KA-AUTH-001-R1 — merkezi kimlik bağlamı (auth_user/view_as_user).
+    # Yukarıdaki legacy alan yazımları bu R1'de değiştirilmedi; bu çağrı
+    # onlara ek, ayrı bir adımdır.
+    _resolve_identity_context(kullanici)
+
+    # KA-AUTH-001-R3 — ATOMİKLİK (Bölüm 3, Seçenek B): mevcut sıra
+    # (önce legacy yaz, sonra çöz) korunuyor; ancak sonuç geçersizse
+    # legacy/auth/view/impersonation state AYNI çağrı içinde temizlenir.
+    if st.session_state.get("identity_context_valid") is not True:
+        _clear_invalid_session_identity()
+        return False
+    return True
+
 
 def oturum_kontrol() -> bool:
     """
@@ -274,8 +672,10 @@ def oturum_kontrol() -> bool:
     if st.session_state.get("kullanici"):
         # Session zaten var ama diğer alanlar eksik/tutarsız olabilir —
         # her ihtimale karşı standart alanları senkronize et.
-        set_session_fields(st.session_state["kullanici"])
-        return True
+        # KA-AUTH-001-R3: set_session_fields() artık atomik bool
+        # döndürüyor (Bölüm 3) — invalid durumda gerekli temizliği
+        # kendi içinde zaten yapıyor, burada tekrar etmeye gerek yok.
+        return set_session_fields(st.session_state["kullanici"])
 
     if not LOCAL_SESSION_RESTORE:
         return False
@@ -294,7 +694,11 @@ def oturum_kontrol() -> bool:
         if not kullanici.get("email") and not kullanici.get("user_key"):
             return False
 
-        set_session_fields(kullanici)
-        return True
+        # KA-AUTH-001-R3: yalnız gerçek doğrulanmış giriş
+        # (_clear_identity_lock_on_verified_auth, giris_yap() içinde)
+        # veya cikis_yap() çakışma kilidini kaldırabilir — local restore
+        # bunlardan biri DEĞİL, bu yüzden kilit varsa burası da bloke
+        # kalır (bilerek; Bölüm 5).
+        return set_session_fields(kullanici)
     except Exception:
         return False
