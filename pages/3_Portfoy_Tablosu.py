@@ -329,6 +329,33 @@ def _islem_sekmesi_degistir(state_key, value):
     st.session_state[state_key] = value
 
 
+def _islem_sekmesi_senkronize(state_key):
+    """
+    BUG DÜZELTMESİ: _render_islem_sekmesi (segmented_control kolunda),
+    kullanıcının tıkladığı değeri iki adımlı bir 'mirror' ile taşıyordu:
+    Streamlit widget'ın kendi key'ini (widget_key) tıklama anında hemen
+    günceller, ama state_key (mirror) yalnızca _render_islem_sekmesi
+    çağrıldığında senkronize ediliyordu. Filtreleme kodu ise state_key'i
+    _render_islem_sekmesi çağrılmadan ÖNCE okuyordu — bu yüzden kullanıcı
+    sekmeye tıklayınca görsel olarak sekme değişiyor ama liste bir tık
+    GERİDEN geliyordu (önceki seçime göre filtreleniyordu).
+
+    Bu fonksiyon aynı senkronizasyonu FİLTRELEMEDEN ÖNCE yapar. Asıl
+    _render_islem_sekmesi hâlâ çağrılır (görsel olarak widget'ı çizer),
+    ama artık zaten senkron olduğu için işlevsel bir gecikmeye yol açmaz.
+    """
+    if state_key not in st.session_state or st.session_state[state_key] not in ISLEM_SEKME_OPTIONS:
+        st.session_state[state_key] = "Satılık"
+
+    if hasattr(st, "segmented_control"):
+        widget_key = f"{state_key}_widget"
+        widget_deger = st.session_state.get(widget_key)
+        if widget_deger in ISLEM_SEKME_OPTIONS:
+            st.session_state[state_key] = widget_deger
+
+    return st.session_state[state_key]
+
+
 def _render_islem_sekmesi(state_key, counts):
     """Satılık / Kiralık / Tespit Edilmemiş seçimi. st.segmented_control
     mevcutsa onu (format_func ile sayaç göstererek), değilse üç native
@@ -1961,12 +1988,34 @@ if hizli != "Tümü":
 if bas_tarih and bit_tarih:
     f = [v for v in f if (d:=tarih_parse(en_iyi_tarih(v))) and bas_tarih <= (d.date() if hasattr(d,"date") and callable(d.date) else d) <= bit_tarih]
 
+# ── EXCEL EXPORT ─────────────────────────────────────────────────────────
+# NOT: 'f' bu noktada Dönem/Mülk Tipi/İlçe/arama filtrelerini yansıtır,
+# favori ilçe kişisel filtresini YANSITMAZ — rapor bilerek tüm ilgili
+# ilçeleri kapsasın diye bu noktada alınıyor.
+from core.rapor_export import export_butonu_goster
+export_butonu_goster(
+    kayitlar=f,
+    rapor_basligi="Portföy Raporu",
+    kayit_tipi="portfoy",
+    dosya_on_eki="portfoy_raporu",
+    key_prefix="portfoy",
+)
+from core.pano_export import pano_export_butonu_goster
+pano_export_butonu_goster(
+    kayitlar=f,
+    pano_basligi="Portföy Panosu",
+    kayit_tipi="portfoy",
+    dosya_on_eki="portfoy_panosu",
+    key_prefix="portfoy",
+)
+st.divider()
+
 # ── AŞAMA 4: İŞLEM TİPİ SEKMESİ — önce sayaç, sonra uygulama ────────────────
 _islem_sayilar = {"Satılık": 0, "Kiralık": 0, "Tespit Edilmemiş": 0}
 for v in f:
     _islem_sayilar[_islem_tipi_norm(v)] += 1
 
-pft_islem_sekme_secili = st.session_state.get("pft_islem_sekme", "Satılık")
+pft_islem_sekme_secili = _islem_sekmesi_senkronize("pft_islem_sekme")
 f = [v for v in f if _islem_tipi_norm(v) == pft_islem_sekme_secili]
 
 # ── AŞAMA 5: FAVORİ / TÜM İLÇELER KAPSAMI — önce sayaç, sonra uygulama ──────

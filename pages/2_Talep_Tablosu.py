@@ -2800,6 +2800,28 @@ if bas_tarih and bit_tarih:
         if (d := tarih_parse(en_iyi_tarih(v))) and bas_tarih <= d.date() <= bit_tarih
     ]
 
+# ── EXCEL EXPORT ─────────────────────────────────────────────────────────
+# NOT: 'f' bu noktada Dönem/Mülk Tipi/İlçe/arama filtrelerini yansıtır,
+# favori ilçe kişisel filtresini YANSITMAZ (o aşağıda AŞAMA 5'te uygulanır)
+# — rapor bilerek tüm ilgili ilçeleri kapsasın diye bu noktada alınıyor.
+from core.rapor_export import export_butonu_goster
+export_butonu_goster(
+    kayitlar=f,
+    rapor_basligi="Talep Raporu",
+    kayit_tipi="talep",
+    dosya_on_eki="talep_raporu",
+    key_prefix="talep",
+)
+from core.pano_export import pano_export_butonu_goster
+pano_export_butonu_goster(
+    kayitlar=f,
+    pano_basligi="Talep Panosu",
+    kayit_tipi="talep",
+    dosya_on_eki="talep_panosu",
+    key_prefix="talep",
+)
+st.divider()
+
 # ── AŞAMA 4: İŞLEM TİPİ SEKMESİ — önce sayaç, sonra uygulama ────────────────
 _islem_sayilar = {"Satılık": 0, "Kiralık": 0, "Tespit Edilmemiş": 0}
 for v in f:

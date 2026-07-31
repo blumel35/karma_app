@@ -6,6 +6,8 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from datetime import datetime, timezone, timedelta
+
 from core.mail_job import run_mail_fetch_job, run_pending_ai_parse_job
 
 from core.auth import oturum_kontrol
@@ -83,9 +85,31 @@ with col2:
     st.subheader("2. AI ile Kategorize Et")
     st.caption("Mailleri Claude AI ile analiz eder — alıcı talebi mi, portföy paylaşımı mı ayırır")
 
+    tarih_filtresi_ac = st.checkbox(
+        "Sadece belirli bir tarihten sonraki kayıtları işle",
+        value=True,
+        help="Kapatırsan, parse_status='raw' olan TÜM kayıtlar (eski dahil) "
+             "sıraya göre işlenir. Migration sonrası eski kayıtları bilerek "
+             "işlemeden bırakmak istiyorsan bunu açık tut.",
+    )
+
+    baslangic_tarihi = None
+    if tarih_filtresi_ac:
+        varsayilan_tarih = (datetime.now() - timedelta(days=15)).date()
+        secilen_tarih = st.date_input(
+            "Bu tarihten SONRAKİ kayıtlar işlensin",
+            value=varsayilan_tarih,
+            help="Mailin kendi tarihi (kayit_tarihi) bu tarihten önceyse bu "
+                 "çalıştırmada atlanır, raw olarak kalmaya devam eder.",
+        )
+        baslangic_tarihi = datetime(
+            secilen_tarih.year, secilen_tarih.month, secilen_tarih.day,
+            tzinfo=timezone.utc,
+        )
+
     islenecek_limit = st.number_input(
         "Bu çalıştırmada en fazla kaç kayıt işlensin?",
-        min_value=10, max_value=200, value=100, step=10,
+        min_value=10, max_value=1000, value=100, step=10,
     )
 
     if st.button("AI ile Kategorize Et", use_container_width=True, type="primary"):
@@ -95,11 +119,21 @@ with col2:
             def guncelle2(mesaj):
                 durum2.write(mesaj)
 
-            sonuc = run_pending_ai_parse_job(limit=int(islenecek_limit), durum_callback=guncelle2)
+            sonuc = run_pending_ai_parse_job(
+                limit=int(islenecek_limit),
+                durum_callback=guncelle2,
+                baslangic_tarihi=baslangic_tarihi,
+            )
 
             if sonuc["islenen"] == 0:
                 durum2.update(label="İşlenecek yeni kayıt yok", state="complete")
-                st.info("Tüm kayıtlar zaten işlenmiş.")
+                if tarih_filtresi_ac:
+                    st.info(
+                        "Seçilen tarihten sonra işlenecek raw kayıt yok. "
+                        "(Daha eski raw kayıtlar olabilir, filtre kapalıyken görünür.)"
+                    )
+                else:
+                    st.info("Tüm kayıtlar zaten işlenmiş.")
             else:
                 durum2.update(
                     label=f"✅ {sonuc['alici']} alıcı/diğer, {sonuc['portfoy']} portföy işlendi!",
@@ -111,17 +145,25 @@ with col2:
 
                 kalan = sonuc.get("kalan", 0)
                 if kalan > 0:
-                    st.info(f"📋 Hâlâ **{kalan}** kayıt işlenmeyi bekliyor. Devam etmek için butona tekrar bas.")
+                    st.info(
+                        f"📋 Hâlâ **{kalan}** kayıt (parse_status='raw') var — "
+                        "bir kısmı tarih filtresi nedeniyle bilerek atlanmış olabilir."
+                    )
                 else:
                     st.success("🎉 Bekleyen kayıt kalmadı, hepsi işlendi!")
 
                 with st.expander("AI işleme özeti", expanded=sonuc["hatali"] > 0):
+                    filtre_metni = (
+                        f"Açık, {baslangic_tarihi.date()} sonrası"
+                        if baslangic_tarihi else "Kapalı (tüm raw kayıtlar)"
+                    )
                     st.markdown(f"""
 - **İşlenen kayıt:** {sonuc['islenen']}
 - **Alıcı talebi / diğer:** {sonuc['alici']}
 - **Portföy paylaşımı:** {sonuc['portfoy']}
 - **Hatalı (parse_status='failed'):** {sonuc['hatali']}
 - **Kalan (parse_status='raw'):** {kalan}
+- **Tarih filtresi:** {filtre_metni}
 - **Süre:** {sonuc['sure_saniye']} sn
 """)
                     if sonuc["hatali"] > 0:

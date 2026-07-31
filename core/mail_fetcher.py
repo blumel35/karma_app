@@ -199,7 +199,7 @@ def klasorden_mailleri_cek(mail, klasor, mevcut_message_idler, mevcut_fallback_h
                 "iletisim_not": "",
                 "mail_konusu": konu,
                 "mail_icerigi": icerik,
-                "message_id": message_id,
+                "message_id": message_id or None,
                 "fallback_hash": fb_hash,
                 "is_reply": is_reply,
                 "kaynak_klasor": klasor,

@@ -13,6 +13,14 @@ Faz 1 (veri bütünlüğü) ve Faz 2.5 (otomasyon) revizeleri burada toplandı:
   zamanına göre since_date hesaplanıyor.
 - Her çalıştırma mail_fetch_log tablosuna özet olarak yazılıyor
   (UI'da ve otomasyonda aynı rapor kullanılabiliyor).
+
+Faz 2.6 (mail sağlayıcı geçişi sonrası tek seferlik ihtiyaç):
+- run_pending_ai_parse_job'a opsiyonel baslangic_tarihi parametresi
+  eklendi. Verilmezse davranış tamamen eskisi gibidir (tüm raw kayıtlar
+  limit sırasına göre işlenir) — otomasyon ve UI butonu etkilenmez.
+  Verildiğinde, sadece kayit_tarihi bu tarihten SONRA olan raw kayıtlar
+  bu çalıştırmada işlenir; öncekiler raw olarak kalmaya devam eder
+  (kaybolmaz, sadece bu turda atlanır).
 """
 
 from datetime import datetime, timezone
@@ -188,13 +196,20 @@ def run_mail_fetch_job(durum_callback=None, lookback_days=None):
     }
 
 
-def run_pending_ai_parse_job(limit=50, durum_callback=None, max_workers=3):
+def run_pending_ai_parse_job(limit=50, durum_callback=None, max_workers=3, baslangic_tarihi=None):
     """
     parse_status='raw' olan kayıtları AI ile işler.
     - alici_talebi / diger -> aynı satır güncellenir, parse_status='parsed'/'ignored'
     - portfoy_paylasimi -> portfoyler tablosuna yeni satır eklenir; ham satır
       SİLİNMEZ, parse_status='moved_to_portfoy' + linked_portfoy_id yazılır.
     - hata alan kayıtlar -> parse_status='failed' + parse_error
+
+    baslangic_tarihi: verilirse (datetime, tz-aware veya naive), sadece
+    kayit_tarihi bu tarihten SONRA olan 'raw' kayıtlar işlenir. Daha eski
+    kayıtlar bu turda atlanır, raw olarak kalmaya devam eder (kaybolmaz).
+    Verilmezse eski davranış aynen sürer (tüm raw kayıtlar limit sırasına
+    göre işlenir) — UI butonu ve otomasyon bu parametreyi vermediği için
+    etkilenmez.
 
     UI'daki "AI ile Kategorize Et" butonu ve otomasyon script'i bu
     fonksiyonu çağırır.
@@ -204,6 +219,26 @@ def run_pending_ai_parse_job(limit=50, durum_callback=None, max_workers=3):
 
     resp = supabase.table("alici_talepleri").select("*").eq("parse_status", "raw").limit(limit).execute()
     kayitlar = resp.data or []
+
+    if baslangic_tarihi is not None:
+        from email.utils import parsedate_to_datetime
+        esik = baslangic_tarihi
+        if esik.tzinfo is None:
+            esik = esik.replace(tzinfo=timezone.utc)
+        filtreli = []
+        for k in kayitlar:
+            tarih_str = k.get("kayit_tarihi", "") or ""
+            try:
+                mail_tarihi = parsedate_to_datetime(tarih_str)
+                if mail_tarihi.tzinfo is None:
+                    mail_tarihi = mail_tarihi.replace(tzinfo=timezone.utc)
+                if mail_tarihi >= esik:
+                    filtreli.append(k)
+            except Exception:
+                # Tarih parse edilemiyorsa güvenli tarafta kal, bu turda
+                # atla (parse_status='raw' olarak kalmaya devam eder).
+                continue
+        kayitlar = filtreli
 
     if not kayitlar:
         if durum_callback:

@@ -702,6 +702,24 @@ with tab_talep:
         tm2.metric("Kiralık", _ta_kiralik)
         tm3.metric("Belirsiz", _ta_belirsiz)
 
+        # ── EXCEL EXPORT ──────────────────────────────────────────────────
+        from core.rapor_export import export_butonu_goster
+        export_butonu_goster(
+            kayitlar=ta_f,
+            rapor_basligi="Talep Arşiv Raporu",
+            kayit_tipi="talep",
+            dosya_on_eki="talep_arsiv_raporu",
+            key_prefix="arsiv_talep",
+        )
+        from core.pano_export import pano_export_butonu_goster
+        pano_export_butonu_goster(
+            kayitlar=ta_f,
+            pano_basligi="Talep Arşiv Panosu",
+            kayit_tipi="talep",
+            dosya_on_eki="talep_arsiv_panosu",
+            key_prefix="arsiv_talep",
+        )
+
         # ── Düz tablo (Excel benzeri, salt görüntüleme) ──────────────────
         _ta_sirali = sorted(ta_f, key=lambda x: tarih_gun_farki(en_iyi_tarih(x)))
         _ta_satirlar = []
@@ -872,6 +890,24 @@ with tab_portfoy:
         pm1.metric("Satılık", _pf_satilik)
         pm2.metric("Kiralık", _pf_kiralik)
         pm3.metric("Belirsiz", _pf_belirsiz)
+
+        # ── EXCEL EXPORT ──────────────────────────────────────────────────
+        from core.rapor_export import export_butonu_goster
+        export_butonu_goster(
+            kayitlar=pf_f,
+            rapor_basligi="Portföy Arşiv Raporu",
+            kayit_tipi="portfoy",
+            dosya_on_eki="portfoy_arsiv_raporu",
+            key_prefix="arsiv_portfoy",
+        )
+        from core.pano_export import pano_export_butonu_goster
+        pano_export_butonu_goster(
+            kayitlar=pf_f,
+            pano_basligi="Portföy Arşiv Panosu",
+            kayit_tipi="portfoy",
+            dosya_on_eki="portfoy_arsiv_panosu",
+            key_prefix="arsiv_portfoy",
+        )
 
         # ── Düz tablo (Excel benzeri, salt görüntüleme) ──────────────────
         _pf_sirali = sorted(pf_f, key=lambda x: tarih_gun_farki(en_iyi_tarih(x)))
