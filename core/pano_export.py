@@ -160,13 +160,12 @@ def pano_html_olustur(kayitlar, pano_basligi, kayit_tipi="talep"):
     onceki_harf = None
     for ilce in sirali_ilceler:
         harf = _harf_al(ilce)
-        harf_anchor = f'<a id="harf-{harf}" class="harf-anchor"></a>' if harf != onceki_harf else ""
+        anchor_id = f'id="harf-{harf}"' if harf != onceki_harf else ""
         onceki_harf = harf
         kayitlar_bu_ilce = gruplar[ilce]
         kartlar = "\n".join(_kart_html(v, kayit_tipi) for v in kayitlar_bu_ilce)
         bolumler.append(f"""
-        {harf_anchor}
-        <div class="ilce-bolum">
+        <div class="ilce-bolum" {anchor_id}>
           <h2 class="ilce-baslik">{_esc(ilce)} <span class="ilce-sayi">({len(kayitlar_bu_ilce)})</span></h2>
           <div class="kart-grid">{kartlar}</div>
         </div>
@@ -226,8 +225,7 @@ def pano_html_olustur(kayitlar, pano_basligi, kayit_tipi="talep"):
   nav.harfler .harf.aktif:hover {{ background: var(--gold); color: #fff; transform: translateY(-1px); box-shadow: var(--shadow-hover); }}
   nav.harfler .harf.pasif {{ color: var(--border-strong); }}
   main {{ max-width: 1280px; margin: 0 auto; padding: 24px 26px 70px; }}
-  .harf-anchor {{ display: block; position: relative; top: -66px; }}
-  .ilce-bolum {{ margin-bottom: 36px; }}
+  .ilce-bolum {{ margin-bottom: 36px; scroll-margin-top: 76px; }}
   .ilce-baslik {{
     font-family: 'Montserrat', sans-serif; font-size: 16px; font-weight: 700;
     color: var(--navy); display: flex; align-items: baseline; gap: 8px;
