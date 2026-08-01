@@ -177,6 +177,15 @@ startkey_ilanlar = st.Page(
     icon=":material/travel_explore:",
 )
 
+# ── Pano Görüntüle — paylaşım linkleri için, GİRİŞ GEREKTİRMEZ ──
+# NOT: pages/Pano_Goruntule.py bilerek oturum_kontrol() çağırmıyor —
+# linki bilen herkes (Karma App hesabı olmadan) açabilsin diye.
+pano_goruntule = st.Page(
+    "pages/Pano_Goruntule.py",
+    title="Pano Görüntüle",
+    icon=":material/dashboard:",
+)
+
 # ─────────────────────────────────────────────────────
 # NAVIGATION
 # ─────────────────────────────────────────────────────
@@ -186,6 +195,7 @@ pg = st.navigation(
             giris,
             ana,
             profil,
+            pano_goruntule,
         ],
 
         "Danışman": [
