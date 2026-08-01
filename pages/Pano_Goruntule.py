@@ -62,8 +62,13 @@ try:
     # ISO-8859-1 ile çözüyor — bu da UTF-8 Türkçe karakterleri
     # bozuyordu (KiralÄ±k gibi). Kodlamayı burada elle UTF-8'e
     # sabitliyoruz, .text bunu kullanarak doğru çözsün diye.
-    yanit.encoding = "utf-8"
-    html_icerik = yanit.text
+    # NOT: yanit.encoding = "utf-8" ataması bazı requests sürümlerinde/
+    # HTTP başlığı kombinasyonlarında güvenilir çalışmayabiliyor —
+    # Storage'daki ham baytların GERÇEKTEN doğru UTF-8 olduğu doğrulandı
+    # (\xc4\xb1 = "ı" harfinin doğru kodlaması), bu yüzden burada .text
+    # yerine ham baytları (.content) elle ve kesin olarak UTF-8 ile
+    # çözüyoruz — hiçbir tahmine/otomatik algılamaya bağlı kalmadan.
+    html_icerik = yanit.content.decode("utf-8")
 except requests.exceptions.HTTPError:
     st.error("Bu pano bulunamadı — link geçersiz olabilir veya süresi dolmuş olabilir.")
     st.stop()
