@@ -151,7 +151,10 @@ def pano_html_olustur(kayitlar, pano_basligi, kayit_tipi="talep"):
     nav_parcalari = []
     for harf in TURK_ALFABE:
         if harf in mevcut_harfler:
-            nav_parcalari.append(f'<a href="#harf-{harf}" class="harf aktif">{harf}</a>')
+            nav_parcalari.append(
+                f'<a href="javascript:void(0)" class="harf aktif" '
+                f'onclick="panoyaKaydir(\'{harf}\'); return false;">{harf}</a>'
+            )
         else:
             nav_parcalari.append(f'<span class="harf pasif">{harf}</span>')
     nav_html = "\n".join(nav_parcalari)
@@ -160,12 +163,12 @@ def pano_html_olustur(kayitlar, pano_basligi, kayit_tipi="talep"):
     onceki_harf = None
     for ilce in sirali_ilceler:
         harf = _harf_al(ilce)
-        anchor_id = f'id="harf-{harf}"' if harf != onceki_harf else ""
+        veri_harf = f'data-harf-ilk="{harf}"' if harf != onceki_harf else ""
         onceki_harf = harf
         kayitlar_bu_ilce = gruplar[ilce]
         kartlar = "\n".join(_kart_html(v, kayit_tipi) for v in kayitlar_bu_ilce)
         bolumler.append(f"""
-        <div class="ilce-bolum" {anchor_id}>
+        <div class="ilce-bolum" {veri_harf}>
           <h2 class="ilce-baslik">{_esc(ilce)} <span class="ilce-sayi">({len(kayitlar_bu_ilce)})</span></h2>
           <div class="kart-grid">{kartlar}</div>
         </div>
@@ -281,6 +284,16 @@ def pano_html_olustur(kayitlar, pano_basligi, kayit_tipi="talep"):
 <main>
 {bolumler_html}
 </main>
+<script>
+function panoyaKaydir(harf) {{
+  var hedef = document.querySelector('[data-harf-ilk="' + harf + '"]');
+  if (!hedef) return;
+  var nav = document.querySelector('nav.harfler');
+  var navYuksekligi = nav ? nav.offsetHeight : 0;
+  var hedefKonum = hedef.getBoundingClientRect().top + window.pageYOffset - navYuksekligi - 12;
+  window.scrollTo({{ top: hedefKonum, behavior: 'smooth' }});
+}}
+</script>
 </body>
 </html>"""
 
