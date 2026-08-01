@@ -24,7 +24,10 @@ import streamlit as st
 import requests
 import streamlit.components.v1 as components
 
-st.set_page_config(page_title="İlan Panosu", layout="wide")
+# NOT: st.set_page_config() BURADA ÇAĞRILMIYOR — app.py (giriş dosyası)
+# zaten uygulamanın genelinde bunu bir kez çağırıyor. Streamlit, aynı
+# çalıştırmada ikinci bir set_page_config çağrısına izin vermiyor
+# (StreamlitSetPageConfigMustBeFirstCommandError).
 
 PANO_BUCKET = "pano-paylasim"
 
