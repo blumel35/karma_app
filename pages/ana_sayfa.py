@@ -240,157 +240,118 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ── HIZLI İŞLEMLER ──
-st.markdown('''
-<div class="quick-bar">
-  <a class="quick-item" href="?nav=taleplerim">
-    <span class="quick-item-icon">➕</span>
-    <span class="quick-item-label">Yeni Talep</span>
-  </a>
-  <a class="quick-item" href="?nav=portfoylerim">
-    <span class="quick-item-icon">🏠</span>
-    <span class="quick-item-label">Yeni Portföy</span>
-  </a>
-</div>
-''', unsafe_allow_html=True)
+# NOT: Önceki hâl <a href="?nav=..."> düz HTML linkleriyle çalışıyordu.
+# Bu, tarayıcıda TAM SAYFA YENİLEMESİ (hard reload) tetikliyordu —
+# Streamlit'in kendi (WebSocket üzerinden, sayfa yenilemeyen) dahili
+# yönlendirmesini kullanmıyordu. Streamlit Cloud'un iframe/proxy
+# katmanında bu tam yenileme, oturumu (session_state) kaybettiriyor ve
+# kullanıcıyı giriş ekranına düşürüyordu. Çözüm: gerçek st.button() +
+# st.switch_page() — bunlar WebSocket üzerinden çalışır, sayfa hiç
+# yenilenmez, oturum korunur. Görsel stil CSS ile aynı tutuldu.
+st.markdown('<div class="quick-bar-wrap">', unsafe_allow_html=True)
+_qc1, _qc2 = st.columns(2)
+with _qc1:
+    if st.button("➕  Yeni Talep", key="nav_taleplerim_quick", use_container_width=True):
+        st.switch_page(ROUTES["taleplerim"])
+with _qc2:
+    if st.button("🏠  Yeni Portföy", key="nav_portfoylerim_quick", use_container_width=True):
+        st.switch_page(ROUTES["portfoylerim"])
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ── ÇALIŞMA KOKPİTİ ──
 st.markdown('<div class="sec-head">Çalışma Kokpiti</div>', unsafe_allow_html=True)
 
-st.markdown('''
-<div class="kokpit-grid">
 
-  <div class="kokpit-card">
-    <div class="kokpit-card-head work">
-      <div class="kokpit-badge">W</div>
-      <div>
-        <div class="kokpit-card-title">Çalışma Alanım</div>
-        <div class="kokpit-card-desc">Kendi taleplerinizi, portföylerinizi ve günlük planınızı yönetin.</div>
+def _kokpit_kart(head_class, badge, baslik, aciklama, satirlar, kart_no):
+    """Bir kokpit kartını çizer: HTML başlık (görsel) + gerçek st.button
+    satırları (fonksiyonel navigasyon). Önceki <a href="?nav=..."> deseni
+    tam sayfa yenilemesine yol açıp Streamlit Cloud'da oturumu
+    kaybettiriyordu — bkz. dosya başındaki not."""
+    st.markdown(f'''
+    <div class="kokpit-card">
+      <div class="kokpit-card-head {head_class}">
+        <div class="kokpit-badge">{badge}</div>
+        <div>
+          <div class="kokpit-card-title">{baslik}</div>
+          <div class="kokpit-card-desc">{aciklama}</div>
+        </div>
       </div>
     </div>
-    <a class="kokpit-row" href="?nav=gd_calisma_alani">
-      <div class="kokpit-row-icon">🧭</div>
-      <span class="kokpit-row-label">GD Çalışma Alanı</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-    <a class="kokpit-row" href="?nav=taleplerim">
-      <div class="kokpit-row-icon">📋</div>
-      <span class="kokpit-row-label">Taleplerim</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-    <a class="kokpit-row" href="?nav=portfoylerim">
-      <div class="kokpit-row-icon">🏠</div>
-      <span class="kokpit-row-label">Portföylerim</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-    <a class="kokpit-row" href="?nav=ajandam">
-      <div class="kokpit-row-icon">📅</div>
-      <span class="kokpit-row-label">Ajandam</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-  </div>
+    ''', unsafe_allow_html=True)
+    for icon, label, route_key in satirlar:
+        if st.button(f"{icon}  {label}", key=f"nav_{route_key}_{kart_no}", use_container_width=True):
+            st.switch_page(ROUTES[route_key])
 
-  <div class="kokpit-card">
-    <div class="kokpit-card-head pool">
-      <div class="kokpit-badge">P</div>
-      <div>
-        <div class="kokpit-card-title">Ortak Havuzlar</div>
-        <div class="kokpit-card-desc">Paylaşılan talepler ve portföyleri inceleyin.</div>
-      </div>
-    </div>
-    <a class="kokpit-row" href="?nav=talep_havuzu">
-      <div class="kokpit-row-icon">📥</div>
-      <span class="kokpit-row-label">Talep Havuzu</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-    <a class="kokpit-row" href="?nav=portfoy_havuzu">
-      <div class="kokpit-row-icon">🏘️</div>
-      <span class="kokpit-row-label">Portföy Havuzu</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-    <a class="kokpit-row" href="?nav=arsiv">
-      <div class="kokpit-row-icon">🗄️</div>
-      <span class="kokpit-row-label">Arşiv Merkezi</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-    <a class="kokpit-row" href="?nav=rehber">
-      <div class="kokpit-row-icon">🏢</div>
-      <span class="kokpit-row-label">Startkey Rehberi</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-    <a class="kokpit-row" href="?nav=startkey_ilanlar">
-      <div class="kokpit-row-icon">📡</div>
-      <span class="kokpit-row-label">Startkey İlanları</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-    <a class="kokpit-row" href="?nav=pazar_radar">
-      <div class="kokpit-row-icon">📡</div>
-      <span class="kokpit-row-label">Pazar Radar</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-    <a class="kokpit-row" href="?nav=pazar_raporu">
-      <div class="kokpit-row-icon">📊</div>
-      <span class="kokpit-row-label">Pazar Raporu</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-  </div>
 
-  <div class="kokpit-card">
-    <div class="kokpit-card-head panel">
-      <div class="kokpit-badge">Z</div>
-      <div>
-        <div class="kokpit-card-title">Zeta Paneli</div>
-        <div class="kokpit-card-desc">Ofis ve operasyon süreçlerini takip edin.</div>
-      </div>
-    </div>
-    <a class="kokpit-row" href="?nav=ofis">
-      <div class="kokpit-row-icon">📈</div>
-      <span class="kokpit-row-label">Ofis Paneli</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-    <a class="kokpit-row" href="?nav=operasyon">
-      <div class="kokpit-row-icon">🔧</div>
-      <span class="kokpit-row-label">Operasyon Merkezi</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-    <a class="kokpit-row" href="?nav=sozlesme">
-      <div class="kokpit-row-icon">📄</div>
-      <span class="kokpit-row-label">Sözleşmeler ve Formlar</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-  </div>
-
-</div>
-''', unsafe_allow_html=True)
+_kk1, _kk2, _kk3 = st.columns(3)
+with _kk1:
+    _kokpit_kart(
+        "work", "W", "Çalışma Alanım",
+        "Kendi taleplerinizi, portföylerinizi ve günlük planınızı yönetin.",
+        [
+            ("🧭", "GD Çalışma Alanı", "gd_calisma_alani"),
+            ("📋", "Taleplerim", "taleplerim"),
+            ("🏠", "Portföylerim", "portfoylerim"),
+            ("📅", "Ajandam", "ajandam"),
+        ],
+        "kart1",
+    )
+with _kk2:
+    _kokpit_kart(
+        "pool", "P", "Ortak Havuzlar",
+        "Paylaşılan talepler ve portföyleri inceleyin.",
+        [
+            ("📥", "Talep Havuzu", "talep_havuzu"),
+            ("🏘️", "Portföy Havuzu", "portfoy_havuzu"),
+            ("🗄️", "Arşiv Merkezi", "arsiv"),
+            ("🏢", "Startkey Rehberi", "rehber"),
+            ("📡", "Startkey İlanları", "startkey_ilanlar"),
+            ("📡", "Pazar Radar", "pazar_radar"),
+            ("📊", "Pazar Raporu", "pazar_raporu"),
+        ],
+        "kart2",
+    )
+with _kk3:
+    _kokpit_kart(
+        "panel", "Z", "Zeta Paneli",
+        "Ofis ve operasyon süreçlerini takip edin.",
+        [
+            ("📈", "Ofis Paneli", "ofis"),
+            ("🔧", "Operasyon Merkezi", "operasyon"),
+            ("📄", "Sözleşmeler ve Formlar", "sozlesme"),
+        ],
+        "kart3",
+    )
 
 # ── BUGÜNÜN AKIŞI ──
 st.markdown('<div class="sec-head">Bugünün Akışı</div>', unsafe_allow_html=True)
 
-st.markdown('''
-<div class="alt-grid">
-  <div class="alt-card">
-    <div class="alt-card-head"><div class="alt-card-title">Bugün Neler Oluyor?</div></div>
-    <div class="alt-card-body">
-      <div class="empty-state"><div class="empty-icon">📭</div><span>Henüz kayıt bulunmuyor.</span></div>
+_ag1, _ag2, _ag3 = st.columns(3)
+with _ag1:
+    st.markdown('''
+    <div class="alt-card">
+      <div class="alt-card-head"><div class="alt-card-title">Bugün Neler Oluyor?</div></div>
+      <div class="alt-card-body">
+        <div class="empty-state"><div class="empty-icon">📭</div><span>Henüz kayıt bulunmuyor.</span></div>
+      </div>
     </div>
-  </div>
-  <div class="alt-card">
-    <div class="alt-card-head"><div class="alt-card-title">Ajandam</div></div>
-    <div class="alt-card-body">
-      <div class="empty-state"><div class="empty-icon">📆</div><span>Henüz kayıt bulunmuyor.</span></div>
+    ''', unsafe_allow_html=True)
+with _ag2:
+    st.markdown('''
+    <div class="alt-card">
+      <div class="alt-card-head"><div class="alt-card-title">Ajandam</div></div>
+      <div class="alt-card-body">
+        <div class="empty-state"><div class="empty-icon">📆</div><span>Henüz kayıt bulunmuyor.</span></div>
+      </div>
     </div>
-  </div>
-  <div class="alt-card">
-    <div class="alt-card-head"><div class="alt-card-title">Hızlı İşlemler</div></div>
-    <a class="kokpit-row" href="?nav=taleplerim">
-      <div class="kokpit-row-icon">➕</div>
-      <span class="kokpit-row-label">Yeni Talep</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-    <a class="kokpit-row" href="?nav=portfoylerim">
-      <div class="kokpit-row-icon">🏠</div>
-      <span class="kokpit-row-label">Yeni Portföy</span>
-      <span class="kokpit-row-arrow">›</span>
-    </a>
-  </div>
-</div>
-''', unsafe_allow_html=True)
+    ''', unsafe_allow_html=True)
+with _ag3:
+    st.markdown(
+        '<div class="alt-card"><div class="alt-card-head">'
+        '<div class="alt-card-title">Hızlı İşlemler</div></div></div>',
+        unsafe_allow_html=True,
+    )
+    if st.button("➕  Yeni Talep", key="nav_taleplerim_akis", use_container_width=True):
+        st.switch_page(ROUTES["taleplerim"])
+    if st.button("🏠  Yeni Portföy", key="nav_portfoylerim_akis", use_container_width=True):
+        st.switch_page(ROUTES["portfoylerim"])
