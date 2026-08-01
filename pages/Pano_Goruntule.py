@@ -57,6 +57,12 @@ try:
     with st.spinner("Pano yükleniyor..."):
         yanit = requests.get(kaynak_url, timeout=15)
         yanit.raise_for_status()
+    # NOT: Storage'daki Content-Type sadece "text/plain" (charset
+    # belirtilmeden) döndüğü için requests, metni varsayılan olarak
+    # ISO-8859-1 ile çözüyor — bu da UTF-8 Türkçe karakterleri
+    # bozuyordu (KiralÄ±k gibi). Kodlamayı burada elle UTF-8'e
+    # sabitliyoruz, .text bunu kullanarak doğru çözsün diye.
+    yanit.encoding = "utf-8"
     html_icerik = yanit.text
 except requests.exceptions.HTTPError:
     st.error("Bu pano bulunamadı — link geçersiz olabilir veya süresi dolmuş olabilir.")
