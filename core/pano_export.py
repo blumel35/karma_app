@@ -71,12 +71,34 @@ def _ilce_renk(ilce_adi):
     return ILCE_PALET[h % len(ILCE_PALET)]
 
 
+_TR_BUYUK_HARF = {"i": "İ", "ı": "I", "ç": "Ç", "ş": "Ş", "ö": "Ö", "ü": "Ü", "ğ": "Ğ"}
+
+
+def _ilce_normalize(isim):
+    """
+    'urla' ve 'Urla' gibi büyük/küçük harf farklılıklarının panoda AYRI
+    ilçe grupları olarak görünmesini engeller — ilk harfi Türkçe'ye
+    uygun büyütüp gerisini küçültür (Python'un varsayılan .capitalize()
+    metodu Türkçe İ/I ayrımını doğru yapmadığı için elle yapılıyor).
+    """
+    isim = (isim or "").strip()
+    if not isim:
+        return isim
+    ilk = isim[0]
+    ilk_buyuk = _TR_BUYUK_HARF.get(ilk, ilk.upper())
+    geri_kalan = isim[1:].lower().replace("i̇", "i")
+    return ilk_buyuk + geri_kalan
+
+
 def _ilce_al(v):
     ilceler = v.get("ilceler") or []
     if ilceler and ilceler[0]:
-        return ilceler[0]
-    ilce = (v.get("ilce") or "").strip()
-    return ilce if ilce and ilce != "Diğer Bölge" else "Diğer"
+        ilce = ilceler[0]
+    else:
+        ilce = (v.get("ilce") or "").strip()
+    if not ilce or ilce == "Diğer Bölge":
+        return "Diğer"
+    return _ilce_normalize(ilce)
 
 
 def _harf_al(ilce_adi):

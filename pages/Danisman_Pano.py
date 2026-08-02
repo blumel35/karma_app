@@ -20,7 +20,8 @@ Karma App'e entegre, canlı (statik export DEĞİL) bir sayfa:
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from email.utils import parsedate_to_datetime
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -29,7 +30,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import oturum_kontrol, cikis_yap
 from core.supabase_client import get_client
-from core.pano_export import pano_html_olustur
+from core.pano_export import pano_html_olustur, _ilce_normalize
 
 # NOT: Bu sayfa BİLEREK core.ui_helpers.render_navbar() ÇAĞIRMIYOR —
 # Karma App'in kalabalık menüsü/navbar'ı burada hiç görünmesin diye.
@@ -61,30 +62,64 @@ with _cikis_col:
 supabase = get_client()
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+def _son_60_gun_esigi():
+    return datetime.now(timezone.utc) - timedelta(days=60)
+
+
+def _tarihte_mi(kayit_tarihi_str, esik):
+    """kayit_tarihi Supabase'de metin (RFC822 mail tarihi) olarak
+    tutuluyor — bu yüzden sunucu tarafında (.gte/.lte ile) doğru
+    filtrelenemiyor (harf sırasına göre yanlış sıralanıyor). Bu yüzden
+    tüm kayıtları çekip burada, Python'da gerçek tarih olarak
+    karşılaştırıyoruz."""
+    try:
+        d = parsedate_to_datetime(kayit_tarihi_str or "")
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=timezone.utc)
+        return d >= esik
+    except Exception:
+        return False
+
+
+def _tum_sayfalari_cek(tablo, secim, filtreler=None):
+    """Supabase/PostgREST tek sorguda en fazla 1000 satır döndürür —
+    bu yüzden tüm kayıtlara ulaşmak için sayfa sayfa (range ile)
+    okuyoruz. (Aynı desen core/mail_job.py'de de kullanılıyor.)"""
+    tum_kayitlar = []
+    baslangic = 0
+    sayfa_boyutu = 1000
+    while True:
+        sorgu = supabase.table(tablo).select(secim)
+        for alan, deger in (filtreler or {}).items():
+            sorgu = sorgu.eq(alan, deger)
+        resp = (
+            sorgu.order("id", desc=True)
+            .range(baslangic, baslangic + sayfa_boyutu - 1)
+            .execute()
+        )
+        satirlar = resp.data or []
+        tum_kayitlar.extend(satirlar)
+        if len(satirlar) < sayfa_boyutu:
+            break
+        baslangic += sayfa_boyutu
+    return tum_kayitlar
+
+
+@st.cache_data(ttl=60, show_spinner="Talepler yükleniyor...")
 def _talepleri_cek():
-    resp = (
-        supabase.table("alici_talepleri")
-        .select("*")
-        .eq("kategori", "alici_talebi")
-        .eq("parse_status", "parsed")
-        .order("id", desc=True)
-        .limit(200)
-        .execute()
+    esik = _son_60_gun_esigi()
+    tumu = _tum_sayfalari_cek(
+        "alici_talepleri", "*",
+        filtreler={"kategori": "alici_talebi", "parse_status": "parsed"},
     )
-    return resp.data or []
+    return [v for v in tumu if _tarihte_mi(v.get("kayit_tarihi"), esik)]
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner="Portföyler yükleniyor...")
 def _portfoyleri_cek():
-    resp = (
-        supabase.table("portfoyler")
-        .select("*")
-        .order("id", desc=True)
-        .limit(200)
-        .execute()
-    )
-    return resp.data or []
+    esik = _son_60_gun_esigi()
+    tumu = _tum_sayfalari_cek("portfoyler", "*")
+    return [v for v in tumu if _tarihte_mi(v.get("kayit_tarihi"), esik)]
 
 
 def _yeni_talep_ekle(ilce, mulk_tipi, oda, butce, islem_tipi, ozet, danisman_adi):
@@ -162,6 +197,7 @@ with st.expander("➕ Yeni Talep / Portföy Ekle", expanded=False):
             if not f_ilce or not f_ozet:
                 st.error("İlçe ve Özet alanları zorunlu.")
             else:
+                f_ilce = _ilce_normalize(f_ilce)
                 danisman_adi = (
                     st.session_state.get("user_name")
                     or st.session_state.get("kullanici", {}).get("email", "")
