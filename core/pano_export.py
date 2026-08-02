@@ -118,13 +118,18 @@ def _rozet_renk(islem_tipi):
 
 def _kaynak_etiket(v):
     """
-    İlanın nereden geldiğini gösterir:
-    - 'danisman_panel' → Danışman Panosu'ndan elle girilmiş → "Zeta"
+    İlanın nereden geldiğini gösterir — Karma App'in kendi
+    2_Talep_Tablosu.py / 3_Portfoy_Tablosu.py sayfalarındaki AYNI
+    "zeta/zeta1/zeta2/ofis" tanıma mantığıyla birebir uyumlu tutuluyor,
+    böylece bir kaydın etiketi her iki ekranda da tutarlı görünür:
+    - 'zeta', 'zeta1', 'zeta2', 'ofis' → Danışman Panosu'ndan elle
+      girilmiş → "Zeta"
     - diğer her şey (startkey_mail, boş, vb.) → mail sisteminden gelen
       gerçek Startkey trafiği → "Startkey"
     """
+    ZETA_DEGERLERI = {"zeta", "zeta1", "zeta2", "ofis"}
     kaynak = str(v.get("kaynak") or "").strip().lower()
-    if kaynak == "danisman_panel":
+    if kaynak in ZETA_DEGERLERI:
         return "Zeta"
     return "Startkey"
 
