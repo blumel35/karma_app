@@ -47,23 +47,40 @@ st.markdown("""
 [data-testid="collapsedControl"] { display: none !important; }
 [data-testid="stHeader"] { display: none !important; }
 
-/* "Yeni Talep/Portföy Ekle" ve "Kendi Kayıtlarım" bölümlerini panonun
-   krem/navy/gold estetiğiyle uyumlu kart kutuları hâline getirir. */
-div[class*="st-key-dp_kart_"] {
-    background: #FFFFFF;
-    border: 1px solid #E7DFCF;
-    border-left: 4px solid #B98A2C;
-    border-radius: 14px;
-    padding: 18px 20px 8px;
-    margin-bottom: 18px;
-    box-shadow: 0 1px 2px rgba(43,39,31,.04), 0 8px 22px rgba(43,39,31,.07);
+/* "Yeni Talep/Portföy Ekle" ve "Kendi Kayıtlarım" — BİLEREK panonun
+   navy/gold estetiğinden bağımsız, sade/nötr bir mini araç çubuğu.
+   İkisi tek bir satır içinde, içerik kadar dar (fit-content), sola
+   yaslı, aralarında sabit küçük bir boşlukla durur — tam genişlik
+   kaplamazlar, satırın geri kalanı boş kalır. */
+div[class*="st-key-dp_toolbar_row"] > div[data-testid="stVerticalBlock"] {
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
 }
+div[class*="st-key-dp_toolbar_row"] [data-testid="stExpander"] {
+    width: fit-content !important;
+    flex: 0 0 auto !important;
+    border: 1px solid #E3E3E7 !important;
+    background: #F4F4F6 !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+}
+div[class*="st-key-dp_toolbar_row"] summary {
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: #444 !important;
+    padding: 6px 13px !important;
+    min-height: 0 !important;
+    white-space: nowrap !important;
+}
+div[class*="st-key-dp_toolbar_row"] summary:hover { color: #111 !important; }
+div[class*="st-key-dp_toolbar_row"] svg { width: 14px !important; height: 14px !important; }
 </style>
 """, unsafe_allow_html=True)
 
 _baslik_col, _cikis_col = st.columns([5, 1])
 with _baslik_col:
-    st.title("📋 Danışman Panosu")
+    st.title(":material/dashboard: Danışman Panosu")
     st.caption("Talep ve portföyleri canlı takip edin, kendi talep/portföyünüzü hızlıca ekleyin.")
 with _cikis_col:
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
@@ -72,17 +89,6 @@ with _cikis_col:
         st.switch_page("pages/Danisman_Giris.py")
 
 supabase = get_client()
-
-
-def _bolum_basligi(emoji, baslik):
-    """Panonun kendi tasarımıyla (navy/gold) tutarlı, düz st.subheader
-    yerine kullanılan estetik bölüm başlığı."""
-    st.markdown(
-        f'<div style="font-size:19px;font-weight:800;color:#1C2B47;'
-        f'border-bottom:2px solid #B98A2C;padding-bottom:8px;'
-        f'margin:22px 0 12px;letter-spacing:-.01em;">{emoji} {baslik}</div>',
-        unsafe_allow_html=True,
-    )
 
 
 def _son_60_gun_esigi():
@@ -252,10 +258,29 @@ def _yeni_portfoy_ekle(ilceler, bolge, mulk_tipi, oda, fiyat, islem_tipi, ek_not
     supabase.table("portfoyler").insert(kayit).execute()
 
 
-# ── YENİ KAYIT EKLEME (kart kutusu içinde) ──────────────────────────
-with st.container(key="dp_kart_ekle"):
-    _bolum_basligi("➕", "Yeni Talep / Portföy Ekle")
-    with st.expander("Formu aç", expanded=False):
+# ── KENDİ KAYITLARIM (silme) ─────────────────────────────────────────
+# Formun HEMEN ALTINDA — panoların (aşağıda, iframe içinde uzun uzun
+# sıralanan kartların) altına gömülmesin, kolayca bulunabilsin diye.
+#
+# GÜVENLİK SINIRI: yalnız "kaynak" alanı Zeta değerlerinden biri (yani
+# Danışman Panosu'ndan girilmiş) VE "talep_eden_danisan" şu an giriş
+# yapmış kullanıcıyla eşleşen kayıtlar silinebilir. Startkey/mail
+# kaynaklı hiçbir kayıda (kaynak='startkey_mail' vb.) bu bölümden asla
+# dokunulamaz — bunlar hiç listeye girmez bile.
+ZETA_DEGERLERI = {"zeta", "zeta1", "zeta2", "ofis"}
+_su_anki_danisman = (
+    st.session_state.get("user_name")
+    or st.session_state.get("kullanici", {}).get("email", "")
+)
+
+
+def _kayit_sil(tablo, kayit_id):
+    supabase.table(tablo).delete().eq("id", kayit_id).execute()
+
+
+# ── ARAÇ ÇUBUĞU: Yeni Kayıt Ekle + Kendi Kayıtlarım (tek satır, fit-content) ──
+with st.container(key="dp_toolbar_row"):
+    with st.expander(":material/add: Talep / Portföy Ekle", expanded=False):
         kayit_tipi_secim = st.radio(
             "Ne eklemek istiyorsun?", ["Talep", "Portföy"],
             horizontal=True, key="dp_kayit_tipi",
@@ -308,29 +333,7 @@ with st.container(key="dp_kart_ekle"):
                     except Exception as e:
                         st.error(f"Kaydedilemedi: {e}")
 
-# ── KENDİ KAYITLARIM (silme) ─────────────────────────────────────────
-# Formun HEMEN ALTINDA — panoların (aşağıda, iframe içinde uzun uzun
-# sıralanan kartların) altına gömülmesin, kolayca bulunabilsin diye.
-#
-# GÜVENLİK SINIRI: yalnız "kaynak" alanı Zeta değerlerinden biri (yani
-# Danışman Panosu'ndan girilmiş) VE "talep_eden_danisan" şu an giriş
-# yapmış kullanıcıyla eşleşen kayıtlar silinebilir. Startkey/mail
-# kaynaklı hiçbir kayıda (kaynak='startkey_mail' vb.) bu bölümden asla
-# dokunulamaz — bunlar hiç listeye girmez bile.
-ZETA_DEGERLERI = {"zeta", "zeta1", "zeta2", "ofis"}
-_su_anki_danisman = (
-    st.session_state.get("user_name")
-    or st.session_state.get("kullanici", {}).get("email", "")
-)
-
-
-def _kayit_sil(tablo, kayit_id):
-    supabase.table(tablo).delete().eq("id", kayit_id).execute()
-
-
-with st.container(key="dp_kart_kendi"):
-    _bolum_basligi("🗑️", "Kendi Kayıtlarım")
-    with st.expander("Danışman Panosu'ndan eklediklerin", expanded=False):
+    with st.expander(":material/delete: Kayıtlarım", expanded=False):
         kendi_talepler = [
             v for v in _talepleri_cek()
             if str(v.get("kaynak") or "").strip().lower() in ZETA_DEGERLERI
@@ -364,6 +367,7 @@ with st.container(key="dp_kart_kendi"):
                     _kayit_sil("portfoyler", v["id"])
                     _portfoyleri_cek.clear()
                     st.rerun()
+
 
 # ── FAVORİLERE EKLEME + TAKİP LİSTEM ──────────────────────────────────
 # NOT: Panodaki kartlar iframe içinde statik HTML olarak render
@@ -448,11 +452,11 @@ except Exception:
 _favori_set = {(f["kaynak_tablo"], f["kayit_id"]) for f in _favori_kayitlari}
 
 sekme_talep, sekme_portfoy, sekme_takip = st.tabs(
-    ["📥 Talep Tablosu", "🏘️ Portföy Tablosu", "⭐ Takip Listem"]
+    [":material/inbox: Talep Tablosu", ":material/home_work: Portföy Tablosu", ":material/star: Takip Listem"]
 )
 
 with sekme_talep:
-    if st.button("🔄 Yenile", key="dp_yenile_talep"):
+    if st.button(":material/refresh: Yenile", key="dp_yenile_talep"):
         _talepleri_cek.clear()
         _favorileri_cek.clear()
         st.rerun()
@@ -469,7 +473,7 @@ with sekme_talep:
         components.html(html_buf.getvalue().decode("utf-8"), height=1800, scrolling=True)
 
 with sekme_portfoy:
-    if st.button("🔄 Yenile", key="dp_yenile_portfoy"):
+    if st.button(":material/refresh: Yenile", key="dp_yenile_portfoy"):
         _portfoyleri_cek.clear()
         _favorileri_cek.clear()
         st.rerun()
@@ -489,7 +493,7 @@ with sekme_takip:
     # NOT: Takip Listem, diğer iki sekmeyle BİREBİR AYNI kart
     # tasarımını (pano_html_olustur) kullanıyor — sadece beslenen
     # liste, tüm kayıtlar yerine favorilenmiş kayıtlarla sınırlı.
-    if st.button("🔄 Yenile", key="dp_yenile_takip"):
+    if st.button(":material/refresh: Yenile", key="dp_yenile_takip"):
         _favorileri_cek.clear()
         st.rerun()
 
@@ -515,7 +519,7 @@ with sekme_takip:
             st.info("Bu filtrede takip listende kayıt yok.")
 
         if _takip_talepler:
-            st.markdown("##### 📥 Takip Ettiğim Talepler")
+            st.markdown("##### :material/inbox: Takip Ettiğim Talepler")
             html_buf = pano_html_olustur(
                 _takip_talepler, "Takip Ettiğim Talepler", kayit_tipi="talep",
                 favori_destekli=True, favori_set=_favori_set,
@@ -525,7 +529,7 @@ with sekme_takip:
             components.html(html_buf.getvalue().decode("utf-8"), height=1200, scrolling=True)
 
         if _takip_portfoyler:
-            st.markdown("##### 🏘️ Takip Ettiğim Portföyler")
+            st.markdown("##### :material/home_work: Takip Ettiğim Portföyler")
             html_buf = pano_html_olustur(
                 _takip_portfoyler, "Takip Ettiğim Portföyler", kayit_tipi="portfoy",
                 favori_destekli=True, favori_set=_favori_set,
