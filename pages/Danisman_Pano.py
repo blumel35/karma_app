@@ -68,7 +68,7 @@ def _talepleri_cek():
         .select("*")
         .eq("kategori", "alici_talebi")
         .eq("parse_status", "parsed")
-        .order("kayit_tarihi", desc=True)
+        .order("id", desc=True)
         .limit(200)
         .execute()
     )
@@ -80,7 +80,7 @@ def _portfoyleri_cek():
     resp = (
         supabase.table("portfoyler")
         .select("*")
-        .order("kayit_tarihi", desc=True)
+        .order("id", desc=True)
         .limit(200)
         .execute()
     )
