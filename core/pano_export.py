@@ -140,6 +140,7 @@ def _kart_html(v, kayit_tipi):
     bolge = _esc(v.get("bolge_mahalle") or "")
     ilce_rengi = _ilce_renk(_ilce_al(v))
     kaynak_etiketi = _esc(_kaynak_etiket(v))
+    kaynak_sinif = "kart-kaynak kart-kaynak-zeta" if kaynak_etiketi == "Zeta" else "kart-kaynak"
 
     if kayit_tipi == "talep":
         deger = _esc(v.get("max_butce") or "-")
@@ -162,7 +163,7 @@ def _kart_html(v, kayit_tipi):
       <div class="kart-deger">{deger_etiket}: <b>{deger}</b></div>
       <div class="kart-alt-satir">
         <span class="kart-danisman">👤 {danisman}</span>
-        <span class="kart-kaynak">{kaynak_etiketi}</span>
+        <span class="{kaynak_sinif}">{kaynak_etiketi}</span>
       </div>
       <details class="kart-detay">
         <summary>✉ Mail içeriğini gör</summary>
@@ -304,6 +305,10 @@ def pano_html_olustur(kayitlar, pano_basligi, kayit_tipi="talep"):
     font-size: 10px; font-weight: 700; color: var(--ink-soft);
     background: var(--cream-2); border: 1px solid var(--border);
     padding: 2px 8px; border-radius: 20px; letter-spacing: .02em;
+  }}
+  .kart-kaynak-zeta {{
+    color: var(--navy); border-color: var(--navy);
+    background: #EAF0FB;
   }}
   .kart-detay summary {{
     cursor: pointer; font-size: 12.5px; color: var(--navy); font-weight: 600;

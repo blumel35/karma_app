@@ -216,6 +216,20 @@ with st.expander("➕ Yeni Talep / Portföy Ekle", expanded=False):
 
 st.divider()
 
+
+def _kaynak_filtrele(kayitlar, secim):
+    if secim == "Tümü":
+        return kayitlar
+    if secim == "Zeta":
+        return [v for v in kayitlar if str(v.get("kaynak") or "").strip().lower() == "danisman_panel"]
+    return [v for v in kayitlar if str(v.get("kaynak") or "").strip().lower() != "danisman_panel"]
+
+
+kaynak_secim = st.radio(
+    "İlan Kaynağı", ["Tümü", "Zeta", "Startkey"],
+    horizontal=True, key="dp_kaynak_filtre",
+)
+
 # ── CANLI PANO — pano_export.py'nin tasarımı, canlı veriyle ─────────
 sekme_talep, sekme_portfoy = st.tabs(["📥 Talep Panosu", "🏘️ Portföy Panosu"])
 
@@ -223,9 +237,9 @@ with sekme_talep:
     if st.button("🔄 Yenile", key="dp_yenile_talep"):
         _talepleri_cek.clear()
         st.rerun()
-    talepler = _talepleri_cek()
+    talepler = _kaynak_filtrele(_talepleri_cek(), kaynak_secim)
     if not talepler:
-        st.info("Henüz kayıt yok.")
+        st.info("Bu filtrede kayıt yok.")
     else:
         html_buf = pano_html_olustur(talepler, "Talep Panosu (Canlı)", kayit_tipi="talep")
         components.html(html_buf.getvalue().decode("utf-8"), height=1800, scrolling=True)
@@ -234,9 +248,9 @@ with sekme_portfoy:
     if st.button("🔄 Yenile", key="dp_yenile_portfoy"):
         _portfoyleri_cek.clear()
         st.rerun()
-    portfoyler = _portfoyleri_cek()
+    portfoyler = _kaynak_filtrele(_portfoyleri_cek(), kaynak_secim)
     if not portfoyler:
-        st.info("Henüz kayıt yok.")
+        st.info("Bu filtrede kayıt yok.")
     else:
         html_buf = pano_html_olustur(portfoyler, "Portföy Panosu (Canlı)", kayit_tipi="portfoy")
         components.html(html_buf.getvalue().decode("utf-8"), height=1800, scrolling=True)
