@@ -131,17 +131,45 @@ IZMIR_ILCELERI = [
 ]
 
 
-def _yeni_talep_ekle(ilceler, bolge, mulk_tipi, oda, butce, islem_tipi, ozet, danisman_adi):
+def _ozet_olustur(ilceler, bolge, oda, islem_tipi, mulk_tipi, kayit_tipi):
+    """
+    AI'ın mail'den ürettiği "Balçova ve Buca'da 2+1 kiralık daire
+    arayışı" tarzı derli toplu özet cümlesini, burada AI'a hiç
+    gerek kalmadan, seçilen yapılandırılmış alanlardan (ilçe, oda,
+    işlem tipi, mülk tipi) ŞABLONLA üretiyoruz — ücretsiz, anında,
+    hatasız (halüsinasyon riski yok).
+    """
+    if not ilceler:
+        ilce_str = ""
+    elif len(ilceler) == 1:
+        ilce_str = ilceler[0]
+    else:
+        ilce_str = ", ".join(ilceler[:-1]) + " ve " + ilceler[-1]
+    if bolge:
+        ilce_str = f"{ilce_str} ({bolge})" if ilce_str else bolge
+
+    oda_str = f"{oda} " if oda else ""
+    islem_kucuk = (islem_tipi or "").lower()
+    mulk_kucuk = (mulk_tipi or "").lower()
+    eylem = "arayışı" if kayit_tipi == "talep" else "ilanı"
+
+    parcalar = [p for p in [ilce_str, f"{oda_str}{islem_kucuk} {mulk_kucuk} {eylem}"] if p.strip()]
+    return " bölgesinde ".join(parcalar) if ilce_str else " ".join(parcalar)
+
+
+def _yeni_talep_ekle(ilceler, bolge, mulk_tipi, oda, butce, islem_tipi, ek_not, danisman_adi):
+    ozet = _ozet_olustur(ilceler, bolge, oda, islem_tipi, mulk_tipi, "talep")
+    detay = ek_not.strip() if ek_not else ozet
     kayit = {
         "kayit_tarihi": datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000"),
         "talep_eden_danisan": danisman_adi,
         "bolge_mahalle": bolge,
         "oda_sayisi_m2": oda,
         "max_butce": butce,
-        "ozel_kriterler": ozet,
+        "ozel_kriterler": detay,
         "iletisim_not": "",
         "mail_konusu": f"[Danışman Panosu] {ozet[:80]}",
-        "mail_icerigi": ozet,
+        "mail_icerigi": detay,
         "message_id": f"<danisman-panel-{uuid.uuid4().hex}@karma-app>",
         "kaynak_klasor": "danisman_panel",
         "kategori": "alici_talebi",
@@ -158,7 +186,9 @@ def _yeni_talep_ekle(ilceler, bolge, mulk_tipi, oda, butce, islem_tipi, ozet, da
     supabase.table("alici_talepleri").insert(kayit).execute()
 
 
-def _yeni_portfoy_ekle(ilceler, bolge, mulk_tipi, oda, fiyat, islem_tipi, ozet, danisman_adi):
+def _yeni_portfoy_ekle(ilceler, bolge, mulk_tipi, oda, fiyat, islem_tipi, ek_not, danisman_adi):
+    ozet = _ozet_olustur(ilceler, bolge, oda, islem_tipi, mulk_tipi, "portfoy")
+    detay = ek_not.strip() if ek_not else ozet
     kayit = {
         "kayit_tarihi": datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000"),
         "talep_eden_danisan": danisman_adi,
@@ -166,7 +196,7 @@ def _yeni_portfoy_ekle(ilceler, bolge, mulk_tipi, oda, fiyat, islem_tipi, ozet, 
         "oda_sayisi_m2": oda,
         "fiyat": fiyat,
         "ozet": ozet,
-        "ozellikler": ozet,
+        "ozellikler": detay,
         "islem_tipi": islem_tipi,
         "mulk_tipi": mulk_tipi,
         "ilce": ilceler[0] if ilceler else "",
@@ -202,13 +232,17 @@ with st.expander("➕ Yeni Talep / Portföy Ekle", expanded=False):
                 f_deger = st.text_input("Max Bütçe", placeholder="örn. 5.000.000 TL", key="dp_butce")
             else:
                 f_deger = st.text_input("Fiyat", placeholder="örn. 4.500.000 TL", key="dp_fiyat")
-        f_ozet = st.text_area("Özet / Açıklama", key="dp_ozet", height=80)
+        f_ek_not = st.text_area(
+            "Ek Not (opsiyonel)",
+            placeholder="Otomatik özete ek olarak eklemek istediğin bir detay varsa buraya yaz.",
+            key="dp_ozet", height=68,
+        )
 
         gonder = st.form_submit_button("Kaydet", type="primary", use_container_width=True)
 
         if gonder:
-            if not f_ilceler or not f_ozet:
-                st.error("En az bir ilçe seçimi ve Özet alanı zorunlu.")
+            if not f_ilceler:
+                st.error("En az bir ilçe seçimi zorunlu.")
             else:
                 danisman_adi = (
                     st.session_state.get("user_name")
@@ -216,9 +250,9 @@ with st.expander("➕ Yeni Talep / Portföy Ekle", expanded=False):
                 )
                 try:
                     if kayit_tipi_secim == "Talep":
-                        _yeni_talep_ekle(f_ilceler, f_bolge, f_mulk, f_oda, f_deger, f_islem, f_ozet, danisman_adi)
+                        _yeni_talep_ekle(f_ilceler, f_bolge, f_mulk, f_oda, f_deger, f_islem, f_ek_not, danisman_adi)
                     else:
-                        _yeni_portfoy_ekle(f_ilceler, f_bolge, f_mulk, f_oda, f_deger, f_islem, f_ozet, danisman_adi)
+                        _yeni_portfoy_ekle(f_ilceler, f_bolge, f_mulk, f_oda, f_deger, f_islem, f_ek_not, danisman_adi)
                     st.success("✅ Kaydedildi! Talep/Portföy Merkezi'nde ve aşağıdaki panoda görünecek.")
                     _talepleri_cek.clear()
                     _portfoyleri_cek.clear()
@@ -281,3 +315,57 @@ with sekme_portfoy:
     else:
         html_buf = pano_html_olustur(portfoyler, "Portföy Panosu (Canlı)", kayit_tipi="portfoy")
         components.html(html_buf.getvalue().decode("utf-8"), height=1800, scrolling=True)
+
+st.divider()
+
+# ── KENDİ KAYITLARIM (silme) ─────────────────────────────────────────
+# GÜVENLİK SINIRI: yalnız "kaynak" alanı Zeta değerlerinden biri (yani
+# Danışman Panosu'ndan girilmiş) VE "talep_eden_danisan" şu an giriş
+# yapmış kullanıcıyla eşleşen kayıtlar silinebilir. Startkey/mail
+# kaynaklı hiçbir kayıda (kaynak='startkey_mail' vb.) bu bölümden asla
+# dokunulamaz — bunlar hiç listeye girmez bile.
+ZETA_DEGERLERI = {"zeta", "zeta1", "zeta2", "ofis"}
+_su_anki_danisman = (
+    st.session_state.get("user_name")
+    or st.session_state.get("kullanici", {}).get("email", "")
+)
+
+
+def _kayit_sil(tablo, kayit_id):
+    supabase.table(tablo).delete().eq("id", kayit_id).execute()
+
+
+with st.expander("🗑️ Kendi Kayıtlarım (Danışman Panosu'ndan eklediklerin)", expanded=False):
+    kendi_talepler = [
+        v for v in _talepleri_cek()
+        if str(v.get("kaynak") or "").strip().lower() in ZETA_DEGERLERI
+        and v.get("talep_eden_danisan") == _su_anki_danisman
+    ]
+    kendi_portfoyler = [
+        v for v in _portfoyleri_cek()
+        if str(v.get("kaynak") or "").strip().lower() in ZETA_DEGERLERI
+        and v.get("talep_eden_danisan") == _su_anki_danisman
+    ]
+
+    if not kendi_talepler and not kendi_portfoyler:
+        st.caption("Henüz Danışman Panosu'ndan eklediğin bir kayıt yok.")
+
+    for v in kendi_talepler:
+        c1, c2 = st.columns([5, 1])
+        with c1:
+            st.markdown(f"**Talep:** {v.get('ozet', '')}")
+        with c2:
+            if st.button("Sil", key=f"sil_talep_{v['id']}", use_container_width=True):
+                _kayit_sil("alici_talepleri", v["id"])
+                _talepleri_cek.clear()
+                st.rerun()
+
+    for v in kendi_portfoyler:
+        c1, c2 = st.columns([5, 1])
+        with c1:
+            st.markdown(f"**Portföy:** {v.get('ozet', '')}")
+        with c2:
+            if st.button("Sil", key=f"sil_portfoy_{v['id']}", use_container_width=True):
+                _kayit_sil("portfoyler", v["id"])
+                _portfoyleri_cek.clear()
+                st.rerun()
