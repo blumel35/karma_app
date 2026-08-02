@@ -30,7 +30,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import oturum_kontrol, cikis_yap
 from core.supabase_client import get_client
-from core.pano_export import pano_html_olustur
+from core.pano_export import pano_html_olustur, _ilce_normalize
 
 # NOT: Bu sayfa BİLEREK core.ui_helpers.render_navbar() ÇAĞIRMIYOR —
 # Karma App'in kalabalık menüsü/navbar'ı burada hiç görünmesin diye.
@@ -60,6 +60,17 @@ with _cikis_col:
         st.switch_page("pages/Danisman_Giris.py")
 
 supabase = get_client()
+
+
+def _bolum_basligi(emoji, baslik):
+    """Panonun kendi tasarımıyla (navy/gold) tutarlı, düz st.subheader
+    yerine kullanılan estetik bölüm başlığı."""
+    st.markdown(
+        f'<div style="font-size:19px;font-weight:800;color:#1C2B47;'
+        f'border-bottom:2px solid #B98A2C;padding-bottom:8px;'
+        f'margin:22px 0 12px;letter-spacing:-.01em;">{emoji} {baslik}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def _son_60_gun_esigi():
@@ -131,6 +142,28 @@ IZMIR_ILCELERI = [
 ]
 
 
+def _tr_lower(s):
+    """
+    Python'un standart .lower()'ı Türkçe'yi bilmiyor — 'İşyeri' gibi
+    büyük noktalı İ'yi küçültürken 'i̇şyeri' gibi ayrı bir birleşik
+    nokta karakteri (U+0307) bırakıyor. Bu, önce İ/I harflerini
+    Türkçe karşılıklarına çevirip SONRA standart .lower() uyguluyor.
+    """
+    return (s or "").replace("İ", "i").replace("I", "ı").lower()
+
+
+def _baslik_normalize(metin):
+    """
+    'Bölge/Mahalle' gibi serbest metin alanlarında, virgülle ayrılmış
+    her parçanın ilk harfini Türkçe'ye uygun büyütür (ör.
+    'zeytinalanı, kalabak' → 'Zeytinalanı, Kalabak').
+    """
+    if not metin:
+        return metin
+    parcalar = [p.strip() for p in metin.split(",")]
+    return ", ".join(_ilce_normalize(p) for p in parcalar if p)
+
+
 def _ozet_olustur(ilceler, bolge, oda, islem_tipi, mulk_tipi, kayit_tipi):
     """
     AI'ın mail'den ürettiği "Balçova ve Buca'da 2+1 kiralık daire
@@ -149,8 +182,8 @@ def _ozet_olustur(ilceler, bolge, oda, islem_tipi, mulk_tipi, kayit_tipi):
         ilce_str = f"{ilce_str} ({bolge})" if ilce_str else bolge
 
     oda_str = f"{oda} " if oda else ""
-    islem_kucuk = (islem_tipi or "").lower()
-    mulk_kucuk = (mulk_tipi or "").lower()
+    islem_kucuk = _tr_lower(islem_tipi)
+    mulk_kucuk = _tr_lower(mulk_tipi)
     eylem = "arayışı" if kayit_tipi == "talep" else "ilanı"
 
     parcalar = [p for p in [ilce_str, f"{oda_str}{islem_kucuk} {mulk_kucuk} {eylem}"] if p.strip()]
@@ -208,7 +241,8 @@ def _yeni_portfoy_ekle(ilceler, bolge, mulk_tipi, oda, fiyat, islem_tipi, ek_not
 
 
 # ── YENİ KAYIT EKLEME ────────────────────────────────────────────────
-with st.expander("➕ Yeni Talep / Portföy Ekle", expanded=False):
+_bolum_basligi("➕", "Yeni Talep / Portföy Ekle")
+with st.expander("Formu aç", expanded=False):
     kayit_tipi_secim = st.radio(
         "Ne eklemek istiyorsun?", ["Talep", "Portföy"],
         horizontal=True, key="dp_kayit_tipi",
@@ -244,6 +278,7 @@ with st.expander("➕ Yeni Talep / Portföy Ekle", expanded=False):
             if not f_ilceler:
                 st.error("En az bir ilçe seçimi zorunlu.")
             else:
+                f_bolge = _baslik_normalize(f_bolge)
                 danisman_adi = (
                     st.session_state.get("user_name")
                     or st.session_state.get("kullanici", {}).get("email", "")
@@ -280,7 +315,8 @@ def _kayit_sil(tablo, kayit_id):
     supabase.table(tablo).delete().eq("id", kayit_id).execute()
 
 
-with st.expander("🗑️ Kendi Kayıtlarım (Danışman Panosu'ndan eklediklerin)", expanded=False):
+_bolum_basligi("🗑️", "Kendi Kayıtlarım")
+with st.expander("Danışman Panosu'ndan eklediklerin", expanded=False):
     kendi_talepler = [
         v for v in _talepleri_cek()
         if str(v.get("kaynak") or "").strip().lower() in ZETA_DEGERLERI
@@ -314,6 +350,125 @@ with st.expander("🗑️ Kendi Kayıtlarım (Danışman Panosu'ndan ekledikleri
                 _kayit_sil("portfoyler", v["id"])
                 _portfoyleri_cek.clear()
                 st.rerun()
+
+# ── FAVORİLERE EKLEME + TAKİP LİSTEM ──────────────────────────────────
+# NOT: Panodaki kartlar iframe içinde statik HTML olarak render
+# olduğu için, her kartın üzerine doğrudan tıklanabilir bir yıldız
+# koyamıyoruz (iframe, Streamlit'in Python tarafıyla doğrudan
+# konuşamıyor). Bunun yerine "Kendi Kayıtlarım"la aynı desen: bir
+# açılır listeden kayıt seçip favorilere ekliyorsun.
+#
+# Favoriler "favoriler" tablosunda saklanıyor — bkz. favoriler_kurulum.sql
+# (bir kerelik Supabase kurulumu).
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def _favorileri_cek(kullanici):
+    resp = supabase.table("favoriler").select("*").eq("kullanici", kullanici).execute()
+    return resp.data or []
+
+
+def _favori_ekle(kaynak_tablo, kayit_id):
+    supabase.table("favoriler").upsert(
+        {"kullanici": _su_anki_danisman, "kaynak_tablo": kaynak_tablo, "kayit_id": kayit_id},
+        on_conflict="kullanici,kaynak_tablo,kayit_id",
+    ).execute()
+
+
+def _favori_cikar(favori_id):
+    supabase.table("favoriler").delete().eq("id", favori_id).execute()
+
+
+_bolum_basligi("⭐", "Favorilere Ekle")
+with st.expander("Kayıtları seç ve favorilere ekle", expanded=False):
+    _tum_kayitlar = (
+        [("alici_talepleri", v) for v in _talepleri_cek()]
+        + [("portfoyler", v) for v in _portfoyleri_cek()]
+    )
+    if not _tum_kayitlar:
+        st.caption("Şu an favoriye eklenebilecek bir kayıt yok.")
+    else:
+        _arama = st.text_input(
+            "🔍 Ara (özette geçen bir kelime yaz)", key="dp_favori_arama",
+        ).strip().lower()
+
+        if _arama:
+            _gosterilecek = [
+                (t, v) for t, v in _tum_kayitlar
+                if _arama in str(v.get("ozet", "")).lower()
+            ]
+        else:
+            # Arama yoksa liste çok uzamasın diye her kategoriden en
+            # yeni 15'er kayıt (30 kaydın hepsi tek kategoriye ait
+            # olmasın diye, iki kategoriden dengeli alınıyor)
+            _gosterilecek = (
+                [("alici_talepleri", v) for v in _talepleri_cek()[:15]]
+                + [("portfoyler", v) for v in _portfoyleri_cek()[:15]]
+            )
+
+        if not _gosterilecek:
+            st.caption("Aramayla eşleşen kayıt yok.")
+        else:
+            st.caption(f"{len(_gosterilecek)} kayıt gösteriliyor — istediklerini işaretle:")
+            _secilenler = []
+            for _tablo, _v in _gosterilecek:
+                _etiket_on = "Talep" if _tablo == "alici_talepleri" else "Portföy"
+                _kutu_key = f"dp_fav_kutu_{_tablo}_{_v['id']}"
+                _isaretli = st.checkbox(
+                    f"[{_etiket_on}] {_v.get('ozet', '')}  (#{_v['id']})",
+                    key=_kutu_key,
+                )
+                if _isaretli:
+                    _secilenler.append((_tablo, _v["id"]))
+
+            if st.button(
+                f"⭐ Seçilenleri Favorilere Ekle ({len(_secilenler)})",
+                key="dp_favori_toplu_ekle_btn",
+                disabled=not _secilenler,
+            ):
+                try:
+                    for _tablo, _kid in _secilenler:
+                        _favori_ekle(_tablo, _kid)
+                    _favorileri_cek.clear()
+                    st.success(f"{len(_secilenler)} kayıt favorilere eklendi.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Eklenemedi: {e}")
+
+_bolum_basligi("📌", "Takip Listem")
+with st.expander("Favorilerim", expanded=False):
+    try:
+        _favoriler = _favorileri_cek(_su_anki_danisman)
+    except Exception as e:
+        _favoriler = []
+        st.warning(
+            f"⚠️ Favoriler tablosu henüz kurulmamış olabilir — "
+            f"`favoriler_kurulum.sql`'i Supabase'de çalıştırdın mı? ({e})"
+        )
+
+    if not _favoriler:
+        st.caption("Henüz favori eklemedin.")
+    else:
+        _talep_id_map = {v["id"]: v for v in _talepleri_cek()}
+        _portfoy_id_map = {v["id"]: v for v in _portfoyleri_cek()}
+        for f in _favoriler:
+            _kaynak_kayit = (
+                _talep_id_map.get(f["kayit_id"])
+                if f["kaynak_tablo"] == "alici_talepleri"
+                else _portfoy_id_map.get(f["kayit_id"])
+            )
+            _etiket = "Talep" if f["kaynak_tablo"] == "alici_talepleri" else "Portföy"
+            c1, c2 = st.columns([5, 1])
+            with c1:
+                if _kaynak_kayit:
+                    st.markdown(f"**{_etiket}:** {_kaynak_kayit.get('ozet', '')}")
+                else:
+                    st.markdown(f"*({_etiket} kaydı artık mevcut değil — silinmiş olabilir)*")
+            with c2:
+                if st.button("Çıkar", key=f"favori_cikar_{f['id']}", use_container_width=True):
+                    _favori_cikar(f["id"])
+                    _favorileri_cek.clear()
+                    st.rerun()
 
 st.divider()
 
