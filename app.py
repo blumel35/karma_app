@@ -186,6 +186,23 @@ pano_goruntule = st.Page(
     icon=":material/dashboard:",
 )
 
+# ── Danışman Panosu — Karma App'ten BAĞIMSIZ görünen, sade mini-arayüz ──
+# NOT: Kendi giriş ekranı (Danisman_Giris) ve kendi sade görünümü
+# (Danisman_Pano, render_navbar yok) var — aynı Supabase hesaplarını
+# ve aynı veritabanı tablolarını kullanır, ama görsel olarak Karma
+# App'in kalabalık menüsünden tamamen ayrı, tek amaçlı bir arayüzdür.
+danisman_giris = st.Page(
+    "pages/Danisman_Giris.py",
+    title="Danışman Girişi",
+    icon=":material/login:",
+)
+
+danisman_pano = st.Page(
+    "pages/Danisman_Pano.py",
+    title="Danışman Panosu",
+    icon=":material/dashboard:",
+)
+
 # ─────────────────────────────────────────────────────
 # NAVIGATION
 # ─────────────────────────────────────────────────────
@@ -196,6 +213,8 @@ pg = st.navigation(
             ana,
             profil,
             pano_goruntule,
+            danisman_giris,
+            danisman_pano,
         ],
 
         "Danışman": [
