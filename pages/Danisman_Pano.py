@@ -46,6 +46,18 @@ st.markdown("""
 [data-testid="stSidebar"] { display: none !important; }
 [data-testid="collapsedControl"] { display: none !important; }
 [data-testid="stHeader"] { display: none !important; }
+
+/* "Yeni Talep/Portföy Ekle" ve "Kendi Kayıtlarım" bölümlerini panonun
+   krem/navy/gold estetiğiyle uyumlu kart kutuları hâline getirir. */
+div[class*="st-key-dp_kart_"] {
+    background: #FFFFFF;
+    border: 1px solid #E7DFCF;
+    border-left: 4px solid #B98A2C;
+    border-radius: 14px;
+    padding: 18px 20px 8px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 2px rgba(43,39,31,.04), 0 8px 22px rgba(43,39,31,.07);
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -240,60 +252,61 @@ def _yeni_portfoy_ekle(ilceler, bolge, mulk_tipi, oda, fiyat, islem_tipi, ek_not
     supabase.table("portfoyler").insert(kayit).execute()
 
 
-# ── YENİ KAYIT EKLEME ────────────────────────────────────────────────
-_bolum_basligi("➕", "Yeni Talep / Portföy Ekle")
-with st.expander("Formu aç", expanded=False):
-    kayit_tipi_secim = st.radio(
-        "Ne eklemek istiyorsun?", ["Talep", "Portföy"],
-        horizontal=True, key="dp_kayit_tipi",
-    )
-    with st.form("dp_yeni_kayit_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            f_islem = st.selectbox("İşlem Tipi", ["Satılık", "Kiralık"], key="dp_islem")
-            f_ilceler = st.multiselect("İlçe(ler)", IZMIR_ILCELERI, key="dp_ilceler")
-            f_bolge = st.text_input(
-                "Bölge / Mahalle (opsiyonel)", placeholder="örn. Alaçatı, Kalabak",
-                key="dp_bolge",
-            )
-            f_mulk = st.selectbox(
-                "Mülk Tipi", ["Konut", "Arsa", "İşyeri/Ticari", "Villa", "Diğer"],
-                key="dp_mulk",
-            )
-        with col2:
-            f_oda = st.text_input("Oda Sayısı / m²", placeholder="örn. 2+1", key="dp_oda")
-            if kayit_tipi_secim == "Talep":
-                f_deger = st.text_input("Max Bütçe", placeholder="örn. 5.000.000 TL", key="dp_butce")
-            else:
-                f_deger = st.text_input("Fiyat", placeholder="örn. 4.500.000 TL", key="dp_fiyat")
-        f_ek_not = st.text_area(
-            "Ek Not (opsiyonel)",
-            placeholder="Otomatik özete ek olarak eklemek istediğin bir detay varsa buraya yaz.",
-            key="dp_ozet", height=68,
+# ── YENİ KAYIT EKLEME (kart kutusu içinde) ──────────────────────────
+with st.container(key="dp_kart_ekle"):
+    _bolum_basligi("➕", "Yeni Talep / Portföy Ekle")
+    with st.expander("Formu aç", expanded=False):
+        kayit_tipi_secim = st.radio(
+            "Ne eklemek istiyorsun?", ["Talep", "Portföy"],
+            horizontal=True, key="dp_kayit_tipi",
         )
-
-        gonder = st.form_submit_button("Kaydet", type="primary", use_container_width=True)
-
-        if gonder:
-            if not f_ilceler:
-                st.error("En az bir ilçe seçimi zorunlu.")
-            else:
-                f_bolge = _baslik_normalize(f_bolge)
-                danisman_adi = (
-                    st.session_state.get("user_name")
-                    or st.session_state.get("kullanici", {}).get("email", "")
+        with st.form("dp_yeni_kayit_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                f_islem = st.selectbox("İşlem Tipi", ["Satılık", "Kiralık"], key="dp_islem")
+                f_ilceler = st.multiselect("İlçe(ler)", IZMIR_ILCELERI, key="dp_ilceler")
+                f_bolge = st.text_input(
+                    "Bölge / Mahalle (opsiyonel)", placeholder="örn. Alaçatı, Kalabak",
+                    key="dp_bolge",
                 )
-                try:
-                    if kayit_tipi_secim == "Talep":
-                        _yeni_talep_ekle(f_ilceler, f_bolge, f_mulk, f_oda, f_deger, f_islem, f_ek_not, danisman_adi)
-                    else:
-                        _yeni_portfoy_ekle(f_ilceler, f_bolge, f_mulk, f_oda, f_deger, f_islem, f_ek_not, danisman_adi)
-                    st.success("✅ Kaydedildi! Talep/Portföy Merkezi'nde ve aşağıdaki panoda görünecek.")
-                    _talepleri_cek.clear()
-                    _portfoyleri_cek.clear()
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Kaydedilemedi: {e}")
+                f_mulk = st.selectbox(
+                    "Mülk Tipi", ["Konut", "Arsa", "İşyeri/Ticari", "Villa", "Diğer"],
+                    key="dp_mulk",
+                )
+            with col2:
+                f_oda = st.text_input("Oda Sayısı / m²", placeholder="örn. 2+1", key="dp_oda")
+                if kayit_tipi_secim == "Talep":
+                    f_deger = st.text_input("Max Bütçe", placeholder="örn. 5.000.000 TL", key="dp_butce")
+                else:
+                    f_deger = st.text_input("Fiyat", placeholder="örn. 4.500.000 TL", key="dp_fiyat")
+            f_ek_not = st.text_area(
+                "Ek Not (opsiyonel)",
+                placeholder="Otomatik özete ek olarak eklemek istediğin bir detay varsa buraya yaz.",
+                key="dp_ozet", height=68,
+            )
+
+            gonder = st.form_submit_button("Kaydet", type="primary", use_container_width=True)
+
+            if gonder:
+                if not f_ilceler:
+                    st.error("En az bir ilçe seçimi zorunlu.")
+                else:
+                    f_bolge = _baslik_normalize(f_bolge)
+                    danisman_adi = (
+                        st.session_state.get("user_name")
+                        or st.session_state.get("kullanici", {}).get("email", "")
+                    )
+                    try:
+                        if kayit_tipi_secim == "Talep":
+                            _yeni_talep_ekle(f_ilceler, f_bolge, f_mulk, f_oda, f_deger, f_islem, f_ek_not, danisman_adi)
+                        else:
+                            _yeni_portfoy_ekle(f_ilceler, f_bolge, f_mulk, f_oda, f_deger, f_islem, f_ek_not, danisman_adi)
+                        st.success("✅ Kaydedildi! Talep/Portföy Merkezi'nde ve aşağıdaki panoda görünecek.")
+                        _talepleri_cek.clear()
+                        _portfoyleri_cek.clear()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Kaydedilemedi: {e}")
 
 # ── KENDİ KAYITLARIM (silme) ─────────────────────────────────────────
 # Formun HEMEN ALTINDA — panoların (aşağıda, iframe içinde uzun uzun
@@ -315,41 +328,42 @@ def _kayit_sil(tablo, kayit_id):
     supabase.table(tablo).delete().eq("id", kayit_id).execute()
 
 
-_bolum_basligi("🗑️", "Kendi Kayıtlarım")
-with st.expander("Danışman Panosu'ndan eklediklerin", expanded=False):
-    kendi_talepler = [
-        v for v in _talepleri_cek()
-        if str(v.get("kaynak") or "").strip().lower() in ZETA_DEGERLERI
-        and v.get("talep_eden_danisan") == _su_anki_danisman
-    ]
-    kendi_portfoyler = [
-        v for v in _portfoyleri_cek()
-        if str(v.get("kaynak") or "").strip().lower() in ZETA_DEGERLERI
-        and v.get("talep_eden_danisan") == _su_anki_danisman
-    ]
+with st.container(key="dp_kart_kendi"):
+    _bolum_basligi("🗑️", "Kendi Kayıtlarım")
+    with st.expander("Danışman Panosu'ndan eklediklerin", expanded=False):
+        kendi_talepler = [
+            v for v in _talepleri_cek()
+            if str(v.get("kaynak") or "").strip().lower() in ZETA_DEGERLERI
+            and v.get("talep_eden_danisan") == _su_anki_danisman
+        ]
+        kendi_portfoyler = [
+            v for v in _portfoyleri_cek()
+            if str(v.get("kaynak") or "").strip().lower() in ZETA_DEGERLERI
+            and v.get("talep_eden_danisan") == _su_anki_danisman
+        ]
 
-    if not kendi_talepler and not kendi_portfoyler:
-        st.caption("Henüz Danışman Panosu'ndan eklediğin bir kayıt yok.")
+        if not kendi_talepler and not kendi_portfoyler:
+            st.caption("Henüz Danışman Panosu'ndan eklediğin bir kayıt yok.")
 
-    for v in kendi_talepler:
-        c1, c2 = st.columns([5, 1])
-        with c1:
-            st.markdown(f"**Talep:** {v.get('ozet', '')}")
-        with c2:
-            if st.button("Sil", key=f"sil_talep_{v['id']}", use_container_width=True):
-                _kayit_sil("alici_talepleri", v["id"])
-                _talepleri_cek.clear()
-                st.rerun()
+        for v in kendi_talepler:
+            c1, c2 = st.columns([5, 1])
+            with c1:
+                st.markdown(f"**Talep:** {v.get('ozet', '')}")
+            with c2:
+                if st.button("Sil", key=f"sil_talep_{v['id']}", use_container_width=True):
+                    _kayit_sil("alici_talepleri", v["id"])
+                    _talepleri_cek.clear()
+                    st.rerun()
 
-    for v in kendi_portfoyler:
-        c1, c2 = st.columns([5, 1])
-        with c1:
-            st.markdown(f"**Portföy:** {v.get('ozet', '')}")
-        with c2:
-            if st.button("Sil", key=f"sil_portfoy_{v['id']}", use_container_width=True):
-                _kayit_sil("portfoyler", v["id"])
-                _portfoyleri_cek.clear()
-                st.rerun()
+        for v in kendi_portfoyler:
+            c1, c2 = st.columns([5, 1])
+            with c1:
+                st.markdown(f"**Portföy:** {v.get('ozet', '')}")
+            with c2:
+                if st.button("Sil", key=f"sil_portfoy_{v['id']}", use_container_width=True):
+                    _kayit_sil("portfoyler", v["id"])
+                    _portfoyleri_cek.clear()
+                    st.rerun()
 
 # ── FAVORİLERE EKLEME + TAKİP LİSTEM ──────────────────────────────────
 # NOT: Panodaki kartlar iframe içinde statik HTML olarak render
@@ -379,46 +393,9 @@ def _favori_cikar(favori_id):
     supabase.table("favoriler").delete().eq("id", favori_id).execute()
 
 
-# NOT: Favoriye ekleme artık AYRI bir bölümden değil, panodaki her
-# kartın üzerindeki ⭐ yıldıza tıklayarak yapılıyor (bkz. aşağıdaki
-# "CANLI PANO" bölümü, favori_destekli=True). "Takip Listem" bölümü
-# ise mevcut favorileri gözden geçirmek/çıkarmak için burada kalıyor.
-
-_bolum_basligi("📌", "Takip Listem")
-with st.expander("Favorilerim", expanded=False):
-    try:
-        _favoriler = _favorileri_cek(_su_anki_danisman)
-    except Exception as e:
-        _favoriler = []
-        st.warning(
-            f"⚠️ Favoriler tablosu henüz kurulmamış olabilir — "
-            f"`favoriler_kurulum.sql` ve `favoriler_anon_izin.sql`'i "
-            f"Supabase'de çalıştırdın mı? ({e})"
-        )
-
-    if not _favoriler:
-        st.caption("Henüz favori eklemedin.")
-    else:
-        _talep_id_map = {v["id"]: v for v in _talepleri_cek()}
-        _portfoy_id_map = {v["id"]: v for v in _portfoyleri_cek()}
-        for f in _favoriler:
-            _kaynak_kayit = (
-                _talep_id_map.get(f["kayit_id"])
-                if f["kaynak_tablo"] == "alici_talepleri"
-                else _portfoy_id_map.get(f["kayit_id"])
-            )
-            _etiket = "Talep" if f["kaynak_tablo"] == "alici_talepleri" else "Portföy"
-            c1, c2 = st.columns([5, 1])
-            with c1:
-                if _kaynak_kayit:
-                    st.markdown(f"**{_etiket}:** {_kaynak_kayit.get('ozet', '')}")
-                else:
-                    st.markdown(f"*({_etiket} kaydı artık mevcut değil — silinmiş olabilir)*")
-            with c2:
-                if st.button("Çıkar", key=f"favori_cikar_{f['id']}", use_container_width=True):
-                    _favori_cikar(f["id"])
-                    _favorileri_cek.clear()
-                    st.rerun()
+# NOT: Favoriye ekleme panodaki her kartın üzerindeki ⭐ yıldıza
+# tıklayarak yapılıyor. "Takip Listem" artık aşağıda üçüncü bir SEKME
+# olarak, aynı kart tasarımıyla gösteriliyor (bkz. CANLI PANO bölümü).
 
 st.divider()
 
@@ -470,7 +447,9 @@ except Exception:
     _favori_kayitlari = []
 _favori_set = {(f["kaynak_tablo"], f["kayit_id"]) for f in _favori_kayitlari}
 
-sekme_talep, sekme_portfoy = st.tabs(["📥 Talep Panosu", "🏘️ Portföy Panosu"])
+sekme_talep, sekme_portfoy, sekme_takip = st.tabs(
+    ["📥 Talep Tablosu", "🏘️ Portföy Tablosu", "⭐ Takip Listem"]
+)
 
 with sekme_talep:
     if st.button("🔄 Yenile", key="dp_yenile_talep"):
@@ -505,5 +484,54 @@ with sekme_portfoy:
             mevcut_kullanici=_su_anki_danisman,
         )
         components.html(html_buf.getvalue().decode("utf-8"), height=1800, scrolling=True)
+
+with sekme_takip:
+    # NOT: Takip Listem, diğer iki sekmeyle BİREBİR AYNI kart
+    # tasarımını (pano_html_olustur) kullanıyor — sadece beslenen
+    # liste, tüm kayıtlar yerine favorilenmiş kayıtlarla sınırlı.
+    if st.button("🔄 Yenile", key="dp_yenile_takip"):
+        _favorileri_cek.clear()
+        st.rerun()
+
+    if not _favori_kayitlari:
+        st.info("Henüz favori eklemedin — panodaki kartların üzerindeki ☆ yıldıza tıklayarak ekleyebilirsin.")
+    else:
+        _favori_talep_idler = {
+            f["kayit_id"] for f in _favori_kayitlari if f["kaynak_tablo"] == "alici_talepleri"
+        }
+        _favori_portfoy_idler = {
+            f["kayit_id"] for f in _favori_kayitlari if f["kaynak_tablo"] == "portfoyler"
+        }
+        _takip_talepler = _islem_tipi_filtrele(
+            _kaynak_filtrele([v for v in _talepleri_cek() if v["id"] in _favori_talep_idler], kaynak_secim),
+            islem_secim,
+        )
+        _takip_portfoyler = _islem_tipi_filtrele(
+            _kaynak_filtrele([v for v in _portfoyleri_cek() if v["id"] in _favori_portfoy_idler], kaynak_secim),
+            islem_secim,
+        )
+
+        if not _takip_talepler and not _takip_portfoyler:
+            st.info("Bu filtrede takip listende kayıt yok.")
+
+        if _takip_talepler:
+            st.markdown("##### 📥 Takip Ettiğim Talepler")
+            html_buf = pano_html_olustur(
+                _takip_talepler, "Takip Ettiğim Talepler", kayit_tipi="talep",
+                favori_destekli=True, favori_set=_favori_set,
+                supabase_url=_supabase_url_secret, supabase_anon_key=_supabase_anon_secret,
+                mevcut_kullanici=_su_anki_danisman,
+            )
+            components.html(html_buf.getvalue().decode("utf-8"), height=1200, scrolling=True)
+
+        if _takip_portfoyler:
+            st.markdown("##### 🏘️ Takip Ettiğim Portföyler")
+            html_buf = pano_html_olustur(
+                _takip_portfoyler, "Takip Ettiğim Portföyler", kayit_tipi="portfoy",
+                favori_destekli=True, favori_set=_favori_set,
+                supabase_url=_supabase_url_secret, supabase_anon_key=_supabase_anon_secret,
+                mevcut_kullanici=_su_anki_danisman,
+            )
+            components.html(html_buf.getvalue().decode("utf-8"), height=1200, scrolling=True)
 
 st.divider()
