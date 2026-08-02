@@ -23,6 +23,7 @@ from io import BytesIO
 from datetime import datetime
 from html import escape as _esc
 import uuid
+import json
 
 import streamlit as st
 
@@ -134,7 +135,7 @@ def _kaynak_etiket(v):
     return "Startkey"
 
 
-def _kart_html(v, kayit_tipi):
+def _kart_html(v, kayit_tipi, favori_destekli=False, favorili_mi=False):
     islem = _islem_tipi_norm(v)
     bg, fg = _rozet_renk(islem)
     danisman = _esc(_isim_ayikla(v.get("talep_eden_danisan", "")) or "-")
@@ -150,18 +151,34 @@ def _kart_html(v, kayit_tipi):
     if kayit_tipi == "talep":
         deger = _esc(v.get("max_butce") or "-")
         deger_etiket = "Bütçe"
+        kaynak_tablo = "alici_talepleri"
     else:
         deger = _esc(v.get("fiyat") or "-")
         deger_etiket = "Fiyat"
+        kaynak_tablo = "portfoyler"
 
     konu = _esc(_html_temizle(v.get("mail_konusu", "")))
     icerik = _esc(_html_temizle(v.get("mail_icerigi", ""))).replace("\n", "<br>")
+
+    yildiz_html = ""
+    if favori_destekli:
+        kayit_id = v.get("id")
+        aktif_sinif = " yildiz-aktif" if favorili_mi else ""
+        yildiz_html = (
+            f'<span class="kart-yildiz{aktif_sinif}" '
+            f'data-tablo="{kaynak_tablo}" data-id="{kayit_id}" '
+            f'onclick="favoriToggle(this)" title="Favorilere ekle/çıkar">'
+            f'{"★" if favorili_mi else "☆"}</span>'
+        )
 
     return f"""
     <div class="kart" style="--dist-color:{ilce_rengi}">
       <div class="kart-ust">
         <span class="rozet" style="background:{bg};color:{fg}">{_esc(islem)}</span>
-        <span class="kart-tarih">{tarih}</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="kart-tarih">{tarih}</span>
+          {yildiz_html}
+        </div>
       </div>
       <div class="kart-baslik">{ozet or mulk}</div>
       <div class="kart-alt">{bolge + ' · ' if bolge else ''}{mulk} · {oda}</div>
@@ -179,11 +196,30 @@ def _kart_html(v, kayit_tipi):
     """
 
 
-def pano_html_olustur(kayitlar, pano_basligi, kayit_tipi="talep"):
+def pano_html_olustur(
+    kayitlar, pano_basligi, kayit_tipi="talep",
+    favori_destekli=False, favori_set=None,
+    supabase_url=None, supabase_anon_key=None, mevcut_kullanici=None,
+):
     """
     kayitlar: dict listesi (Supabase satırları)
     kayit_tipi: "talep" | "portfoy"
-    Döner: BytesIO (tek dosyalık HTML içeriği)
+
+    favori_destekli=True verilirse, her kartın üzerinde tıklanabilir bir
+    ⭐ yıldız render edilir. Tıklanınca, Streamlit'e HİÇ UĞRAMADAN,
+    tarayıcıdan doğrudan Supabase'e (anon/publishable key ile, İlan
+    Vitrini'ndeki mantıkla aynı) yazılır — çünkü bu HTML bir iframe
+    içinde (components.html) render edildiği için Python tarafıyla
+    canlı konuşamaz.
+
+    Bu parametre statik export/paylaşım linkinde (Pano_Goruntule,
+    export_butonu_goster) HİÇ kullanılmaz — orada favori_destekli
+    varsayılan olarak False kalır, yıldız hiç görünmez, davranış
+    öncekiyle birebir aynı kalır.
+
+    favori_set: {(kaynak_tablo, kayit_id), ...} — mevcut_kullanici'nin
+    o an favorilediği kayıtların kümesi (hangi yıldızların dolu
+    başlayacağını belirler).
     """
     gruplar = {}
     for v in kayitlar:
@@ -204,6 +240,9 @@ def pano_html_olustur(kayitlar, pano_basligi, kayit_tipi="talep"):
             nav_parcalari.append(f'<span class="harf pasif">{harf}</span>')
     nav_html = "\n".join(nav_parcalari)
 
+    favori_set = favori_set or set()
+    kaynak_tablo_adi = "alici_talepleri" if kayit_tipi == "talep" else "portfoyler"
+
     bolumler = []
     onceki_harf = None
     for ilce in sirali_ilceler:
@@ -211,7 +250,14 @@ def pano_html_olustur(kayitlar, pano_basligi, kayit_tipi="talep"):
         veri_harf = f'data-harf-ilk="{harf}"' if harf != onceki_harf else ""
         onceki_harf = harf
         kayitlar_bu_ilce = gruplar[ilce]
-        kartlar = "\n".join(_kart_html(v, kayit_tipi) for v in kayitlar_bu_ilce)
+        kartlar = "\n".join(
+            _kart_html(
+                v, kayit_tipi,
+                favori_destekli=favori_destekli,
+                favorili_mi=(kaynak_tablo_adi, v.get("id")) in favori_set,
+            )
+            for v in kayitlar_bu_ilce
+        )
         bolumler.append(f"""
         <div class="ilce-bolum" {veri_harf}>
           <h2 class="ilce-baslik">{_esc(ilce)} <span class="ilce-sayi">({len(kayitlar_bu_ilce)})</span></h2>
@@ -222,6 +268,39 @@ def pano_html_olustur(kayitlar, pano_basligi, kayit_tipi="talep"):
 
     tarih_str = datetime.now().strftime("%d.%m.%Y %H:%M")
     toplam = len(kayitlar)
+
+    favori_js = ""
+    if favori_destekli and supabase_url and supabase_anon_key:
+        _url_js = supabase_url.rstrip("/")
+        _kullanici_js = json.dumps(mevcut_kullanici or "")
+        favori_js = f"""
+function favoriToggle(el) {{
+  var tablo = el.getAttribute('data-tablo');
+  var id = el.getAttribute('data-id');
+  var kullanici = {_kullanici_js};
+  var aktif = el.classList.contains('yildiz-aktif');
+  var basliklar = {{
+    'apikey': '{supabase_anon_key}',
+    'Authorization': 'Bearer {supabase_anon_key}',
+    'Content-Type': 'application/json'
+  }};
+  if (!aktif) {{
+    basliklar['Prefer'] = 'resolution=merge-duplicates';
+    fetch('{_url_js}/rest/v1/favoriler', {{
+      method: 'POST', headers: basliklar,
+      body: JSON.stringify({{kullanici: kullanici, kaynak_tablo: tablo, kayit_id: parseInt(id)}})
+    }}).then(function(r) {{
+      if (r.ok) {{ el.classList.add('yildiz-aktif'); el.textContent = '★'; }}
+    }});
+  }} else {{
+    var q = '{_url_js}/rest/v1/favoriler?kullanici=eq.' + encodeURIComponent(kullanici) +
+            '&kaynak_tablo=eq.' + encodeURIComponent(tablo) + '&kayit_id=eq.' + id;
+    fetch(q, {{ method: 'DELETE', headers: basliklar }}).then(function(r) {{
+      if (r.ok) {{ el.classList.remove('yildiz-aktif'); el.textContent = '☆'; }}
+    }});
+  }}
+}}
+"""
 
     html = f"""<!DOCTYPE html>
 <html lang="tr">
@@ -315,6 +394,12 @@ def pano_html_olustur(kayitlar, pano_basligi, kayit_tipi="talep"):
     color: var(--navy); border-color: var(--navy);
     background: #EAF0FB;
   }}
+  .kart-yildiz {{
+    cursor: pointer; font-size: 17px; color: var(--border-strong);
+    line-height: 1; user-select: none; transition: transform .12s ease, color .12s ease;
+  }}
+  .kart-yildiz:hover {{ transform: scale(1.15); }}
+  .kart-yildiz.yildiz-aktif {{ color: var(--gold); }}
   .kart-detay summary {{
     cursor: pointer; font-size: 12.5px; color: var(--navy); font-weight: 600;
     padding-top: 8px; border-top: 1px dashed var(--border);
@@ -351,6 +436,7 @@ function panoyaKaydir(harf) {{
   var hedefKonum = hedef.getBoundingClientRect().top + window.pageYOffset - navYuksekligi - 12;
   window.scrollTo({{ top: hedefKonum, behavior: 'smooth' }});
 }}
+{favori_js}
 </script>
 </body>
 </html>"""
