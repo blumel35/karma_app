@@ -30,7 +30,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import oturum_kontrol, cikis_yap
 from core.supabase_client import get_client
-from core.pano_export import pano_html_olustur, _ilce_normalize
+from core.pano_export import pano_html_olustur
 
 # NOT: Bu sayfa BİLEREK core.ui_helpers.render_navbar() ÇAĞIRMIYOR —
 # Karma App'in kalabalık menüsü/navbar'ı burada hiç görünmesin diye.
@@ -122,11 +122,20 @@ def _portfoyleri_cek():
     return [v for v in tumu if _tarihte_mi(v.get("kayit_tarihi"), esik)]
 
 
-def _yeni_talep_ekle(ilce, mulk_tipi, oda, butce, islem_tipi, ozet, danisman_adi):
+IZMIR_ILCELERI = [
+    "Aliağa", "Balçova", "Bayındır", "Bayraklı", "Bergama", "Beydağ",
+    "Bornova", "Buca", "Çeşme", "Çiğli", "Dikili", "Foça", "Gaziemir",
+    "Güzelbahçe", "Karabağlar", "Karaburun", "Karşıyaka", "Kemalpaşa",
+    "Kınık", "Kiraz", "Konak", "Menderes", "Menemen", "Narlıdere",
+    "Ödemiş", "Seferihisar", "Selçuk", "Tire", "Torbalı", "Urla",
+]
+
+
+def _yeni_talep_ekle(ilceler, bolge, mulk_tipi, oda, butce, islem_tipi, ozet, danisman_adi):
     kayit = {
         "kayit_tarihi": datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000"),
         "talep_eden_danisan": danisman_adi,
-        "bolge_mahalle": "",
+        "bolge_mahalle": bolge,
         "oda_sayisi_m2": oda,
         "max_butce": butce,
         "ozel_kriterler": ozet,
@@ -140,29 +149,29 @@ def _yeni_talep_ekle(ilce, mulk_tipi, oda, butce, islem_tipi, ozet, danisman_adi
         "islem_tipi": islem_tipi,
         "mulk_tipi": mulk_tipi,
         "il": "İzmir",
-        "ilce": ilce,
-        "ilceler": [ilce] if ilce else [],
-        "kaynak": "danisman_panel",
+        "ilce": ilceler[0] if ilceler else "",
+        "ilceler": ilceler,
+        "kaynak": "zeta",
         "parse_status": "parsed",
         "ai_processed_at": datetime.now(timezone.utc).isoformat(),
     }
     supabase.table("alici_talepleri").insert(kayit).execute()
 
 
-def _yeni_portfoy_ekle(ilce, mulk_tipi, oda, fiyat, islem_tipi, ozet, danisman_adi):
+def _yeni_portfoy_ekle(ilceler, bolge, mulk_tipi, oda, fiyat, islem_tipi, ozet, danisman_adi):
     kayit = {
         "kayit_tarihi": datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000"),
         "talep_eden_danisan": danisman_adi,
-        "bolge_mahalle": "",
+        "bolge_mahalle": bolge,
         "oda_sayisi_m2": oda,
         "fiyat": fiyat,
         "ozet": ozet,
         "ozellikler": ozet,
         "islem_tipi": islem_tipi,
         "mulk_tipi": mulk_tipi,
-        "ilce": ilce,
-        "ilceler": [ilce] if ilce else [],
-        "kaynak": "danisman_panel",
+        "ilce": ilceler[0] if ilceler else "",
+        "ilceler": ilceler,
+        "kaynak": "zeta",
         "message_id": f"<danisman-panel-{uuid.uuid4().hex}@karma-app>",
     }
     supabase.table("portfoyler").insert(kayit).execute()
@@ -178,7 +187,11 @@ with st.expander("➕ Yeni Talep / Portföy Ekle", expanded=False):
         col1, col2 = st.columns(2)
         with col1:
             f_islem = st.selectbox("İşlem Tipi", ["Satılık", "Kiralık"], key="dp_islem")
-            f_ilce = st.text_input("İlçe", key="dp_ilce")
+            f_ilceler = st.multiselect("İlçe(ler)", IZMIR_ILCELERI, key="dp_ilceler")
+            f_bolge = st.text_input(
+                "Bölge / Mahalle (opsiyonel)", placeholder="örn. Alaçatı, Kalabak",
+                key="dp_bolge",
+            )
             f_mulk = st.selectbox(
                 "Mülk Tipi", ["Konut", "Arsa", "İşyeri/Ticari", "Villa", "Diğer"],
                 key="dp_mulk",
@@ -194,19 +207,18 @@ with st.expander("➕ Yeni Talep / Portföy Ekle", expanded=False):
         gonder = st.form_submit_button("Kaydet", type="primary", use_container_width=True)
 
         if gonder:
-            if not f_ilce or not f_ozet:
-                st.error("İlçe ve Özet alanları zorunlu.")
+            if not f_ilceler or not f_ozet:
+                st.error("En az bir ilçe seçimi ve Özet alanı zorunlu.")
             else:
-                f_ilce = _ilce_normalize(f_ilce)
                 danisman_adi = (
                     st.session_state.get("user_name")
                     or st.session_state.get("kullanici", {}).get("email", "")
                 )
                 try:
                     if kayit_tipi_secim == "Talep":
-                        _yeni_talep_ekle(f_ilce, f_mulk, f_oda, f_deger, f_islem, f_ozet, danisman_adi)
+                        _yeni_talep_ekle(f_ilceler, f_bolge, f_mulk, f_oda, f_deger, f_islem, f_ozet, danisman_adi)
                     else:
-                        _yeni_portfoy_ekle(f_ilce, f_mulk, f_oda, f_deger, f_islem, f_ozet, danisman_adi)
+                        _yeni_portfoy_ekle(f_ilceler, f_bolge, f_mulk, f_oda, f_deger, f_islem, f_ozet, danisman_adi)
                     st.success("✅ Kaydedildi! Talep/Portföy Merkezi'nde ve aşağıdaki panoda görünecek.")
                     _talepleri_cek.clear()
                     _portfoyleri_cek.clear()
@@ -218,17 +230,32 @@ st.divider()
 
 
 def _kaynak_filtrele(kayitlar, secim):
+    ZETA_DEGERLERI = {"zeta", "zeta1", "zeta2", "ofis"}
     if secim == "Tümü":
         return kayitlar
     if secim == "Zeta":
-        return [v for v in kayitlar if str(v.get("kaynak") or "").strip().lower() == "danisman_panel"]
-    return [v for v in kayitlar if str(v.get("kaynak") or "").strip().lower() != "danisman_panel"]
+        return [v for v in kayitlar if str(v.get("kaynak") or "").strip().lower() in ZETA_DEGERLERI]
+    return [v for v in kayitlar if str(v.get("kaynak") or "").strip().lower() not in ZETA_DEGERLERI]
 
 
-kaynak_secim = st.radio(
-    "İlan Kaynağı", ["Tümü", "Zeta", "Startkey"],
-    horizontal=True, key="dp_kaynak_filtre",
-)
+def _islem_tipi_filtrele(kayitlar, secim):
+    if secim == "Tümü":
+        return kayitlar
+    from core.pano_export import _islem_tipi_norm
+    return [v for v in kayitlar if _islem_tipi_norm(v) == secim]
+
+
+_fcol1, _fcol2 = st.columns(2)
+with _fcol1:
+    kaynak_secim = st.radio(
+        "İlan Kaynağı", ["Tümü", "Zeta", "Startkey"],
+        horizontal=True, key="dp_kaynak_filtre",
+    )
+with _fcol2:
+    islem_secim = st.radio(
+        "İşlem Tipi", ["Tümü", "Satılık", "Kiralık"],
+        horizontal=True, key="dp_islem_filtre",
+    )
 
 # ── CANLI PANO — pano_export.py'nin tasarımı, canlı veriyle ─────────
 sekme_talep, sekme_portfoy = st.tabs(["📥 Talep Panosu", "🏘️ Portföy Panosu"])
@@ -237,7 +264,7 @@ with sekme_talep:
     if st.button("🔄 Yenile", key="dp_yenile_talep"):
         _talepleri_cek.clear()
         st.rerun()
-    talepler = _kaynak_filtrele(_talepleri_cek(), kaynak_secim)
+    talepler = _islem_tipi_filtrele(_kaynak_filtrele(_talepleri_cek(), kaynak_secim), islem_secim)
     if not talepler:
         st.info("Bu filtrede kayıt yok.")
     else:
@@ -248,7 +275,7 @@ with sekme_portfoy:
     if st.button("🔄 Yenile", key="dp_yenile_portfoy"):
         _portfoyleri_cek.clear()
         st.rerun()
-    portfoyler = _kaynak_filtrele(_portfoyleri_cek(), kaynak_secim)
+    portfoyler = _islem_tipi_filtrele(_kaynak_filtrele(_portfoyleri_cek(), kaynak_secim), islem_secim)
     if not portfoyler:
         st.info("Bu filtrede kayıt yok.")
     else:
