@@ -379,61 +379,10 @@ def _favori_cikar(favori_id):
     supabase.table("favoriler").delete().eq("id", favori_id).execute()
 
 
-_bolum_basligi("⭐", "Favorilere Ekle")
-with st.expander("Kayıtları seç ve favorilere ekle", expanded=False):
-    _tum_kayitlar = (
-        [("alici_talepleri", v) for v in _talepleri_cek()]
-        + [("portfoyler", v) for v in _portfoyleri_cek()]
-    )
-    if not _tum_kayitlar:
-        st.caption("Şu an favoriye eklenebilecek bir kayıt yok.")
-    else:
-        _arama = st.text_input(
-            "🔍 Ara (özette geçen bir kelime yaz)", key="dp_favori_arama",
-        ).strip().lower()
-
-        if _arama:
-            _gosterilecek = [
-                (t, v) for t, v in _tum_kayitlar
-                if _arama in str(v.get("ozet", "")).lower()
-            ]
-        else:
-            # Arama yoksa liste çok uzamasın diye her kategoriden en
-            # yeni 15'er kayıt (30 kaydın hepsi tek kategoriye ait
-            # olmasın diye, iki kategoriden dengeli alınıyor)
-            _gosterilecek = (
-                [("alici_talepleri", v) for v in _talepleri_cek()[:15]]
-                + [("portfoyler", v) for v in _portfoyleri_cek()[:15]]
-            )
-
-        if not _gosterilecek:
-            st.caption("Aramayla eşleşen kayıt yok.")
-        else:
-            st.caption(f"{len(_gosterilecek)} kayıt gösteriliyor — istediklerini işaretle:")
-            _secilenler = []
-            for _tablo, _v in _gosterilecek:
-                _etiket_on = "Talep" if _tablo == "alici_talepleri" else "Portföy"
-                _kutu_key = f"dp_fav_kutu_{_tablo}_{_v['id']}"
-                _isaretli = st.checkbox(
-                    f"[{_etiket_on}] {_v.get('ozet', '')}  (#{_v['id']})",
-                    key=_kutu_key,
-                )
-                if _isaretli:
-                    _secilenler.append((_tablo, _v["id"]))
-
-            if st.button(
-                f"⭐ Seçilenleri Favorilere Ekle ({len(_secilenler)})",
-                key="dp_favori_toplu_ekle_btn",
-                disabled=not _secilenler,
-            ):
-                try:
-                    for _tablo, _kid in _secilenler:
-                        _favori_ekle(_tablo, _kid)
-                    _favorileri_cek.clear()
-                    st.success(f"{len(_secilenler)} kayıt favorilere eklendi.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Eklenemedi: {e}")
+# NOT: Favoriye ekleme artık AYRI bir bölümden değil, panodaki her
+# kartın üzerindeki ⭐ yıldıza tıklayarak yapılıyor (bkz. aşağıdaki
+# "CANLI PANO" bölümü, favori_destekli=True). "Takip Listem" bölümü
+# ise mevcut favorileri gözden geçirmek/çıkarmak için burada kalıyor.
 
 _bolum_basligi("📌", "Takip Listem")
 with st.expander("Favorilerim", expanded=False):
@@ -443,7 +392,8 @@ with st.expander("Favorilerim", expanded=False):
         _favoriler = []
         st.warning(
             f"⚠️ Favoriler tablosu henüz kurulmamış olabilir — "
-            f"`favoriler_kurulum.sql`'i Supabase'de çalıştırdın mı? ({e})"
+            f"`favoriler_kurulum.sql` ve `favoriler_anon_izin.sql`'i "
+            f"Supabase'de çalıştırdın mı? ({e})"
         )
 
     if not _favoriler:
@@ -502,28 +452,58 @@ with _fcol2:
     )
 
 # ── CANLI PANO — pano_export.py'nin tasarımı, canlı veriyle ─────────
+# Kartlardaki ⭐ yıldızın çalışabilmesi için Supabase URL + anon
+# (publishable) key'i JS'e gömüyoruz — bu, İlan Vitrini'ndeki mantıkla
+# aynı, tarayıcıda görülmesi güvenli bir anahtar (service/secret key
+# DEĞİL). Mevcut favori kayıtları da (hangi yıldızların dolu
+# başlayacağını belirlemek için) önceden çekiliyor.
+try:
+    _supabase_url_secret = st.secrets["supabase"]["url"]
+    _supabase_anon_secret = st.secrets["supabase"]["publishable_key"]
+except Exception:
+    _supabase_url_secret = None
+    _supabase_anon_secret = None
+
+try:
+    _favori_kayitlari = _favorileri_cek(_su_anki_danisman)
+except Exception:
+    _favori_kayitlari = []
+_favori_set = {(f["kaynak_tablo"], f["kayit_id"]) for f in _favori_kayitlari}
+
 sekme_talep, sekme_portfoy = st.tabs(["📥 Talep Panosu", "🏘️ Portföy Panosu"])
 
 with sekme_talep:
     if st.button("🔄 Yenile", key="dp_yenile_talep"):
         _talepleri_cek.clear()
+        _favorileri_cek.clear()
         st.rerun()
     talepler = _islem_tipi_filtrele(_kaynak_filtrele(_talepleri_cek(), kaynak_secim), islem_secim)
     if not talepler:
         st.info("Bu filtrede kayıt yok.")
     else:
-        html_buf = pano_html_olustur(talepler, "Talep Panosu (Canlı)", kayit_tipi="talep")
+        html_buf = pano_html_olustur(
+            talepler, "Talep Panosu (Canlı)", kayit_tipi="talep",
+            favori_destekli=True, favori_set=_favori_set,
+            supabase_url=_supabase_url_secret, supabase_anon_key=_supabase_anon_secret,
+            mevcut_kullanici=_su_anki_danisman,
+        )
         components.html(html_buf.getvalue().decode("utf-8"), height=1800, scrolling=True)
 
 with sekme_portfoy:
     if st.button("🔄 Yenile", key="dp_yenile_portfoy"):
         _portfoyleri_cek.clear()
+        _favorileri_cek.clear()
         st.rerun()
     portfoyler = _islem_tipi_filtrele(_kaynak_filtrele(_portfoyleri_cek(), kaynak_secim), islem_secim)
     if not portfoyler:
         st.info("Bu filtrede kayıt yok.")
     else:
-        html_buf = pano_html_olustur(portfoyler, "Portföy Panosu (Canlı)", kayit_tipi="portfoy")
+        html_buf = pano_html_olustur(
+            portfoyler, "Portföy Panosu (Canlı)", kayit_tipi="portfoy",
+            favori_destekli=True, favori_set=_favori_set,
+            supabase_url=_supabase_url_secret, supabase_anon_key=_supabase_anon_secret,
+            mevcut_kullanici=_su_anki_danisman,
+        )
         components.html(html_buf.getvalue().decode("utf-8"), height=1800, scrolling=True)
 
 st.divider()
