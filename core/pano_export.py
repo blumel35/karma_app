@@ -116,6 +116,19 @@ def _rozet_renk(islem_tipi):
     return BELIRSIZ_BG, BELIRSIZ_FG
 
 
+def _kaynak_etiket(v):
+    """
+    İlanın nereden geldiğini gösterir:
+    - 'danisman_panel' → Danışman Panosu'ndan elle girilmiş → "Zeta"
+    - diğer her şey (startkey_mail, boş, vb.) → mail sisteminden gelen
+      gerçek Startkey trafiği → "Startkey"
+    """
+    kaynak = str(v.get("kaynak") or "").strip().lower()
+    if kaynak == "danisman_panel":
+        return "Zeta"
+    return "Startkey"
+
+
 def _kart_html(v, kayit_tipi):
     islem = _islem_tipi_norm(v)
     bg, fg = _rozet_renk(islem)
@@ -126,6 +139,7 @@ def _kart_html(v, kayit_tipi):
     ozet = _esc(v.get("ozet") or v.get("ozel_kriterler") or v.get("ozellikler") or "")
     bolge = _esc(v.get("bolge_mahalle") or "")
     ilce_rengi = _ilce_renk(_ilce_al(v))
+    kaynak_etiketi = _esc(_kaynak_etiket(v))
 
     if kayit_tipi == "talep":
         deger = _esc(v.get("max_butce") or "-")
@@ -146,7 +160,10 @@ def _kart_html(v, kayit_tipi):
       <div class="kart-baslik">{ozet or mulk}</div>
       <div class="kart-alt">{bolge + ' · ' if bolge else ''}{mulk} · {oda}</div>
       <div class="kart-deger">{deger_etiket}: <b>{deger}</b></div>
-      <div class="kart-danisman">👤 {danisman}</div>
+      <div class="kart-alt-satir">
+        <span class="kart-danisman">👤 {danisman}</span>
+        <span class="kart-kaynak">{kaynak_etiketi}</span>
+      </div>
       <details class="kart-detay">
         <summary>✉ Mail içeriğini gör</summary>
         <div class="detay-konu">{konu}</div>
@@ -278,7 +295,16 @@ def pano_html_olustur(kayitlar, pano_basligi, kayit_tipi="talep"):
   .kart-alt {{ font-size: 12.5px; color: var(--ink-soft); margin-bottom: 7px; }}
   .kart-deger {{ font-size: 13.5px; margin-bottom: 4px; }}
   .kart-deger b {{ color: var(--navy); }}
-  .kart-danisman {{ font-size: 12.5px; color: var(--ink-soft); margin-bottom: 9px; }}
+  .kart-alt-satir {{
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 9px;
+  }}
+  .kart-danisman {{ font-size: 12.5px; color: var(--ink-soft); }}
+  .kart-kaynak {{
+    font-size: 10px; font-weight: 700; color: var(--ink-soft);
+    background: var(--cream-2); border: 1px solid var(--border);
+    padding: 2px 8px; border-radius: 20px; letter-spacing: .02em;
+  }}
   .kart-detay summary {{
     cursor: pointer; font-size: 12.5px; color: var(--navy); font-weight: 600;
     padding-top: 8px; border-top: 1px dashed var(--border);
