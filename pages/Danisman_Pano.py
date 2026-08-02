@@ -260,6 +260,61 @@ with st.expander("➕ Yeni Talep / Portföy Ekle", expanded=False):
                 except Exception as e:
                     st.error(f"Kaydedilemedi: {e}")
 
+# ── KENDİ KAYITLARIM (silme) ─────────────────────────────────────────
+# Formun HEMEN ALTINDA — panoların (aşağıda, iframe içinde uzun uzun
+# sıralanan kartların) altına gömülmesin, kolayca bulunabilsin diye.
+#
+# GÜVENLİK SINIRI: yalnız "kaynak" alanı Zeta değerlerinden biri (yani
+# Danışman Panosu'ndan girilmiş) VE "talep_eden_danisan" şu an giriş
+# yapmış kullanıcıyla eşleşen kayıtlar silinebilir. Startkey/mail
+# kaynaklı hiçbir kayıda (kaynak='startkey_mail' vb.) bu bölümden asla
+# dokunulamaz — bunlar hiç listeye girmez bile.
+ZETA_DEGERLERI = {"zeta", "zeta1", "zeta2", "ofis"}
+_su_anki_danisman = (
+    st.session_state.get("user_name")
+    or st.session_state.get("kullanici", {}).get("email", "")
+)
+
+
+def _kayit_sil(tablo, kayit_id):
+    supabase.table(tablo).delete().eq("id", kayit_id).execute()
+
+
+with st.expander("🗑️ Kendi Kayıtlarım (Danışman Panosu'ndan eklediklerin)", expanded=False):
+    kendi_talepler = [
+        v for v in _talepleri_cek()
+        if str(v.get("kaynak") or "").strip().lower() in ZETA_DEGERLERI
+        and v.get("talep_eden_danisan") == _su_anki_danisman
+    ]
+    kendi_portfoyler = [
+        v for v in _portfoyleri_cek()
+        if str(v.get("kaynak") or "").strip().lower() in ZETA_DEGERLERI
+        and v.get("talep_eden_danisan") == _su_anki_danisman
+    ]
+
+    if not kendi_talepler and not kendi_portfoyler:
+        st.caption("Henüz Danışman Panosu'ndan eklediğin bir kayıt yok.")
+
+    for v in kendi_talepler:
+        c1, c2 = st.columns([5, 1])
+        with c1:
+            st.markdown(f"**Talep:** {v.get('ozet', '')}")
+        with c2:
+            if st.button("Sil", key=f"sil_talep_{v['id']}", use_container_width=True):
+                _kayit_sil("alici_talepleri", v["id"])
+                _talepleri_cek.clear()
+                st.rerun()
+
+    for v in kendi_portfoyler:
+        c1, c2 = st.columns([5, 1])
+        with c1:
+            st.markdown(f"**Portföy:** {v.get('ozet', '')}")
+        with c2:
+            if st.button("Sil", key=f"sil_portfoy_{v['id']}", use_container_width=True):
+                _kayit_sil("portfoyler", v["id"])
+                _portfoyleri_cek.clear()
+                st.rerun()
+
 st.divider()
 
 
@@ -317,55 +372,3 @@ with sekme_portfoy:
         components.html(html_buf.getvalue().decode("utf-8"), height=1800, scrolling=True)
 
 st.divider()
-
-# ── KENDİ KAYITLARIM (silme) ─────────────────────────────────────────
-# GÜVENLİK SINIRI: yalnız "kaynak" alanı Zeta değerlerinden biri (yani
-# Danışman Panosu'ndan girilmiş) VE "talep_eden_danisan" şu an giriş
-# yapmış kullanıcıyla eşleşen kayıtlar silinebilir. Startkey/mail
-# kaynaklı hiçbir kayıda (kaynak='startkey_mail' vb.) bu bölümden asla
-# dokunulamaz — bunlar hiç listeye girmez bile.
-ZETA_DEGERLERI = {"zeta", "zeta1", "zeta2", "ofis"}
-_su_anki_danisman = (
-    st.session_state.get("user_name")
-    or st.session_state.get("kullanici", {}).get("email", "")
-)
-
-
-def _kayit_sil(tablo, kayit_id):
-    supabase.table(tablo).delete().eq("id", kayit_id).execute()
-
-
-with st.expander("🗑️ Kendi Kayıtlarım (Danışman Panosu'ndan eklediklerin)", expanded=False):
-    kendi_talepler = [
-        v for v in _talepleri_cek()
-        if str(v.get("kaynak") or "").strip().lower() in ZETA_DEGERLERI
-        and v.get("talep_eden_danisan") == _su_anki_danisman
-    ]
-    kendi_portfoyler = [
-        v for v in _portfoyleri_cek()
-        if str(v.get("kaynak") or "").strip().lower() in ZETA_DEGERLERI
-        and v.get("talep_eden_danisan") == _su_anki_danisman
-    ]
-
-    if not kendi_talepler and not kendi_portfoyler:
-        st.caption("Henüz Danışman Panosu'ndan eklediğin bir kayıt yok.")
-
-    for v in kendi_talepler:
-        c1, c2 = st.columns([5, 1])
-        with c1:
-            st.markdown(f"**Talep:** {v.get('ozet', '')}")
-        with c2:
-            if st.button("Sil", key=f"sil_talep_{v['id']}", use_container_width=True):
-                _kayit_sil("alici_talepleri", v["id"])
-                _talepleri_cek.clear()
-                st.rerun()
-
-    for v in kendi_portfoyler:
-        c1, c2 = st.columns([5, 1])
-        with c1:
-            st.markdown(f"**Portföy:** {v.get('ozet', '')}")
-        with c2:
-            if st.button("Sil", key=f"sil_portfoy_{v['id']}", use_container_width=True):
-                _kayit_sil("portfoyler", v["id"])
-                _portfoyleri_cek.clear()
-                st.rerun()
