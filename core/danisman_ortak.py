@@ -399,9 +399,7 @@ def render_topbar(baslik, ikon=":material/dashboard:", geri_hedefi=None):
 
     st.markdown("""
     <style>
-    /* Hamburger menü tetikleyicisi: küçük, kare, sade ikon butonu —
-       önceki sürümde use_container_width=True + etiketsiz ikon, tuhaf
-       bir oval/gerilmiş buton gibi görünüyordu. */
+    /* Hamburger menü tetikleyicisi: küçük, kare, sade ikon butonu. */
     div[class*="st-key-dp_hamburger_wrap"] [data-testid="stPopover"] > button {
         width: 40px !important;
         height: 40px !important;
@@ -409,39 +407,69 @@ def render_topbar(baslik, ikon=":material/dashboard:", geri_hedefi=None):
         border-radius: 8px !important;
         border: 1px solid #e3e1da !important;
         background: #ffffff !important;
-        float: right;
     }
     div[class*="st-key-dp_hamburger_wrap"] [data-testid="stPopover"] > button:hover {
         background: #f6f5f2 !important;
         border-color: #b8892f !important;
     }
+    /* Kullanıcı rozeti (MB Meltem Bulu) — hamburger butonunun solunda */
+    .dp-user-chip {
+        display: flex; align-items: center; justify-content: flex-end;
+        gap: 8px; height: 40px; margin-right: 8px;
+    }
+    .dp-user-avatar {
+        width: 30px; height: 30px; border-radius: 50%;
+        background: #1b2540; color: #fff;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 12px; font-weight: 700; flex-shrink: 0;
+    }
+    .dp-user-name {
+        font-size: 13px; font-weight: 600; color: #5b6478; white-space: nowrap;
+    }
+    /* Radio butonlarının seçili rengi — Streamlit varsayılan kırmızısı
+       yerine Karma App navy'si */
+    div[data-baseweb="radio"] div[aria-checked="true"] {
+        background-color: #1b2540 !important;
+        border-color: #1b2540 !important;
+    }
+    div[data-baseweb="radio"] div[aria-checked="true"] div {
+        background-color: #1b2540 !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-    col_baslik, col_menu = st.columns([6, 1])
+    su_kullanici = su_anki_danisman()
+    baslar = "".join([p[0].upper() for p in su_kullanici.split()[:2]]) if su_kullanici and " " in su_kullanici else (su_kullanici[:2].upper() if su_kullanici else "?")
+
+    col_baslik, col_isim, col_menu = st.columns([5, 2, 1])
     with col_baslik:
         if geri_hedefi:
             if st.button("← Panoya Dön", key="dp_geri_btn"):
                 st.switch_page(geri_hedefi)
         st.markdown(f"### {ikon} {baslik}")
+    with col_isim:
+        st.markdown(
+            f"<div class='dp-user-chip'><div class='dp-user-avatar'>{baslar}</div>"
+            f"<span class='dp-user-name'>{su_kullanici}</span></div>",
+            unsafe_allow_html=True,
+        )
     with col_menu:
         # NOT: Bazı Streamlit sürümlerinde st.popover() 'key' parametresini
         # kabul etmiyor (TypeError). CSS hedeflemesi için key'i popover'ın
-        # kendisine değil, onu saran st.container'a veriyoruz — bu her
-        # sürümde çalışan daha güvenilir bir desen.
+        # kendisine değil, onu saran st.container'a veriyoruz.
         with st.container(key="dp_hamburger_wrap"):
             with st.popover(":material/menu:"):
-                st.markdown(f"**{su_anki_danisman()}**")
+                st.markdown(f"**{su_kullanici}**")
                 st.caption("Danışman")
                 st.divider()
                 if st.button(":material/folder_open: Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
                     st.switch_page("pages/Danisman_Kayitlarim.py")
                 if st.button(":material/groups: Zeta Paylaşımları", use_container_width=True, key="dp_menu_paylasimlar"):
                     st.switch_page("pages/Danisman_Paylasimlar.py")
-            st.divider()
-            if st.button(":material/logout: Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
-                cikis_yap()
-                st.switch_page("pages/Danisman_Giris.py")
+                st.divider()
+                if st.button(":material/logout: Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
+                    cikis_yap()
+                    st.switch_page("pages/Danisman_Giris.py")
 
 
 def hide_sidebar_css():

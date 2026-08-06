@@ -34,18 +34,6 @@ if not oturum_kontrol():
 
 hide_sidebar_css()
 
-# NOT: Önceki sürümde kart üst kenarındaki renkli çizgi, Streamlit'in
-# internal container testid'ine (stVerticalBlockBorderWrapper) bağlı bir
-# CSS seçicisiyle uygulanmaya çalışılmıştı — bu, Streamlit sürümüne göre
-# DOM yapısı değiştiği için render olmadı. Bunun yerine, kartın İÇİNDE,
-# ilk eleman olarak düz bir renkli <div> çubuğu ekleniyor (aşağıda) —
-# Streamlit'in internal yapısına bağımlı değil, her sürümde çalışır.
-#
-# Buton rengi: "Talep Panosuna Git" / "Portföy Panosuna Git" butonları
-# type="primary" ile Streamlit'in varsayılan temasını (kırmızı) alıyordu.
-# Karma App navy kimliğine bağlamak için, buton key'i üzerinden CSS ile
-# rengi zorluyoruz — bu, kodda zaten kanıtlanmış bir desen (bkz. eski
-# dp_toolbar_row seçicisi).
 st.markdown("""
 <style>
 div[class*="st-key-dp_talep_git"] button,
@@ -60,6 +48,20 @@ div[class*="st-key-dp_portfoy_git"] button:hover {
     border-color: #28345a !important;
     color: #ffffff !important;
 }
+.dp-icon-box {
+    width: 38px; height: 38px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; margin-bottom: 8px;
+}
+.dp-icon-box.talep { background: rgba(27,37,64,.08); color: #1b2540; }
+.dp-icon-box.portfoy { background: rgba(184,137,47,.12); color: #b8892f; }
+.dp-stat-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding-top: 10px; margin-top: 8px;
+    border-top: 1px solid #ecebe5;
+}
+.dp-stat-num { font-size: 22px; font-weight: 800; color: #1b2540; }
+.dp-stat-num.portfoy { color: #b8892f; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -81,16 +83,26 @@ col_talep, col_portfoy = st.columns(2, gap="medium")
 with col_talep:
     with st.container(border=True, key="dp_kart_talep"):
         st.markdown(
-            "<div style='height:4px;background:#1b2540;border-radius:3px;margin:-1px 0 14px 0;'></div>",
+            "<div style='height:4px;background:#1b2540;border-radius:3px;margin:-1px 0 12px 0;'></div>"
+            "<div class='dp-icon-box talep'>:material/download:</div>",
             unsafe_allow_html=True,
         )
-        st.markdown(":material/download: **Talep Panosu**")
+        st.markdown("**Talep Panosu**")
         st.caption("Alıcı taleplerini görüntüle ve yönet")
-        st.markdown(f"### {len(talepler)} aktif talep")
-        if talep_yeni:
-            if st.button(f"🟢 +{len(talep_yeni)} yeni", key="dp_talep_yeni_rozet", use_container_width=True):
-                st.session_state["dp_sadece_yeni"] = True
-                st.switch_page("pages/Danisman_Talep.py")
+
+        stat_col, badge_col = st.columns([2, 1])
+        with stat_col:
+            st.markdown(f"<div class='dp-stat-row'><span class='dp-stat-num'>{len(talepler)}</span>"
+                        f"<span style='color:#5b6478;font-size:13px;'>aktif talep</span></div>",
+                        unsafe_allow_html=True)
+        with badge_col:
+            if talep_yeni:
+                st.write("")
+                if st.button(f"🟢 +{len(talep_yeni)} yeni", key="dp_talep_yeni_rozet", use_container_width=True):
+                    st.session_state["dp_sadece_yeni"] = True
+                    st.switch_page("pages/Danisman_Talep.py")
+
+        st.write("")
         if st.button("Talep Panosuna Git →", key="dp_talep_git", type="primary", use_container_width=True):
             st.session_state["dp_sadece_yeni"] = False
             st.switch_page("pages/Danisman_Talep.py")
@@ -98,16 +110,26 @@ with col_talep:
 with col_portfoy:
     with st.container(border=True, key="dp_kart_portfoy"):
         st.markdown(
-            "<div style='height:4px;background:#b8892f;border-radius:3px;margin:-1px 0 14px 0;'></div>",
+            "<div style='height:4px;background:#b8892f;border-radius:3px;margin:-1px 0 12px 0;'></div>"
+            "<div class='dp-icon-box portfoy'>:material/home_work:</div>",
             unsafe_allow_html=True,
         )
-        st.markdown(":material/home_work: **Portföy Panosu**")
+        st.markdown("**Portföy Panosu**")
         st.caption("Portföyleri görüntüle ve yönet")
-        st.markdown(f"### {len(portfoyler)} aktif portföy")
-        if portfoy_yeni:
-            if st.button(f"🟠 +{len(portfoy_yeni)} yeni", key="dp_portfoy_yeni_rozet", use_container_width=True):
-                st.session_state["dp_sadece_yeni"] = True
-                st.switch_page("pages/Danisman_Portfoy.py")
+
+        stat_col, badge_col = st.columns([2, 1])
+        with stat_col:
+            st.markdown(f"<div class='dp-stat-row'><span class='dp-stat-num portfoy'>{len(portfoyler)}</span>"
+                        f"<span style='color:#5b6478;font-size:13px;'>aktif portföy</span></div>",
+                        unsafe_allow_html=True)
+        with badge_col:
+            if portfoy_yeni:
+                st.write("")
+                if st.button(f"🟠 +{len(portfoy_yeni)} yeni", key="dp_portfoy_yeni_rozet", use_container_width=True):
+                    st.session_state["dp_sadece_yeni"] = True
+                    st.switch_page("pages/Danisman_Portfoy.py")
+
+        st.write("")
         if st.button("Portföy Panosuna Git →", key="dp_portfoy_git", type="primary", use_container_width=True):
             st.session_state["dp_sadece_yeni"] = False
             st.switch_page("pages/Danisman_Portfoy.py")
