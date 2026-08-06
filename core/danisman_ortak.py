@@ -562,6 +562,20 @@ def hide_sidebar_css():
         color: #5b6478 !important;
     }
 
+    /* Çerçeve içindeki TÜM sütun/satır grupları (kartları yan yana koyan,
+       Favori Listem/Ekle'yi yan yana koyan sütunlar dahil) şeffaf olsun —
+       aksi halde Streamlit'in kendi sütun elemanı sayfa zemininin (krem)
+       rengini miras alıp çerçevenin İÇİNDE görünür kalıyordu. Bu kural,
+       aşağıdaki daha spesifik "beyaz kart" kuralından ÖNCE geliyor —
+       kartların kendisi (dp_kart_talep vb.) hâlâ kaynak sırası gereği
+       kendi beyaz rengini koruyor. */
+    div[class*="st-key-dp_page_frame"] [data-testid="stColumn"],
+    div[class*="st-key-dp_page_frame"] [data-testid="stHorizontalBlock"] {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
     /* Kartlar / bordered container'lar — beyaz yüzey, sıcak açık gri
        kenarlık, çok hafif gölge, yuvarlak köşe (mockup: 12-14px —
        Streamlit varsayılanı 8px, daha sert duruyordu).
