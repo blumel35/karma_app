@@ -428,7 +428,8 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
        elemanlarımıza hiç dokunmuyor. */
     div[class*="st-key-dp_topbar_wrap"] [data-testid="stVerticalBlockBorderWrapper"],
     div[class*="st-key-dp_topbar_wrap"] [data-testid="stPopover"],
-    div[class*="st-key-dp_topbar_wrap"] [data-testid="stPopover"] > button {
+    div[class*="st-key-dp_topbar_wrap"] [data-testid="stPopover"] > button,
+    div[class*="st-key-dp_topbar_wrap"] [data-testid="stColumn"] {
         border: none !important;
         box-shadow: none !important;
         background: transparent !important;
