@@ -56,18 +56,19 @@ div[class*="st-key-dp_portfoy_git"] button:hover {
 .dp-icon-box.talep { background: rgba(27,37,64,.08); color: #1b2540; }
 .dp-icon-box.portfoy { background: rgba(184,137,47,.12); color: #b8892f; }
 .dp-stat-row {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: baseline; justify-content: flex-start;
     gap: 8px; padding-top: 10px; margin-top: 8px;
     border-top: 1px solid #ecebe5;
 }
 .dp-stat-num { font-size: 22px; font-weight: 800; color: #1b2540; }
 .dp-stat-num.portfoy { color: #b8892f; }
 
-/* Stat satırı üstünde beliren boş, ince çerçeveli kutu — Streamlit'in
-   kendi sütun (stColumn) elemanının bir yerden miras aldığı border/
-   background'ı sıfırlıyoruz. Header'daki aynı türden kutu sorununu
-   çözen desenle birebir aynı yaklaşım: kendi HTML'imize değil,
-   Streamlit'in gerçek testid'li elemanına dokunuyoruz. */
+/* Stat satırındaki boş kutu — Streamlit'in kendi sütun grubu
+   (stHorizontalBlock) ve tekil sütun (stColumn) elemanlarının bir
+   yerden miras aldığı border/background'ı sıfırlıyoruz. Header'daki
+   aynı türden kutu sorununu çözen desenle birebir aynı yaklaşım. */
+div[class*="st-key-dp_kart_talep"] [data-testid="stHorizontalBlock"],
+div[class*="st-key-dp_kart_portfoy"] [data-testid="stHorizontalBlock"],
 div[class*="st-key-dp_kart_talep"] [data-testid="stColumn"],
 div[class*="st-key-dp_kart_portfoy"] [data-testid="stColumn"] {
     border: none !important;

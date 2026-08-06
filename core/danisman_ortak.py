@@ -532,7 +532,7 @@ def hide_sidebar_css():
     .stApp,
     [data-testid="stAppViewContainer"],
     [data-testid="stMain"] {
-        background-color: #f6f5f2 !important;
+        background-color: #fafaf9 !important;
     }
     /* Font Segoe UI: KASITLI olarak *, !important VE testid tahmini
        KULLANMIYORUZ. Doğal CSS kalıtımına güveniyoruz — .stApp üzerinde
