@@ -471,21 +471,7 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
     )
 
     with st.container(key="dp_topbar_wrap"):
-        col_baslik, col_menu = st.columns([6, 1])
-        with col_baslik:
-            if geri_hedefi:
-                if st.button("← Panoya Dön", key="dp_geri_btn"):
-                    st.switch_page(geri_hedefi)
-            if baslik:
-                baslik_metni = f"{ikon} {baslik}" if ikon else baslik
-                st.markdown(f"### {baslik_metni}")
-            if su_kullanici:
-                st.markdown(
-                    "<div style='display:flex;align-items:center;gap:8px;margin-top:4px;'>"
-                    f"<div class='dp-avatar-circle'>{baslar}</div>"
-                    f"<span style='font-size:13px;color:#5b6478 !important;font-weight:600;'>{su_kullanici}</span></div>",
-                    unsafe_allow_html=True,
-                )
+        col_menu, col_baslik, col_avatar = st.columns([1, 5, 3])
         with col_menu:
             # NOT: st.popover'ı önceden bir st.container(key=...) ve özel CSS
             # ile sarmalamaya çalışmıştık — bu kombinasyon üst barın tamamen
@@ -504,6 +490,21 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
                 if st.button("🚪 Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
                     cikis_yap()
                     st.switch_page("pages/Danisman_Giris.py")
+        with col_baslik:
+            if geri_hedefi:
+                if st.button("← Panoya Dön", key="dp_geri_btn"):
+                    st.switch_page(geri_hedefi)
+            if baslik:
+                baslik_metni = f"{ikon} {baslik}" if ikon else baslik
+                st.markdown(f"### {baslik_metni}")
+        with col_avatar:
+            if su_kullanici:
+                st.markdown(
+                    "<div style='display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:6px;'>"
+                    f"<div class='dp-avatar-circle'>{baslar}</div>"
+                    f"<span style='font-size:13px;color:#5b6478 !important;font-weight:600;white-space:nowrap;'>{su_kullanici}</span></div>",
+                    unsafe_allow_html=True,
+                )
 
 
 def hide_sidebar_css():
@@ -589,6 +590,20 @@ def hide_sidebar_css():
         border-color: #ecebe5 !important;
     }
 
+    /* Filtre kutusu (İşlem Tipi / Zaman Aralığı / Yenile) — Talep/Portföy
+       Panosu (Canlı) ekranlarında, iframe'in HEMEN üstünde. Rengi
+       core/pano_export.py'deki CREAM sabitiyle (#FBF7F0) eşleşiyor ki
+       iframe'in kendi krem tonuyla kesintisiz devam ediyormuş hissi
+       versin. Alt köşeler düz (radius yok) — iframe'e bitişik durabilsin. */
+    div[class*="st-key-dp_filtre_box_"] div[data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: #fbf7f0 !important;
+        border-color: #ecebe5 !important;
+        border-bottom: none !important;
+        border-radius: 16px 16px 0 0 !important;
+        box-shadow: none !important;
+        margin-bottom: -1px !important;
+    }
+
     /* İç ayırıcı çizgiler (st.divider) — açık, sıcak gri */
     .stApp hr {
         border-color: #ecebe5 !important;
@@ -652,23 +667,33 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
     ZAMAN_SECENEKLERI = ["Tümü", "Son 24 saat", "Son 7 gün"]
     zaman_index = ZAMAN_SECENEKLERI.index(zaman_varsayilan) if zaman_varsayilan in ZAMAN_SECENEKLERI else 0
 
-    fcol1, fcol2 = st.columns([1, 1])
-    with fcol1:
-        islem_secim = st.radio(
-            "İşlem Tipi", ["Tümü", "Satılık", "Kiralık"],
-            horizontal=True, key=f"dp_islem_filtre_{key_prefix}",
-        )
-    with fcol2:
-        zaman_secim = st.radio(
-            "Zaman Aralığı", ZAMAN_SECENEKLERI,
-            horizontal=True, index=zaman_index, key=f"dp_zaman_filtre_{key_prefix}",
-        )
-
-    if st.button("🔄 Yenile", key=f"dp_yenile_{key_prefix}"):
-        talepleri_cek.clear()
-        portfoyleri_cek.clear()
-        favorileri_cek.clear()
-        st.rerun()
+    # NOT (teknik sınır): "(Canlı)" paneli (başlık, "Toplam kayıt", A-Z,
+    # kartlar) aslında core.pano_export.pano_html_olustur() tarafından
+    # üretilen BAĞIMSIZ bir HTML dokümanı — components.html ile bir
+    # iframe içinde render ediliyor. Bu yüzden filtreler (native Streamlit
+    # widget'ları, Python tarafında rerun tetiklemesi gerekiyor) o HTML'in
+    # GERÇEKTEN içine gömülemez — iframe içindeki tıklamalar Streamlit'in
+    # Python tarafına ulaşmaz. Bunun yerine filtreleri, panelin kendi krem
+    # tonuyla (#FBF7F0, core/pano_export.py'deki CREAM sabiti) renk-eşleşmiş
+    # ayrı bir kutuya alıp iframe'in HEMEN üstüne, boşluksuz yerleştiriyoruz
+    # — görsel olarak "tek panel" hissi veriyor, teknik olarak iki eleman.
+    with st.container(border=True, key=f"dp_filtre_box_{key_prefix}"):
+        fcol1, fcol2 = st.columns([1, 1])
+        with fcol1:
+            islem_secim = st.radio(
+                "İşlem Tipi", ["Tümü", "Satılık", "Kiralık"],
+                horizontal=True, key=f"dp_islem_filtre_{key_prefix}",
+            )
+        with fcol2:
+            zaman_secim = st.radio(
+                "Zaman Aralığı", ZAMAN_SECENEKLERI,
+                horizontal=True, index=zaman_index, key=f"dp_zaman_filtre_{key_prefix}",
+            )
+        if st.button("🔄 Yenile", key=f"dp_yenile_{key_prefix}"):
+            talepleri_cek.clear()
+            portfoyleri_cek.clear()
+            favorileri_cek.clear()
+            st.rerun()
 
     kayitlar = islem_tipi_filtrele(kayitlar_havuzu, islem_secim)
     if zaman_secim == "Son 24 saat":
