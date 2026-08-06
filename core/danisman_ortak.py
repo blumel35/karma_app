@@ -458,8 +458,15 @@ def hide_sidebar_css():
     [data-testid="stMain"] {
         background-color: #f6f5f2 !important;
     }
-    .stApp, .stApp * {
-        font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif !important;
+    /* Font Segoe UI: KASITLI olarak *, !important VE testid tahmini
+       KULLANMIYORUZ. Doğal CSS kalıtımına güveniyoruz — .stApp üzerinde
+       tanımlanan font-family, metin öğelerine miras yoluyla yayılır, ama
+       Streamlit'in ikon glif elemanlarına (kendi font-family'sini
+       doğrudan üzerinde taşıyorlar) dokunmaz. Önceki deneme (`.stApp *`
+       + `!important`) tam bu yüzden ikonları bozmuştu — doğrudan
+       hedeflenen bir kural, miras alınan değerden her zaman kazanır. */
+    .stApp {
+        font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
     /* Ana başlıklar — koyu lacivert */
