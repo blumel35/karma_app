@@ -413,38 +413,75 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
     div[data-baseweb="radio"] div[aria-checked="true"] div {
         background-color: #1b2540 !important;
     }
+
+    /* HEADER: hiçbir alt eleman kutu/gölge/arka plan taşımasın — kaynağı
+       ne olursa olsun (Karma App'in genel temasından miras kalan bir
+       kural da olabilir) zorla sıfırlıyoruz. Sadece dış wrapper'ın
+       altında ince bir çizgi olacak (mockup: border-bottom). */
+    div[class*="st-key-dp_topbar_wrap"],
+    div[class*="st-key-dp_topbar_wrap"] *,
+    div[class*="st-key-dp_topbar_wrap"] [data-testid="stVerticalBlockBorderWrapper"] {
+        border: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+    div[class*="st-key-dp_topbar_wrap"] {
+        border-bottom: 1px solid #ecebe5 !important;
+        padding-bottom: 14px !important;
+        margin-bottom: 14px !important;
+    }
+    /* Mobilde de başlık ve hamburger AYNI satırda kalsın — Streamlit
+       dar ekranda columns'ı varsayılan olarak alt alta yığar, bunu
+       zorla engelliyoruz. */
+    div[class*="st-key-dp_topbar_wrap"] [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        align-items: flex-start !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
     su_kullanici = su_anki_danisman()
+    baslar = (
+        "".join([p[0].upper() for p in su_kullanici.split()[:2]])
+        if su_kullanici and " " in su_kullanici
+        else (su_kullanici[:2].upper() if su_kullanici else "?")
+    )
 
-    col_baslik, col_menu = st.columns([6, 1])
-    with col_baslik:
-        if geri_hedefi:
-            if st.button("← Panoya Dön", key="dp_geri_btn"):
-                st.switch_page(geri_hedefi)
-        baslik_metni = f"{ikon} {baslik}" if ikon else baslik
-        st.markdown(f"### {baslik_metni}")
-        if su_kullanici:
-            st.caption(f"👤 {su_kullanici}")
-    with col_menu:
-        # NOT: st.popover'ı önceden bir st.container(key=...) ve özel CSS
-        # ile sarmalamaya çalışmıştık — bu kombinasyon üst barın tamamen
-        # bozulmasına yol açtı (başlık kayboldu, 'Çıkış Yap' popover
-        # dışında göründü). Kararlılık için EN SADE haline dönüldü:
-        # popover doğrudan, ek container/CSS olmadan kullanılıyor.
-        with st.popover("☰"):
-            st.markdown(f"**{su_kullanici}**")
-            st.caption("Danışman")
-            st.divider()
-            if st.button("📂 Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
-                st.switch_page("pages/Danisman_Kayitlarim.py")
-            if st.button("👥 Zeta Paylaşımları", use_container_width=True, key="dp_menu_paylasimlar"):
-                st.switch_page("pages/Danisman_Paylasimlar.py")
-            st.divider()
-            if st.button("🚪 Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
-                cikis_yap()
-                st.switch_page("pages/Danisman_Giris.py")
+    with st.container(key="dp_topbar_wrap"):
+        col_baslik, col_menu = st.columns([6, 1])
+        with col_baslik:
+            if geri_hedefi:
+                if st.button("← Panoya Dön", key="dp_geri_btn"):
+                    st.switch_page(geri_hedefi)
+            baslik_metni = f"{ikon} {baslik}" if ikon else baslik
+            st.markdown(f"### {baslik_metni}")
+            if su_kullanici:
+                st.markdown(
+                    "<div style='display:flex;align-items:center;gap:8px;margin-top:2px;'>"
+                    f"<div style='width:24px;height:24px;border-radius:50%;background:#1b2540;"
+                    "color:#fff;display:flex;align-items:center;justify-content:center;"
+                    f"font-size:11px;font-weight:700;flex-shrink:0;'>{baslar}</div>"
+                    f"<span style='font-size:13px;color:#5b6478;font-weight:600;'>{su_kullanici}</span></div>",
+                    unsafe_allow_html=True,
+                )
+        with col_menu:
+            # NOT: st.popover'ı önceden bir st.container(key=...) ve özel CSS
+            # ile sarmalamaya çalışmıştık — bu kombinasyon üst barın tamamen
+            # bozulmasına yol açmıştı (başlık kayboldu, 'Çıkış Yap' popover
+            # dışında göründü). Bu sefer dış wrapper (dp_topbar_wrap) ayrı
+            # tutuluyor, popover'ın kendisi hâlâ sade/doğrudan kullanılıyor.
+            with st.popover("☰"):
+                st.markdown(f"**{su_kullanici}**")
+                st.caption("Danışman")
+                st.divider()
+                if st.button("📂 Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
+                    st.switch_page("pages/Danisman_Kayitlarim.py")
+                if st.button("👥 Zeta Paylaşımları", use_container_width=True, key="dp_menu_paylasimlar"):
+                    st.switch_page("pages/Danisman_Paylasimlar.py")
+                st.divider()
+                if st.button("🚪 Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
+                    cikis_yap()
+                    st.switch_page("pages/Danisman_Giris.py")
 
 
 def hide_sidebar_css():
