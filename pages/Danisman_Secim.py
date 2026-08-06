@@ -117,7 +117,10 @@ with col_talep:
     with st.container(border=True, key="dp_kart_talep"):
         st.markdown(
             "<div style='height:4px;background:#1b2540;border-radius:3px;margin:-1px 0 12px 0;'></div>"
-            "<div class='dp-icon-box talep'>⬇️</div>",
+            "<div class='dp-icon-box talep'>"
+            "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+            "<path d='M12 3v13m0 0-4-4m4 4 4-4'/><path d='M4 19h16'/>"
+            "</svg></div>",
             unsafe_allow_html=True,
         )
         st.markdown("**Talep Panosu**")
@@ -144,7 +147,10 @@ with col_portfoy:
     with st.container(border=True, key="dp_kart_portfoy"):
         st.markdown(
             "<div style='height:4px;background:#b8892f;border-radius:3px;margin:-1px 0 12px 0;'></div>"
-            "<div class='dp-icon-box portfoy'>🏠</div>",
+            "<div class='dp-icon-box portfoy'>"
+            "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+            "<path d='M3 11.5 12 4l9 7.5'/><path d='M5 10v9h14v-9'/>"
+            "</svg></div>",
             unsafe_allow_html=True,
         )
         st.markdown("**Portföy Panosu**")
@@ -171,10 +177,10 @@ st.write("")
 
 col_favori, col_ekle = st.columns([1, 1])
 with col_favori:
-    if st.button("⭐ Favori Listem", key="dp_favori_btn", use_container_width=True):
+    if st.button("☆ Favori Listem", key="dp_favori_btn", use_container_width=True):
         st.switch_page("pages/Danisman_Favoriler.py")
 with col_ekle:
-    if st.button("➕ Ekle", key="dp_ekle_btn", use_container_width=True):
+    if st.button("+ Ekle", key="dp_ekle_btn", use_container_width=True):
         ekle_dialog()
 
 st.write("")

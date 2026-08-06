@@ -380,8 +380,13 @@ def render_activity_bar():
 
     with st.container(border=True, key="dp_activity_box"):
         st.markdown(
-            f"🕐 **Son 24 saat:** {ozet['talep_sayisi']} yeni talep, "
-            f"{ozet['portfoy_sayisi']} yeni portföy paylaşımı"
+            "<span style='display:inline-flex;align-items:center;gap:6px;'>"
+            "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#b8892f' stroke-width='2' "
+            "stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/>"
+            "<polyline points='12 6 12 12 16 14'/></svg>"
+            f"<span><b>Son 24 saat:</b> {ozet['talep_sayisi']} yeni talep, "
+            f"{ozet['portfoy_sayisi']} yeni portföy paylaşımı</span></span>",
+            unsafe_allow_html=True,
         )
         for olay in ozet["son_olaylar"]:
             st.caption(f"• **{olay['danisman']}** {olay['eylem']}")
