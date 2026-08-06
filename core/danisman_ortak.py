@@ -434,8 +434,13 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
     }
 
     /* dp_topbar_wrap'ın KENDİ stVerticalBlock'unu satır (row) yönlü
-       flex'e çeviriyoruz — st.columns() yerine bu teknik kullanılıyor. */
-    div[class*="st-key-dp_topbar_wrap"] > div[data-testid="stVerticalBlock"] {
+       flex'e çeviriyoruz — st.columns() yerine bu teknik kullanılıyor.
+       DÜZELTME: class ("st-key-dp_topbar_wrap") st.container(key=...)
+       tarafından stVerticalBlock div'inin KENDİSİNE ekleniyor, ayrı bir
+       çocuk element'e değil — önceki ">" (doğrudan çocuk) seçicisi bu
+       yüzden hiçbir zaman eşleşmiyordu, flex hiç uygulanmıyordu. Artık
+       her iki niteliği (data-testid + class) AYNI elemanda arıyoruz. */
+    div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] {
         display: flex !important;
         flex-direction: row !important;
         align-items: center !important;
@@ -444,12 +449,13 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
     }
     /* Her çocuk element-container varsayılan olarak içeriği kadar dar
        dursun (popover, geri butonu) — SADECE son çocuk (başlık+avatar
-       flex div'ini taşıyan) kalan alanı doldursun. */
-    div[class*="st-key-dp_topbar_wrap"] > div[data-testid="stVerticalBlock"] > div[data-testid="element-container"] {
+       flex div'ini taşıyan) kalan alanı doldursun. Aynı düzeltme burada
+       da geçerli: doğrudan çocuk seçimi artık doğru elemandan başlıyor. */
+    div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] > div[data-testid="element-container"] {
         width: auto !important;
         flex: 0 0 auto !important;
     }
-    div[class*="st-key-dp_topbar_wrap"] > div[data-testid="stVerticalBlock"] > div[data-testid="element-container"]:last-child {
+    div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] > div[data-testid="element-container"]:last-child {
         flex: 1 1 auto !important;
         min-width: 0 !important;
     }
