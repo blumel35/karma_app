@@ -491,8 +491,15 @@ def hide_sidebar_css():
 
     /* Kartlar / bordered container'lar — beyaz yüzey, sıcak açık gri
        kenarlık, çok hafif gölge, yuvarlak köşe (mockup: 12-14px —
-       Streamlit varsayılanı 8px, daha sert duruyordu) */
-    div[data-testid="stVerticalBlockBorderWrapper"] {
+       Streamlit varsayılanı 8px, daha sert duruyordu).
+       ÖNEMLİ: Bilerek SADECE bizim açıkça key verdiğimiz kartları
+       hedefliyoruz (blanket `div[data-testid="stVerticalBlockBorderWrapper"]`
+       seçicisi kullanmıyoruz) — o blanket kural, Streamlit'in popover
+       bileşeninin kendi iç yapısını da boyayıp header'ın yanında
+       istenmeyen bir kutu/gölge oluşturuyordu. */
+    div[class*="st-key-dp_kart_talep"] div[data-testid="stVerticalBlockBorderWrapper"],
+    div[class*="st-key-dp_kart_portfoy"] div[data-testid="stVerticalBlockBorderWrapper"],
+    div[class*="st-key-dp_activity_box"] div[data-testid="stVerticalBlockBorderWrapper"] {
         background-color: #ffffff !important;
         border-color: #e3e1da !important;
         border-radius: 16px !important;

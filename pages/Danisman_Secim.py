@@ -95,6 +95,22 @@ div[class*="st-key-dp_portfoy_yeni_rozet"] button {
 div[class*="st-key-dp_portfoy_yeni_rozet"] button:hover {
     background-color: rgba(184,137,47,.20) !important;
 }
+
+/* "Favori Listem" / "Ekle" — sekonder eylemler, mockup'taki .action-chip
+   gibi kompakt: içeriğe göre genişlik, ince kenarlık, küçük padding.
+   "Talep/Portföy Panosuna Git" gibi tam genişlik/ağır butonlarla
+   karışmasınlar diye bilinçli olarak küçültüldü. */
+div[class*="st-key-dp_favori_btn"] button,
+div[class*="st-key-dp_ekle_btn"] button {
+    width: auto !important;
+    display: inline-flex !important;
+    padding: 8px 16px !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    border-color: #e3e1da !important;
+    background: #ffffff !important;
+    color: #5b6478 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -177,10 +193,10 @@ st.write("")
 
 col_favori, col_ekle = st.columns([1, 1])
 with col_favori:
-    if st.button("☆ Favori Listem", key="dp_favori_btn", use_container_width=True):
+    if st.button("☆ Favori Listem", key="dp_favori_btn"):
         st.switch_page("pages/Danisman_Favoriler.py")
 with col_ekle:
-    if st.button("+ Ekle", key="dp_ekle_btn", use_container_width=True):
+    if st.button("+ Ekle", key="dp_ekle_btn"):
         ekle_dialog()
 
 st.write("")
