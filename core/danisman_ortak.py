@@ -378,7 +378,7 @@ def render_activity_bar():
     if ozet["talep_sayisi"] == 0 and ozet["portfoy_sayisi"] == 0:
         return
 
-    with st.container(border=True):
+    with st.container(border=True, key="dp_activity_box"):
         st.markdown(
             f"🕐 **Son 24 saat:** {ozet['talep_sayisi']} yeni talep, "
             f"{ozet['portfoy_sayisi']} yeni portföy paylaşımı"
@@ -469,9 +469,12 @@ def hide_sidebar_css():
         font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
-    /* Ana başlıklar — koyu lacivert */
+    /* Ana başlıklar — koyu lacivert, extra-bold, hafif sıkışık harf
+       aralığı (mockup: font-weight 800, letter-spacing -0.01em) */
     .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6 {
         color: #1b2540 !important;
+        font-weight: 800 !important;
+        letter-spacing: -0.01em !important;
     }
 
     /* İkincil metin (caption, açıklama) — yumuşak gri-lacivert */
@@ -481,11 +484,22 @@ def hide_sidebar_css():
     }
 
     /* Kartlar / bordered container'lar — beyaz yüzey, sıcak açık gri
-       kenarlık, çok hafif gölge (mockup'taki .sel-card ile aynı) */
+       kenarlık, çok hafif gölge, yuvarlak köşe (mockup: 12-14px —
+       Streamlit varsayılanı 8px, daha sert duruyordu) */
     div[data-testid="stVerticalBlockBorderWrapper"] {
         background-color: #ffffff !important;
         border-color: #e3e1da !important;
+        border-radius: 14px !important;
         box-shadow: 0 1px 3px rgba(27, 37, 64, 0.06) !important;
+    }
+
+    /* Aktivite kutusu ("Son 24 saat") — diğer kartlardan farklı, sayfa
+       zeminine yakın soft bej (mockup: #f8f7f4) — "öne çıkan panel"
+       değil "sayfanın devamı" hissi için. Yukarıdaki genel beyaz kart
+       kuralını, daha spesifik bu seçiciyle eziyoruz. */
+    div[class*="st-key-dp_activity_box"] div[data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: #f8f7f4 !important;
+        border-color: #ecebe5 !important;
     }
 
     /* İç ayırıcı çizgiler (st.divider) — açık, sıcak gri */

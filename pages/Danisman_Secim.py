@@ -62,6 +62,31 @@ div[class*="st-key-dp_portfoy_git"] button:hover {
 }
 .dp-stat-num { font-size: 22px; font-weight: 800; color: #1b2540; }
 .dp-stat-num.portfoy { color: #b8892f; }
+
+/* "+N yeni" rozetleri — mockup'taki .new-badge ile aynı mantık: saf/
+   doygun renk değil, marka renginin %8-12 opaklığı (pastel görünüm
+   böyle elde ediliyor, farklı bir palet eklemekle değil). Pill şekli
+   (border-radius 999px), border yok, kompakt padding. */
+div[class*="st-key-dp_talep_yeni_rozet"] button {
+    background-color: rgba(27,37,64,.08) !important;
+    color: #1b2540 !important;
+    border: none !important;
+    border-radius: 999px !important;
+    font-weight: 700 !important;
+}
+div[class*="st-key-dp_talep_yeni_rozet"] button:hover {
+    background-color: rgba(27,37,64,.14) !important;
+}
+div[class*="st-key-dp_portfoy_yeni_rozet"] button {
+    background-color: rgba(184,137,47,.12) !important;
+    color: #b8892f !important;
+    border: none !important;
+    border-radius: 999px !important;
+    font-weight: 700 !important;
+}
+div[class*="st-key-dp_portfoy_yeni_rozet"] button:hover {
+    background-color: rgba(184,137,47,.20) !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
