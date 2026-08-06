@@ -328,22 +328,28 @@ def supabase_anon_secrets():
 # ── AKTİVİTE ÖZETİ ("Son 24 saat") ─────────────────────────────────────
 
 def son_24_saat_ozeti():
-    """Ana ekrandaki 'Son 24 saat' çubuğu için: toplam yeni sayıları +
-    en güncel 2 kayıt (kim/ne ekledi). TÜM KAYNAKLARI kapsar (Zeta +
-    Startkey/mail birlikte) — Talep/Portföy Panosu zaten her zaman tüm
-    havuzu gösterdiği için, rozet ve özet de aynı kapsamda tutarlı olmalı.
-    Sadece Zeta'ya özel görünüm için ayrı sayfa: Danisman_Paylasimlar.py."""
-    talepler_yeni = son_24_saat_filtrele(talepleri_cek())
-    portfoyler_yeni = son_24_saat_filtrele(portfoyleri_cek())
+    """Ana ekrandaki 'Son 24 saat' widget'ında iki farklı kapsam bilinçli
+    olarak ayrı tutulur:
+    - Özet CÜMLESİ (kaç yeni talep/portföy) → TÜM havuz (Zeta + Startkey/
+      mail) — 'genel olarak ne kadar yeni var' sorusuna cevap verir, kart
+      rozetleriyle ('+N yeni') aynı sayıyı göstermeli.
+    - İSİMLİ paylaşım satırları (kim ne ekledi) → SADECE ZETA — 'ekibim
+      ne yaptı' sorusuna cevap verir; tüm Startkey ağını (binlerce kişi)
+      burada isim isim listelemek hem yanıltıcı hem alakasız olur."""
+    talepler_yeni_tumu = son_24_saat_filtrele(talepleri_cek())
+    portfoyler_yeni_tumu = son_24_saat_filtrele(portfoyleri_cek())
+
+    talepler_yeni_zeta = son_24_saat_filtrele(kaynak_filtrele(talepleri_cek(), "Zeta"))
+    portfoyler_yeni_zeta = son_24_saat_filtrele(kaynak_filtrele(portfoyleri_cek(), "Zeta"))
 
     olaylar = []
-    for v in talepler_yeni:
+    for v in talepler_yeni_zeta:
         olaylar.append({
             "danisman": v.get("talep_eden_danisan") or "Bilinmeyen",
             "eylem": "yeni bir talep girdi",
             "tarih": kayit_tarihi_dt(v.get("kayit_tarihi")),
         })
-    for v in portfoyler_yeni:
+    for v in portfoyler_yeni_zeta:
         olaylar.append({
             "danisman": v.get("talep_eden_danisan") or "Bilinmeyen",
             "eylem": "yeni bir portföy paylaştı",
@@ -353,8 +359,8 @@ def son_24_saat_ozeti():
     olaylar.sort(key=lambda o: o["tarih"], reverse=True)
 
     return {
-        "talep_sayisi": len(talepler_yeni),
-        "portfoy_sayisi": len(portfoyler_yeni),
+        "talep_sayisi": len(talepler_yeni_tumu),
+        "portfoy_sayisi": len(portfoyler_yeni_tumu),
         "son_olaylar": olaylar[:2],
         "toplam_olay": len(olaylar),
     }
