@@ -434,13 +434,8 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
     }
 
     /* dp_topbar_wrap'ın KENDİ stVerticalBlock'unu satır (row) yönlü
-       flex'e çeviriyoruz — st.columns() yerine bu teknik kullanılıyor.
-       DÜZELTME: class ("st-key-dp_topbar_wrap") st.container(key=...)
-       tarafından stVerticalBlock div'inin KENDİSİNE ekleniyor, ayrı bir
-       çocuk element'e değil — önceki ">" (doğrudan çocuk) seçicisi bu
-       yüzden hiçbir zaman eşleşmiyordu, flex hiç uygulanmıyordu. Artık
-       her iki niteliği (data-testid + class) AYNI elemanda arıyoruz. */
-    div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] {
+       flex'e çeviriyoruz — st.columns() yerine bu teknik kullanılıyor. */
+    div[class*="st-key-dp_topbar_wrap"] > div[data-testid="stVerticalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         align-items: center !important;
@@ -449,13 +444,12 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
     }
     /* Her çocuk element-container varsayılan olarak içeriği kadar dar
        dursun (popover, geri butonu) — SADECE son çocuk (başlık+avatar
-       flex div'ini taşıyan) kalan alanı doldursun. Aynı düzeltme burada
-       da geçerli: doğrudan çocuk seçimi artık doğru elemandan başlıyor. */
-    div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] > div[data-testid="element-container"] {
+       flex div'ini taşıyan) kalan alanı doldursun. */
+    div[class*="st-key-dp_topbar_wrap"] > div[data-testid="stVerticalBlock"] > div[data-testid="element-container"] {
         width: auto !important;
         flex: 0 0 auto !important;
     }
-    div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] > div[data-testid="element-container"]:last-child {
+    div[class*="st-key-dp_topbar_wrap"] > div[data-testid="stVerticalBlock"] > div[data-testid="element-container"]:last-child {
         flex: 1 1 auto !important;
         min-width: 0 !important;
     }
@@ -518,15 +512,7 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
         # Başlık (varsa) + avatar — TEK bir flexbox HTML bloğu. Başlık
         # yoksa (Talep/Portföy Panosu ekranlarında mükerrer başlığı
         # önlemek için) sol taraf boş kalır, avatar yine sağda durur.
-        # DÜZELTME: avatar div'i flex-shrink:0 (asla küçülmez), ama başlık
-        # (h3) buna karşılık varsayılan flex-shrink:1 ile küçülmeye
-        # zorlanıyor, dar alanda satır kırıyordu ("Danışman" / "Panosu").
-        # white-space:nowrap + flex-shrink:0 ile başlığın de asla
-        # sıkışmamasını garanti ediyoruz — mockup'ta zaten tek satırdı.
-        baslik_html = (
-            f"<h3 style='margin:0;white-space:nowrap;flex-shrink:0;'>{ikon} {baslik}</h3>"
-            if baslik else "<div></div>"
-        )
+        baslik_html = f"<h3 style='margin:0;text-align:left;'>{ikon} {baslik}</h3>" if baslik else "<div></div>"
         avatar_html = ""
         if su_kullanici:
             avatar_html = (
@@ -535,7 +521,7 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
                 f"<span style='font-size:13px;color:#5b6478 !important;font-weight:600;white-space:nowrap;'>{su_kullanici}</span></div>"
             )
         st.markdown(
-            f"<div style='display:flex;justify-content:space-between;align-items:center;width:100%;'>"
+            f"<div style='display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;'>"
             f"{baslik_html}{avatar_html}</div>",
             unsafe_allow_html=True,
         )
@@ -629,30 +615,12 @@ def hide_sidebar_css():
         box-shadow: 0 1px 3px rgba(27, 37, 64, 0.06) !important;
     }
 
-    /* DÜZELTME: dp_page_frame'in KENDİ dış kutusu (görünür border/arka
-       planı taşıyan gerçek eleman) yukarıdaki kuralla hiç boyanmıyordu.
-       Sebep: st.container(border=True, key=...) çağrısında class,
-       stVerticalBlockBorderWrapper'ın İÇİNE değil, onun ÇOCUĞU olan
-       stVerticalBlock'a ekleniyor — yani wrapper, class'ı taşıyan
-       elemanın torunu değil EBEVEYNİ. Yukarıdaki descendant seçici bu
-       yüzden sadece İÇERİDEKİ kartların (dp_kart_talep vb., onlar
-       gerçekten içeride nested olduğu için) kendi wrapper'ını
-       boyuyordu, çerçevenin kendisini hiç boyamıyordu — altından krem
-       zemin sızıyordu. :has() ile artık "içinde bu class'lı çocuk olan
-       wrapper'ı bul" diyerek doğru (ebeveyn) yöne işaret ediyoruz. */
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(> div[class*="st-key-dp_page_frame"]) {
-        background-color: #ffffff !important;
-        border-color: #e3e1da !important;
-        border-radius: 16px !important;
-        box-shadow: 0 1px 3px rgba(27, 37, 64, 0.06) !important;
-    }
-
     /* Aktivite kutusu ("Son 24 saat") — diğer kartlardan farklı, sayfa
        zeminine yakın soft bej (mockup: #f8f7f4) — "öne çıkan panel"
        değil "sayfanın devamı" hissi için. Yukarıdaki genel beyaz kart
        kuralını, daha spesifik bu seçiciyle eziyoruz. */
     div[class*="st-key-dp_activity_box"] div[data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #f8f7f4 !important;
+        background-color: #f6f5f2 !important;
         border-color: #ecebe5 !important;
     }
 
