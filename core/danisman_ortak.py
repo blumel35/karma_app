@@ -5,14 +5,20 @@ Danışman Panosu ekranları (Danisman_Secim, Danisman_Talep, Danisman_Portfoy,
 Danisman_Favoriler, Danisman_Kayitlarim, Danisman_Paylasimlar) arasında
 paylaşılan tüm mantık burada topluyor — kod tekrarını önlemek için.
 
-Mimari (2026-08 revizyonu):
+Mimari (2026-08 revizyonu, 2. güncelleme):
 - Danisman_Secim.py: giriş sonrası ANA ekran. İki büyük kart (Talep/Portföy,
-  sayı + tıklanabilir "+N yeni" rozeti), Favori Listem butonu, "+ Ekle"
-  butonu (ortak dialog), "Son 24 saat" aktivite özeti. Sağ üstte hamburger
-  menü: Kendi Kayıtlarım, Zeta Paylaşımları, Çıkış Yap.
+  sayı + tıklanabilir "+N yeni" rozeti — TÜM KAYNAKLAR: Zeta + Startkey/mail
+  birlikte), Favori Listem butonu, "+ Ekle" butonu (ortak dialog), "Son 24
+  saat" aktivite özeti (yine TÜM KAYNAKLAR). Sağ üstte hamburger menü:
+  Kendi Kayıtlarım, Zeta Paylaşımları, Çıkış Yap.
 - Danisman_Talep.py / Danisman_Portfoy.py: sadece kart listesi + A-Z
-  navigasyon + filtreler. "Ekle" ve "Kendi Kayıtlarım" burada YOK — ana
-  ekrana / hamburger menüye taşındı.
+  navigasyon + filtreler. HER ZAMAN TÜM HAVUZU gösterir (Zeta + Startkey
+  birlikte) — "İlan Kaynağı" filtresi YOK, çünkü Zeta'ya özel görünüm
+  zaten ayrı bir sayfada (Danisman_Paylasimlar.py). "Ekle" ve
+  "Kendi Kayıtlarım" burada da YOK — ana ekrana / hamburger menüye taşındı.
+- Danisman_Paylasimlar.py (Zeta Paylaşımları): TEK istisna — burası hâlâ
+  yalnızca Zeta kaynaklı kayıtları gösterir (ölçeklenebilirlik + "ekip
+  arkadaşlarım ne yaptı" sorusuna özel cevap).
 - "+N yeni" rozetine tıklanınca ilgili panoya SADECE SON 24 SAATTEKİ
   kayıtlar filtrelenmiş olarak açılır (st.session_state["dp_sadece_yeni"]
   ile taşınır, query param değil — MPA sayfa geçişlerinde daha güvenilir).
@@ -323,10 +329,12 @@ def supabase_anon_secrets():
 
 def son_24_saat_ozeti():
     """Ana ekrandaki 'Son 24 saat' çubuğu için: toplam yeni sayıları +
-    en güncel 2 kayıt (kim ne ekledi). Yalnızca Zeta kaynaklı kayıtları
-    kapsar — tüm Startkey ağını değil (ölçeklenebilirlik için bilinçli sınır)."""
-    talepler_yeni = son_24_saat_filtrele(kaynak_filtrele(talepleri_cek(), "Zeta"))
-    portfoyler_yeni = son_24_saat_filtrele(kaynak_filtrele(portfoyleri_cek(), "Zeta"))
+    en güncel 2 kayıt (kim/ne ekledi). TÜM KAYNAKLARI kapsar (Zeta +
+    Startkey/mail birlikte) — Talep/Portföy Panosu zaten her zaman tüm
+    havuzu gösterdiği için, rozet ve özet de aynı kapsamda tutarlı olmalı.
+    Sadece Zeta'ya özel görünüm için ayrı sayfa: Danisman_Paylasimlar.py."""
+    talepler_yeni = son_24_saat_filtrele(talepleri_cek())
+    portfoyler_yeni = son_24_saat_filtrele(portfoyleri_cek())
 
     olaylar = []
     for v in talepler_yeni:
@@ -378,6 +386,27 @@ def render_topbar(baslik, ikon=":material/dashboard:", geri_hedefi=None):
     Zeta Paylaşımları, Çıkış Yap."""
     from core.auth import cikis_yap
 
+    st.markdown("""
+    <style>
+    /* Hamburger menü tetikleyicisi: küçük, kare, sade ikon butonu —
+       önceki sürümde use_container_width=True + etiketsiz ikon, tuhaf
+       bir oval/gerilmiş buton gibi görünüyordu. */
+    div[class*="st-key-dp_hamburger_menu"] button {
+        width: 40px !important;
+        height: 40px !important;
+        padding: 0 !important;
+        border-radius: 8px !important;
+        border: 1px solid #e3e1da !important;
+        background: #ffffff !important;
+        float: right;
+    }
+    div[class*="st-key-dp_hamburger_menu"] button:hover {
+        background: #f6f5f2 !important;
+        border-color: #b8892f !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     col_baslik, col_menu = st.columns([6, 1])
     with col_baslik:
         if geri_hedefi:
@@ -385,7 +414,7 @@ def render_topbar(baslik, ikon=":material/dashboard:", geri_hedefi=None):
                 st.switch_page(geri_hedefi)
         st.markdown(f"### {ikon} {baslik}")
     with col_menu:
-        with st.popover(":material/menu:", use_container_width=True):
+        with st.popover(":material/menu:", key="dp_hamburger_menu"):
             st.markdown(f"**{su_anki_danisman()}**")
             st.caption("Danışman")
             st.divider()
@@ -414,7 +443,10 @@ def hide_sidebar_css():
 # iki ayrı dosyada aynı kart/A-Z/filtre mantığını tekrarlamamak için.
 
 def render_pano_ekrani(kayit_tipi):
-    """kayit_tipi: 'talep' | 'portfoy'"""
+    """kayit_tipi: 'talep' | 'portfoy'
+    HER ZAMAN TÜM HAVUZU gösterir (Zeta + Startkey/mail birlikte) —
+    kaynağa göre ayrı filtre yok, çünkü Zeta'ya özel görünüm zaten
+    ayrı bir sayfada (Danisman_Paylasimlar.py)."""
     import streamlit.components.v1 as components
     from core.pano_export import pano_html_olustur
 
@@ -434,18 +466,13 @@ def render_pano_ekrani(kayit_tipi):
     # kullanıcı manuel filtreyi kapattığında tekrar geri gelmesin.
     sadece_yeni_varsayilan = st.session_state.pop("dp_sadece_yeni", False)
 
-    fcol1, fcol2, fcol3 = st.columns([1, 1, 1])
+    fcol1, fcol2 = st.columns([1, 1])
     with fcol1:
-        kaynak_secim = st.radio(
-            "İlan Kaynağı", ["Tümü", "Zeta", "Startkey"],
-            horizontal=True, key=f"dp_kaynak_filtre_{kayit_tipi}",
-        )
-    with fcol2:
         islem_secim = st.radio(
             "İşlem Tipi", ["Tümü", "Satılık", "Kiralık"],
             horizontal=True, key=f"dp_islem_filtre_{kayit_tipi}",
         )
-    with fcol3:
+    with fcol2:
         sadece_yeni = st.checkbox(
             "Sadece son 24 saat", value=sadece_yeni_varsayilan,
             key=f"dp_sadece_yeni_chk_{kayit_tipi}",
@@ -456,8 +483,7 @@ def render_pano_ekrani(kayit_tipi):
         favorileri_cek.clear()
         st.rerun()
 
-    kayitlar = kaynak_filtrele(veri_cek(), kaynak_secim)
-    kayitlar = islem_tipi_filtrele(kayitlar, islem_secim)
+    kayitlar = islem_tipi_filtrele(veri_cek(), islem_secim)
     if sadece_yeni:
         kayitlar = son_24_saat_filtrele(kayitlar)
 

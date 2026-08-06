@@ -25,7 +25,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import oturum_kontrol
 from core.danisman_ortak import (
-    talepleri_cek, portfoyleri_cek, kaynak_filtrele, son_24_saat_filtrele,
+    talepleri_cek, portfoyleri_cek, son_24_saat_filtrele,
     ekle_dialog, render_activity_bar, render_topbar, hide_sidebar_css,
 )
 
@@ -34,14 +34,31 @@ if not oturum_kontrol():
 
 hide_sidebar_css()
 
+# NOT: Önceki sürümde kart üst kenarındaki renkli çizgi, Streamlit'in
+# internal container testid'ine (stVerticalBlockBorderWrapper) bağlı bir
+# CSS seçicisiyle uygulanmaya çalışılmıştı — bu, Streamlit sürümüne göre
+# DOM yapısı değiştiği için render olmadı. Bunun yerine, kartın İÇİNDE,
+# ilk eleman olarak düz bir renkli <div> çubuğu ekleniyor (aşağıda) —
+# Streamlit'in internal yapısına bağımlı değil, her sürümde çalışır.
+#
+# Buton rengi: "Talep Panosuna Git" / "Portföy Panosuna Git" butonları
+# type="primary" ile Streamlit'in varsayılan temasını (kırmızı) alıyordu.
+# Karma App navy kimliğine bağlamak için, buton key'i üzerinden CSS ile
+# rengi zorluyoruz — bu, kodda zaten kanıtlanmış bir desen (bkz. eski
+# dp_toolbar_row seçicisi).
 st.markdown("""
 <style>
-/* Seçim kartları — Karma App navy/gold kimliğine bağlı, sade beyaz kart */
-div[class*="st-key-dp_kart_talep"] > div[data-testid="stVerticalBlockBorderWrapper"] {
-    border-top: 3px solid #1b2540 !important;
+div[class*="st-key-dp_talep_git"] button,
+div[class*="st-key-dp_portfoy_git"] button {
+    background-color: #1b2540 !important;
+    border-color: #1b2540 !important;
+    color: #ffffff !important;
 }
-div[class*="st-key-dp_kart_portfoy"] > div[data-testid="stVerticalBlockBorderWrapper"] {
-    border-top: 3px solid #b8892f !important;
+div[class*="st-key-dp_talep_git"] button:hover,
+div[class*="st-key-dp_portfoy_git"] button:hover {
+    background-color: #28345a !important;
+    border-color: #28345a !important;
+    color: #ffffff !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -52,13 +69,21 @@ st.write("")
 
 talepler = talepleri_cek()
 portfoyler = portfoyleri_cek()
-talep_yeni = son_24_saat_filtrele(kaynak_filtrele(talepler, "Zeta"))
-portfoy_yeni = son_24_saat_filtrele(kaynak_filtrele(portfoyler, "Zeta"))
+# "+N yeni" rozeti ve sayaçlar TÜM KAYNAKLARI kapsar (Zeta + Startkey/mail
+# birlikte) — Talep/Portföy Panosu zaten her zaman tüm havuzu gösteriyor,
+# bu yüzden rozet de aynı kapsamda tutarlı olmalı. Yalnızca Zeta'ya özel
+# görünüm için: hamburger menü → Zeta Paylaşımları.
+talep_yeni = son_24_saat_filtrele(talepler)
+portfoy_yeni = son_24_saat_filtrele(portfoyler)
 
 col_talep, col_portfoy = st.columns(2, gap="medium")
 
 with col_talep:
     with st.container(border=True, key="dp_kart_talep"):
+        st.markdown(
+            "<div style='height:4px;background:#1b2540;border-radius:3px;margin:-1px 0 14px 0;'></div>",
+            unsafe_allow_html=True,
+        )
         st.markdown(":material/download: **Talep Panosu**")
         st.caption("Alıcı taleplerini görüntüle ve yönet")
         st.markdown(f"### {len(talepler)} aktif talep")
@@ -72,6 +97,10 @@ with col_talep:
 
 with col_portfoy:
     with st.container(border=True, key="dp_kart_portfoy"):
+        st.markdown(
+            "<div style='height:4px;background:#b8892f;border-radius:3px;margin:-1px 0 14px 0;'></div>",
+            unsafe_allow_html=True,
+        )
         st.markdown(":material/home_work: **Portföy Panosu**")
         st.caption("Portföyleri görüntüle ve yönet")
         st.markdown(f"### {len(portfoyler)} aktif portföy")
