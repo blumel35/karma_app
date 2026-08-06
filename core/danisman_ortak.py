@@ -418,7 +418,8 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
         if geri_hedefi:
             if st.button("← Panoya Dön", key="dp_geri_btn"):
                 st.switch_page(geri_hedefi)
-        st.markdown(f"### {ikon} {baslik}")
+        baslik_metni = f"{ikon} {baslik}" if ikon else baslik
+        st.markdown(f"### {baslik_metni}")
         if su_kullanici:
             st.caption(f"👤 {su_kullanici}")
     with col_menu:
@@ -489,7 +490,7 @@ def hide_sidebar_css():
     div[data-testid="stVerticalBlockBorderWrapper"] {
         background-color: #ffffff !important;
         border-color: #e3e1da !important;
-        border-radius: 14px !important;
+        border-radius: 16px !important;
         box-shadow: 0 1px 3px rgba(27, 37, 64, 0.06) !important;
     }
 

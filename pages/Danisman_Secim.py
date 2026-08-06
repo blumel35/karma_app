@@ -73,6 +73,10 @@ div[class*="st-key-dp_talep_yeni_rozet"] button {
     border: none !important;
     border-radius: 999px !important;
     font-weight: 700 !important;
+    white-space: nowrap !important;
+    width: auto !important;
+    display: inline-flex !important;
+    padding: 6px 14px !important;
 }
 div[class*="st-key-dp_talep_yeni_rozet"] button:hover {
     background-color: rgba(27,37,64,.14) !important;
@@ -83,6 +87,10 @@ div[class*="st-key-dp_portfoy_yeni_rozet"] button {
     border: none !important;
     border-radius: 999px !important;
     font-weight: 700 !important;
+    white-space: nowrap !important;
+    width: auto !important;
+    display: inline-flex !important;
+    padding: 6px 14px !important;
 }
 div[class*="st-key-dp_portfoy_yeni_rozet"] button:hover {
     background-color: rgba(184,137,47,.20) !important;
@@ -90,7 +98,7 @@ div[class*="st-key-dp_portfoy_yeni_rozet"] button:hover {
 </style>
 """, unsafe_allow_html=True)
 
-render_topbar("Danışman Panosu")
+render_topbar("Danışman Panosu", ikon="")
 st.caption("Talep ve portföyleri canlı takip edin, hızlıca yeni kayıt ekleyin.")
 st.write("")
 
@@ -123,7 +131,7 @@ with col_talep:
         with badge_col:
             if talep_yeni:
                 st.write("")
-                if st.button(f"🟢 +{len(talep_yeni)} yeni", key="dp_talep_yeni_rozet", use_container_width=True):
+                if st.button(f"● +{len(talep_yeni)} yeni", key="dp_talep_yeni_rozet"):
                     st.session_state["dp_sadece_yeni"] = True
                     st.switch_page("pages/Danisman_Talep.py")
 
@@ -150,7 +158,7 @@ with col_portfoy:
         with badge_col:
             if portfoy_yeni:
                 st.write("")
-                if st.button(f"🟠 +{len(portfoy_yeni)} yeni", key="dp_portfoy_yeni_rozet", use_container_width=True):
+                if st.button(f"● +{len(portfoy_yeni)} yeni", key="dp_portfoy_yeni_rozet"):
                     st.session_state["dp_sadece_yeni"] = True
                     st.switch_page("pages/Danisman_Portfoy.py")
 
