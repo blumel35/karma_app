@@ -447,6 +447,44 @@ def hide_sidebar_css():
     [data-testid="stSidebar"] { display: none !important; }
     [data-testid="collapsedControl"] { display: none !important; }
     [data-testid="stHeader"] { display: none !important; }
+
+    /* ── TEMA (2026-08): mockup ile uyumlu sıcak kırık beyaz zemin,
+       beyaz kart yüzeyleri, Segoe UI, navy başlıklar, yumuşak gri
+       ikincil metin. Yalnızca CSS/tema katmanı — düzen, buton
+       konumu, veri akışı DEĞİŞMEDİ. ── */
+
+    .stApp,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stMain"] {
+        background-color: #f6f5f2 !important;
+    }
+    .stApp, .stApp * {
+        font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif !important;
+    }
+
+    /* Ana başlıklar — koyu lacivert */
+    .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6 {
+        color: #1b2540 !important;
+    }
+
+    /* İkincil metin (caption, açıklama) — yumuşak gri-lacivert */
+    .stApp [data-testid="stCaptionContainer"],
+    .stApp [data-testid="stCaptionContainer"] * {
+        color: #5b6478 !important;
+    }
+
+    /* Kartlar / bordered container'lar — beyaz yüzey, sıcak açık gri
+       kenarlık, çok hafif gölge (mockup'taki .sel-card ile aynı) */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: #ffffff !important;
+        border-color: #e3e1da !important;
+        box-shadow: 0 1px 3px rgba(27, 37, 64, 0.06) !important;
+    }
+
+    /* İç ayırıcı çizgiler (st.divider) — açık, sıcak gri */
+    .stApp hr {
+        border-color: #ecebe5 !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
