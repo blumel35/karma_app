@@ -476,8 +476,9 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
             if geri_hedefi:
                 if st.button("← Panoya Dön", key="dp_geri_btn"):
                     st.switch_page(geri_hedefi)
-            baslik_metni = f"{ikon} {baslik}" if ikon else baslik
-            st.markdown(f"### {baslik_metni}")
+            if baslik:
+                baslik_metni = f"{ikon} {baslik}" if ikon else baslik
+                st.markdown(f"### {baslik_metni}")
             if su_kullanici:
                 st.markdown(
                     "<div style='display:flex;align-items:center;gap:8px;margin-top:4px;'>"
@@ -532,7 +533,7 @@ def hide_sidebar_css():
     .stApp,
     [data-testid="stAppViewContainer"],
     [data-testid="stMain"] {
-        background-color: #fafaf9 !important;
+        background-color: #f6f5f2 !important;
     }
     /* Font Segoe UI: KASITLI olarak *, !important VE testid tahmini
        KULLANMIYORUZ. Doğal CSS kalıtımına güveniyoruz — .stApp üzerinde
@@ -562,11 +563,14 @@ def hide_sidebar_css():
     /* Kartlar / bordered container'lar — beyaz yüzey, sıcak açık gri
        kenarlık, çok hafif gölge, yuvarlak köşe (mockup: 12-14px —
        Streamlit varsayılanı 8px, daha sert duruyordu).
+       dp_page_frame: mockup'taki .frame-desktop — sayfa başlığından
+       Favori Listem'e kadar HER ŞEYİ saran dış beyaz çerçeve.
        ÖNEMLİ: Bilerek SADECE bizim açıkça key verdiğimiz kartları
        hedefliyoruz (blanket `div[data-testid="stVerticalBlockBorderWrapper"]`
        seçicisi kullanmıyoruz) — o blanket kural, Streamlit'in popover
        bileşeninin kendi iç yapısını da boyayıp header'ın yanında
        istenmeyen bir kutu/gölge oluşturuyordu. */
+    div[class*="st-key-dp_page_frame"] div[data-testid="stVerticalBlockBorderWrapper"],
     div[class*="st-key-dp_kart_talep"] div[data-testid="stVerticalBlockBorderWrapper"],
     div[class*="st-key-dp_kart_portfoy"] div[data-testid="stVerticalBlockBorderWrapper"],
     div[class*="st-key-dp_activity_box"] div[data-testid="stVerticalBlockBorderWrapper"] {
@@ -588,6 +592,33 @@ def hide_sidebar_css():
     /* İç ayırıcı çizgiler (st.divider) — açık, sıcak gri */
     .stApp hr {
         border-color: #ecebe5 !important;
+    }
+
+    /* Filtreler (İşlem Tipi / Zaman Aralığı) — pill/chip görünümü.
+       NOT: Streamlit'in radio DOM yapısı sürüme göre değişebiliyor,
+       bu yüzden birden fazla seçici deneniyor (en az biri eşleşmeli).
+       Görsel doğrulama gerekebilir. */
+    div[data-testid="stRadio"] > div[role="radiogroup"] {
+        gap: 6px !important;
+        flex-wrap: wrap !important;
+    }
+    div[data-testid="stRadio"] label {
+        border: 1px solid #e3e1da !important;
+        border-radius: 999px !important;
+        padding: 4px 14px !important;
+        background: #ffffff !important;
+        margin: 0 !important;
+    }
+    div[data-testid="stRadio"] label > div:first-child {
+        display: none !important;
+    }
+    div[data-testid="stRadio"] label:has(input:checked) {
+        background: #1b2540 !important;
+        border-color: #1b2540 !important;
+    }
+    div[data-testid="stRadio"] label:has(input:checked) p {
+        color: #ffffff !important;
+        font-weight: 600 !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -684,7 +715,7 @@ def render_pano_ekrani(kayit_tipi):
         baslik = "Portföy Panosu"
         ikon = "🏘️"
 
-    render_topbar(baslik, ikon=ikon, geri_hedefi="pages/Danisman_Secim.py")
+    render_topbar("", geri_hedefi="pages/Danisman_Secim.py")
 
     # "+N yeni" rozetinden geldiyse, zaman filtresi varsayılan olarak
     # 'Son 24 saat' açık başlar — tek seferlik: sayfa render olduktan

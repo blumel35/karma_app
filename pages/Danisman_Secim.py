@@ -139,90 +139,91 @@ div[class*="st-key-dp_favori_btn"] button::before {
 </style>
 """, unsafe_allow_html=True)
 
-render_topbar("Danışman Panosu", ikon="")
-st.caption("Talep ve portföyleri canlı takip edin, hızlıca yeni kayıt ekleyin.")
-st.write("")
+with st.container(border=True, key="dp_page_frame"):
+    render_topbar("Danışman Panosu", ikon="")
+    st.caption("Talep ve portföyleri canlı takip edin, hızlıca yeni kayıt ekleyin.")
+    st.write("")
 
-talepler = talepleri_cek()
-portfoyler = portfoyleri_cek()
-# "+N yeni" rozeti ve sayaçlar TÜM KAYNAKLARI kapsar (Zeta + Startkey/mail
-# birlikte) — Talep/Portföy Panosu zaten her zaman tüm havuzu gösteriyor,
-# bu yüzden rozet de aynı kapsamda tutarlı olmalı. Yalnızca Zeta'ya özel
-# görünüm için: hamburger menü → Zeta Paylaşımları.
-talep_yeni = son_N_gun_filtrele(talepler, 7)
-portfoy_yeni = son_N_gun_filtrele(portfoyler, 7)
+    talepler = talepleri_cek()
+    portfoyler = portfoyleri_cek()
+    # "+N yeni" rozeti ve sayaçlar TÜM KAYNAKLARI kapsar (Zeta + Startkey/mail
+    # birlikte) — Talep/Portföy Panosu zaten her zaman tüm havuzu gösteriyor,
+    # bu yüzden rozet de aynı kapsamda tutarlı olmalı. Yalnızca Zeta'ya özel
+    # görünüm için: hamburger menü → Zeta Paylaşımları.
+    talep_yeni = son_N_gun_filtrele(talepler, 7)
+    portfoy_yeni = son_N_gun_filtrele(portfoyler, 7)
 
-col_talep, col_portfoy = st.columns(2, gap="medium")
+    col_talep, col_portfoy = st.columns(2, gap="medium")
 
-with col_talep:
-    with st.container(border=True, key="dp_kart_talep"):
-        st.markdown(
-            "<div style='height:4px;background:#1b2540;border-radius:3px;margin:-1px 0 12px 0;'></div>"
-            "<div class='dp-icon-box talep'>"
-            "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
-            "<path d='M12 3v13m0 0-4-4m4 4 4-4'/><path d='M4 19h16'/>"
-            "</svg></div>",
-            unsafe_allow_html=True,
-        )
-        st.markdown("**Talep Panosu**")
-        st.caption("Alıcı taleplerini görüntüle ve yönet")
+    with col_talep:
+        with st.container(border=True, key="dp_kart_talep"):
+            st.markdown(
+                "<div style='height:4px;background:#1b2540;border-radius:3px;margin:-1px 0 12px 0;'></div>"
+                "<div class='dp-icon-box talep'>"
+                "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+                "<path d='M12 3v13m0 0-4-4m4 4 4-4'/><path d='M4 19h16'/>"
+                "</svg></div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown("**Talep Panosu**")
+            st.caption("Alıcı taleplerini görüntüle ve yönet")
 
-        stat_col, badge_col = st.columns([2, 1])
-        with stat_col:
-            st.markdown(f"<div class='dp-stat-row'><span class='dp-stat-num'>{len(talepler)}</span>"
-                        f"<span style='color:#5b6478;font-size:13px;'>aktif talep</span></div>",
-                        unsafe_allow_html=True)
-        with badge_col:
-            if talep_yeni:
-                st.write("")
-                if st.button(f"● +{len(talep_yeni)} yeni", key="dp_talep_yeni_rozet"):
-                    st.session_state["dp_sadece_yeni"] = True
-                    st.switch_page("pages/Danisman_Talep.py")
+            stat_col, badge_col = st.columns([2, 1])
+            with stat_col:
+                st.markdown(f"<div class='dp-stat-row'><span class='dp-stat-num'>{len(talepler)}</span>"
+                            f"<span style='color:#5b6478;font-size:13px;'>aktif talep</span></div>",
+                            unsafe_allow_html=True)
+            with badge_col:
+                if talep_yeni:
+                    st.write("")
+                    if st.button(f"● +{len(talep_yeni)} yeni", key="dp_talep_yeni_rozet"):
+                        st.session_state["dp_sadece_yeni"] = True
+                        st.switch_page("pages/Danisman_Talep.py")
 
-        st.write("")
-        if st.button("Talep Panosuna Git →", key="dp_talep_git", type="primary", use_container_width=True):
-            st.session_state["dp_sadece_yeni"] = False
-            st.switch_page("pages/Danisman_Talep.py")
+            st.write("")
+            if st.button("Talep Panosuna Git →", key="dp_talep_git", type="primary", use_container_width=True):
+                st.session_state["dp_sadece_yeni"] = False
+                st.switch_page("pages/Danisman_Talep.py")
 
-with col_portfoy:
-    with st.container(border=True, key="dp_kart_portfoy"):
-        st.markdown(
-            "<div style='height:4px;background:#b8892f;border-radius:3px;margin:-1px 0 12px 0;'></div>"
-            "<div class='dp-icon-box portfoy'>"
-            "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
-            "<path d='M3 11.5 12 4l9 7.5'/><path d='M5 10v9h14v-9'/>"
-            "</svg></div>",
-            unsafe_allow_html=True,
-        )
-        st.markdown("**Portföy Panosu**")
-        st.caption("Portföyleri görüntüle ve yönet")
+    with col_portfoy:
+        with st.container(border=True, key="dp_kart_portfoy"):
+            st.markdown(
+                "<div style='height:4px;background:#b8892f;border-radius:3px;margin:-1px 0 12px 0;'></div>"
+                "<div class='dp-icon-box portfoy'>"
+                "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+                "<path d='M3 11.5 12 4l9 7.5'/><path d='M5 10v9h14v-9'/>"
+                "</svg></div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown("**Portföy Panosu**")
+            st.caption("Portföyleri görüntüle ve yönet")
 
-        stat_col, badge_col = st.columns([2, 1])
-        with stat_col:
-            st.markdown(f"<div class='dp-stat-row'><span class='dp-stat-num portfoy'>{len(portfoyler)}</span>"
-                        f"<span style='color:#5b6478;font-size:13px;'>aktif portföy</span></div>",
-                        unsafe_allow_html=True)
-        with badge_col:
-            if portfoy_yeni:
-                st.write("")
-                if st.button(f"● +{len(portfoy_yeni)} yeni", key="dp_portfoy_yeni_rozet"):
-                    st.session_state["dp_sadece_yeni"] = True
-                    st.switch_page("pages/Danisman_Portfoy.py")
+            stat_col, badge_col = st.columns([2, 1])
+            with stat_col:
+                st.markdown(f"<div class='dp-stat-row'><span class='dp-stat-num portfoy'>{len(portfoyler)}</span>"
+                            f"<span style='color:#5b6478;font-size:13px;'>aktif portföy</span></div>",
+                            unsafe_allow_html=True)
+            with badge_col:
+                if portfoy_yeni:
+                    st.write("")
+                    if st.button(f"● +{len(portfoy_yeni)} yeni", key="dp_portfoy_yeni_rozet"):
+                        st.session_state["dp_sadece_yeni"] = True
+                        st.switch_page("pages/Danisman_Portfoy.py")
 
-        st.write("")
-        if st.button("Portföy Panosuna Git →", key="dp_portfoy_git", type="primary", use_container_width=True):
-            st.session_state["dp_sadece_yeni"] = False
-            st.switch_page("pages/Danisman_Portfoy.py")
+            st.write("")
+            if st.button("Portföy Panosuna Git →", key="dp_portfoy_git", type="primary", use_container_width=True):
+                st.session_state["dp_sadece_yeni"] = False
+                st.switch_page("pages/Danisman_Portfoy.py")
 
-st.write("")
+    st.write("")
 
-col_favori, col_ekle = st.columns([1, 1])
-with col_favori:
-    if st.button("Favori Listem", key="dp_favori_btn"):
-        st.switch_page("pages/Danisman_Favoriler.py")
-with col_ekle:
-    if st.button("+ Ekle", key="dp_ekle_btn"):
-        ekle_dialog()
+    col_favori, col_ekle = st.columns([1, 1])
+    with col_favori:
+        if st.button("Favori Listem", key="dp_favori_btn"):
+            st.switch_page("pages/Danisman_Favoriler.py")
+    with col_ekle:
+        if st.button("+ Ekle", key="dp_ekle_btn"):
+            ekle_dialog()
 
-st.write("")
-render_activity_bar()
+    st.write("")
+    render_activity_bar()
