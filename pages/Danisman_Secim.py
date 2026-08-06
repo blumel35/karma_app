@@ -138,10 +138,10 @@ st.write("")
 
 col_favori, col_ekle = st.columns([1, 1])
 with col_favori:
-    if st.button(":material/star: Favori Listem", key="dp_favori_btn", use_container_width=True):
+    if st.button("⭐ Favori Listem", key="dp_favori_btn", use_container_width=True):
         st.switch_page("pages/Danisman_Favoriler.py")
 with col_ekle:
-    if st.button(":material/add: Ekle", key="dp_ekle_btn", use_container_width=True):
+    if st.button("➕ Ekle", key="dp_ekle_btn", use_container_width=True):
         ekle_dialog()
 
 st.write("")

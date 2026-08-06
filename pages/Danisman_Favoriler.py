@@ -26,7 +26,7 @@ if not oturum_kontrol():
     st.switch_page("pages/Danisman_Giris.py")
 
 hide_sidebar_css()
-render_topbar("Favori Listem", ikon=":material/star:", geri_hedefi="pages/Danisman_Secim.py")
+render_topbar("Favori Listem", ikon="⭐", geri_hedefi="pages/Danisman_Secim.py")
 
 su_kullanici = su_anki_danisman()
 
@@ -36,7 +36,7 @@ with fcol1:
 with fcol2:
     islem_secim = st.radio("İşlem Tipi", ["Tümü", "Satılık", "Kiralık"], horizontal=True, key="df_islem")
 
-if st.button(":material/refresh: Yenile", key="df_yenile"):
+if st.button("🔄 Yenile", key="df_yenile"):
     favorileri_cek.clear()
     st.rerun()
 
@@ -63,7 +63,7 @@ else:
         st.info("Bu filtrede favori listende kayıt yok.")
 
     if takip_talepler:
-        st.markdown("##### :material/inbox: Favori Taleplerim")
+        st.markdown("##### 📥 Favori Taleplerim")
         html_buf = pano_html_olustur(
             takip_talepler, "Favori Taleplerim", kayit_tipi="talep",
             favori_destekli=True, favori_set=favori_set,
@@ -73,7 +73,7 @@ else:
         components.html(html_buf.getvalue().decode("utf-8"), height=1200, scrolling=True)
 
     if takip_portfoyler:
-        st.markdown("##### :material/home_work: Favori Portföylerim")
+        st.markdown("##### 🏘️ Favori Portföylerim")
         html_buf = pano_html_olustur(
             takip_portfoyler, "Favori Portföylerim", kayit_tipi="portfoy",
             favori_destekli=True, favori_set=favori_set,

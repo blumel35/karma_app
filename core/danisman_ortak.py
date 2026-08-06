@@ -380,7 +380,7 @@ def render_activity_bar():
 
     with st.container(border=True):
         st.markdown(
-            f":material/schedule: **Son 24 saat:** {ozet['talep_sayisi']} yeni talep, "
+            f"🕐 **Son 24 saat:** {ozet['talep_sayisi']} yeni talep, "
             f"{ozet['portfoy_sayisi']} yeni portföy paylaşımı"
         )
         for olay in ozet["son_olaylar"]:
@@ -391,7 +391,7 @@ def render_activity_bar():
 
 # ── HAMBURGER MENÜ (sağ üst) ────────────────────────────────────────────
 
-def render_topbar(baslik, ikon=":material/dashboard:", geri_hedefi=None):
+def render_topbar(baslik, ikon="📊", geri_hedefi=None):
     """Tüm Danışman ekranlarının ortak üst barı: (opsiyonel) geri butonu +
     başlık solda, hamburger menü sağda. Hamburger içinde: Kendi Kayıtlarım,
     Zeta Paylaşımları, Çıkış Yap."""
@@ -420,23 +420,23 @@ def render_topbar(baslik, ikon=":material/dashboard:", geri_hedefi=None):
                 st.switch_page(geri_hedefi)
         st.markdown(f"### {ikon} {baslik}")
         if su_kullanici:
-            st.caption(f":material/person: {su_kullanici}")
+            st.caption(f"👤 {su_kullanici}")
     with col_menu:
         # NOT: st.popover'ı önceden bir st.container(key=...) ve özel CSS
         # ile sarmalamaya çalışmıştık — bu kombinasyon üst barın tamamen
         # bozulmasına yol açtı (başlık kayboldu, 'Çıkış Yap' popover
         # dışında göründü). Kararlılık için EN SADE haline dönüldü:
         # popover doğrudan, ek container/CSS olmadan kullanılıyor.
-        with st.popover(":material/menu:"):
+        with st.popover("☰"):
             st.markdown(f"**{su_kullanici}**")
             st.caption("Danışman")
             st.divider()
-            if st.button(":material/folder_open: Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
+            if st.button("📂 Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
                 st.switch_page("pages/Danisman_Kayitlarim.py")
-            if st.button(":material/groups: Zeta Paylaşımları", use_container_width=True, key="dp_menu_paylasimlar"):
+            if st.button("👥 Zeta Paylaşımları", use_container_width=True, key="dp_menu_paylasimlar"):
                 st.switch_page("pages/Danisman_Paylasimlar.py")
             st.divider()
-            if st.button(":material/logout: Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
+            if st.button("🚪 Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
                 cikis_yap()
                 st.switch_page("pages/Danisman_Giris.py")
 
@@ -536,7 +536,7 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
             horizontal=True, index=zaman_index, key=f"dp_zaman_filtre_{key_prefix}",
         )
 
-    if st.button(":material/refresh: Yenile", key=f"dp_yenile_{key_prefix}"):
+    if st.button("🔄 Yenile", key=f"dp_yenile_{key_prefix}"):
         talepleri_cek.clear()
         portfoyleri_cek.clear()
         favorileri_cek.clear()
@@ -581,11 +581,11 @@ def render_pano_ekrani(kayit_tipi):
     if kayit_tipi == "talep":
         veri_cek = talepleri_cek
         baslik = "Talep Panosu"
-        ikon = ":material/download:"
+        ikon = "⬇️"
     else:
         veri_cek = portfoyleri_cek
         baslik = "Portföy Panosu"
-        ikon = ":material/home_work:"
+        ikon = "🏘️"
 
     render_topbar(baslik, ikon=ikon, geri_hedefi="pages/Danisman_Secim.py")
 

@@ -25,7 +25,7 @@ if not oturum_kontrol():
     st.switch_page("pages/Danisman_Giris.py")
 
 hide_sidebar_css()
-render_topbar("Kendi Kayıtlarım", ikon=":material/folder_open:", geri_hedefi="pages/Danisman_Secim.py")
+render_topbar("Kendi Kayıtlarım", ikon="📂", geri_hedefi="pages/Danisman_Secim.py")
 
 su_kullanici = su_anki_danisman()
 
@@ -42,7 +42,7 @@ if not kendi_talepler and not kendi_portfoyler:
     st.info("Henüz Danışman Panosu'ndan eklediğin bir kayıt yok.")
 
 if kendi_talepler:
-    st.markdown("##### :material/inbox: Taleplerim")
+    st.markdown("##### 📥 Taleplerim")
     for v in kendi_talepler:
         c1, c2 = st.columns([5, 1])
         with c1:
@@ -54,7 +54,7 @@ if kendi_talepler:
                 st.rerun()
 
 if kendi_portfoyler:
-    st.markdown("##### :material/home_work: Portföylerim")
+    st.markdown("##### 🏘️ Portföylerim")
     for v in kendi_portfoyler:
         c1, c2 = st.columns([5, 1])
         with c1:
