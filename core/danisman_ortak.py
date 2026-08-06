@@ -332,20 +332,27 @@ def supabase_anon_secrets():
 
 # ── AKTİVİTE ÖZETİ ("Son 24 saat") ─────────────────────────────────────
 
-def bu_hafta_ozeti():
-    """Ana ekrandaki 'Bu hafta' widget'ında iki farklı kapsam bilinçli
-    olarak ayrı tutulur (pencere: son 7 gün — önceki 24 saatlik pencere
-    çoğu zaman boş/anlamsız görünüyordu, haftalık takip daha gerçekçi):
+def son_24_saat_ozeti():
+    """Ana ekrandaki 'Son 24 saat' widget'ı — KASITLI olarak kartlardaki
+    '+N yeni' rozetlerinden (7 günlük pencere, 'haftalık yoğunluk')
+    FARKLI bir zaman penceresi kullanır: 24 saat, 'en sıcak gelişme'
+    sorusuna cevap verir. Bu iki farklı pencere bilerek yan yana
+    gösteriliyor — biri diğerinin yerini almıyor. İkisi de aynı canlı,
+    cache'lenmiş veriden (talepleri_cek/portfoyleri_cek) hesaplanıyor,
+    hiçbiri statik/eski değil.
+
+    Kapsam ayrımı (değişmedi):
     - Özet CÜMLESİ (kaç yeni talep/portföy) → TÜM havuz (Zeta + Startkey/
-      mail) — kart rozetleriyle ('+N yeni') aynı sayıyı göstermeli.
+      mail) — kart rozetleriyle aynı KAYNAK havuzunu kullanır, sadece
+      zaman penceresi farklı (24 saat vs 7 gün).
     - İSİMLİ paylaşım satırları (kim ne ekledi) → SADECE ZETA — 'ekibim
       ne yaptı' sorusuna cevap verir; tüm Startkey ağını (binlerce kişi)
       burada isim isim listelemek hem yanıltıcı hem alakasız olur."""
-    talepler_yeni_tumu = son_N_gun_filtrele(talepleri_cek(), 7)
-    portfoyler_yeni_tumu = son_N_gun_filtrele(portfoyleri_cek(), 7)
+    talepler_yeni_tumu = son_24_saat_filtrele(talepleri_cek())
+    portfoyler_yeni_tumu = son_24_saat_filtrele(portfoyleri_cek())
 
-    talepler_yeni_zeta = son_N_gun_filtrele(kaynak_filtrele(talepleri_cek(), "Zeta"), 7)
-    portfoyler_yeni_zeta = son_N_gun_filtrele(kaynak_filtrele(portfoyleri_cek(), "Zeta"), 7)
+    talepler_yeni_zeta = son_24_saat_filtrele(kaynak_filtrele(talepleri_cek(), "Zeta"))
+    portfoyler_yeni_zeta = son_24_saat_filtrele(kaynak_filtrele(portfoyleri_cek(), "Zeta"))
 
     olaylar = []
     for v in talepler_yeni_zeta:
@@ -374,7 +381,7 @@ def bu_hafta_ozeti():
 def render_activity_bar():
     """Ana ekranda, aksiyon satırının altında tek bir kompakt blok —
     kart değil. 'Tüm Paylaşımlar' linki Danisman_Paylasimlar.py'ye gider."""
-    ozet = bu_hafta_ozeti()
+    ozet = son_24_saat_ozeti()
     if ozet["talep_sayisi"] == 0 and ozet["portfoy_sayisi"] == 0:
         return
 
@@ -384,7 +391,7 @@ def render_activity_bar():
             "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#b8892f' stroke-width='2' "
             "stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/>"
             "<polyline points='12 6 12 12 16 14'/></svg>"
-            f"<span><b>Bu hafta:</b> {ozet['talep_sayisi']} yeni talep, "
+            f"<span><b>Son 24 saat:</b> {ozet['talep_sayisi']} yeni talep, "
             f"{ozet['portfoy_sayisi']} yeni portföy paylaşımı</span></span>",
             unsafe_allow_html=True,
         )
@@ -414,13 +421,14 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
         background-color: #1b2540 !important;
     }
 
-    /* HEADER: hiçbir alt eleman kutu/gölge/arka plan taşımasın — kaynağı
-       ne olursa olsun (Karma App'in genel temasından miras kalan bir
-       kural da olabilir) zorla sıfırlıyoruz. Sadece dış wrapper'ın
-       altında ince bir çizgi olacak (mockup: border-bottom). */
-    div[class*="st-key-dp_topbar_wrap"],
-    div[class*="st-key-dp_topbar_wrap"] *,
-    div[class*="st-key-dp_topbar_wrap"] [data-testid="stVerticalBlockBorderWrapper"] {
+    /* HEADER: sadece Streamlit'in KENDİ bileşenlerinin (popover, olası
+       border'lı container'lar) kutu/gölgesini sıfırlıyoruz — artık `*`
+       evrensel seçici YOK, çünkü o, kendi özel HTML'imizi (avatar
+       rozeti gibi) da eziyordu. Bu daha cerrahi versiyon kendi
+       elemanlarımıza hiç dokunmuyor. */
+    div[class*="st-key-dp_topbar_wrap"] [data-testid="stVerticalBlockBorderWrapper"],
+    div[class*="st-key-dp_topbar_wrap"] [data-testid="stPopover"],
+    div[class*="st-key-dp_topbar_wrap"] [data-testid="stPopover"] > button {
         border: none !important;
         box-shadow: none !important;
         background: transparent !important;
@@ -436,6 +444,21 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
     div[class*="st-key-dp_topbar_wrap"] [data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
         align-items: flex-start !important;
+    }
+    /* Avatar rozeti — kendi sınıfıyla, üstteki reset kurallarından
+       tamamen bağımsız garanti altına alınıyor. */
+    .dp-avatar-circle {
+        width: 30px !important;
+        height: 30px !important;
+        border-radius: 50% !important;
+        background: #1b2540 !important;
+        color: #ffffff !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 12px !important;
+        font-weight: 700 !important;
+        flex-shrink: 0 !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -458,10 +481,7 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
             if su_kullanici:
                 st.markdown(
                     "<div style='display:flex;align-items:center;gap:8px;margin-top:4px;'>"
-                    f"<div style='width:30px;height:30px;border-radius:50%;"
-                    "background:#1b2540 !important;color:#fff !important;"
-                    "display:flex;align-items:center;justify-content:center;"
-                    f"font-size:12px;font-weight:700;flex-shrink:0;'>{baslar}</div>"
+                    f"<div class='dp-avatar-circle'>{baslar}</div>"
                     f"<span style='font-size:13px;color:#5b6478 !important;font-weight:600;'>{su_kullanici}</span></div>",
                     unsafe_allow_html=True,
                 )
