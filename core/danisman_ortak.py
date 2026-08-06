@@ -185,6 +185,11 @@ def son_24_saat_filtrele(kayitlar):
     return [v for v in kayitlar if _tarihte_mi(v.get("kayit_tarihi"), esik)]
 
 
+def son_N_gun_filtrele(kayitlar, gun):
+    esik = datetime.now(timezone.utc) - timedelta(days=gun)
+    return [v for v in kayitlar if _tarihte_mi(v.get("kayit_tarihi"), esik)]
+
+
 # ── YENİ KAYIT EKLEME ──────────────────────────────────────────────────
 
 def _yeni_talep_ekle(ilceler, bolge, mulk_tipi, oda, butce, islem_tipi, ek_not, danisman_adi):
@@ -453,50 +458,53 @@ def hide_sidebar_css():
 # Danisman_Talep.py ve Danisman_Portfoy.py bu tek fonksiyonu çağırır —
 # iki ayrı dosyada aynı kart/A-Z/filtre mantığını tekrarlamamak için.
 
-def render_pano_ekrani(kayit_tipi):
-    """kayit_tipi: 'talep' | 'portfoy'
-    HER ZAMAN TÜM HAVUZU gösterir (Zeta + Startkey/mail birlikte) —
-    kaynağa göre ayrı filtre yok, çünkü Zeta'ya özel görünüm zaten
-    ayrı bir sayfada (Danisman_Paylasimlar.py)."""
+# ── ORTAK PANO İÇERİĞİ (filtre + A-Z + kart) ────────────────────────────
+# render_pano_icerik: kayıt havuzu DIŞARIDAN verilir. Talep/Portföy Panosu
+# tüm havuzu geçirir, Zeta Paylaşımları sadece Zeta'ya filtrelenmiş havuzu
+# geçirir — böylece iki farklı ekran (tüm havuz / Zeta-only) AYNI filtre +
+# A-Z + kart görselini, kod tekrarı olmadan paylaşır.
+
+def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_varsayilan="Tümü"):
+    """
+    kayitlar_havuzu: zaten istenen kaynağa göre süzülmüş liste (tüm havuz
+                      ya da Zeta-only — çağıran belirler).
+    kayit_tipi: 'talep' | 'portfoy'
+    key_prefix: aynı sayfada birden fazla çağrı varsa (örn. sekmeli Zeta
+                Paylaşımları) widget key çakışmasını önlemek için benzersiz
+                bir önek (örn. 'zt_talep', 'zt_portfoy').
+    zaman_varsayilan: 'Tümü' | 'Son 24 saat' | 'Son 7 gün' — radio'nun
+                       varsayılan seçili değeri (rozetten geldiyse
+                       'Son 24 saat' olarak zorlanır).
+    """
     import streamlit.components.v1 as components
     from core.pano_export import pano_html_olustur
 
-    if kayit_tipi == "talep":
-        veri_cek = talepleri_cek
-        baslik = "Talep Panosu"
-        ikon = ":material/download:"
-    else:
-        veri_cek = portfoyleri_cek
-        baslik = "Portföy Panosu"
-        ikon = ":material/home_work:"
-
-    render_topbar(baslik, ikon=ikon, geri_hedefi="pages/Danisman_Secim.py")
-
-    # "+N yeni" rozetinden geldiyse, filtre varsayılan olarak açık başlar —
-    # tek seferlik: sayfa render olduktan sonra bayrak sıfırlanır ki
-    # kullanıcı manuel filtreyi kapattığında tekrar geri gelmesin.
-    sadece_yeni_varsayilan = st.session_state.pop("dp_sadece_yeni", False)
+    ZAMAN_SECENEKLERI = ["Tümü", "Son 24 saat", "Son 7 gün"]
+    zaman_index = ZAMAN_SECENEKLERI.index(zaman_varsayilan) if zaman_varsayilan in ZAMAN_SECENEKLERI else 0
 
     fcol1, fcol2 = st.columns([1, 1])
     with fcol1:
         islem_secim = st.radio(
             "İşlem Tipi", ["Tümü", "Satılık", "Kiralık"],
-            horizontal=True, key=f"dp_islem_filtre_{kayit_tipi}",
+            horizontal=True, key=f"dp_islem_filtre_{key_prefix}",
         )
     with fcol2:
-        sadece_yeni = st.checkbox(
-            "Sadece son 24 saat", value=sadece_yeni_varsayilan,
-            key=f"dp_sadece_yeni_chk_{kayit_tipi}",
+        zaman_secim = st.radio(
+            "Zaman Aralığı", ZAMAN_SECENEKLERI,
+            horizontal=True, index=zaman_index, key=f"dp_zaman_filtre_{key_prefix}",
         )
 
-    if st.button(":material/refresh: Yenile", key=f"dp_yenile_{kayit_tipi}"):
-        veri_cek.clear()
+    if st.button(":material/refresh: Yenile", key=f"dp_yenile_{key_prefix}"):
+        talepleri_cek.clear()
+        portfoyleri_cek.clear()
         favorileri_cek.clear()
         st.rerun()
 
-    kayitlar = islem_tipi_filtrele(veri_cek(), islem_secim)
-    if sadece_yeni:
+    kayitlar = islem_tipi_filtrele(kayitlar_havuzu, islem_secim)
+    if zaman_secim == "Son 24 saat":
         kayitlar = son_24_saat_filtrele(kayitlar)
+    elif zaman_secim == "Son 7 gün":
+        kayitlar = son_N_gun_filtrele(kayitlar, 7)
 
     if not kayitlar:
         st.info("Bu filtrede kayıt yok.")
@@ -517,3 +525,36 @@ def render_pano_ekrani(kayit_tipi):
         mevcut_kullanici=su_kullanici,
     )
     components.html(html_buf.getvalue().decode("utf-8"), height=1800, scrolling=True)
+
+
+# ── ORTAK PANO EKRANI (Talep / Portföy) ─────────────────────────────────
+# Danisman_Talep.py ve Danisman_Portfoy.py bu tek fonksiyonu çağırır —
+# iki ayrı dosyada aynı kart/A-Z/filtre mantığını tekrarlamamak için.
+
+def render_pano_ekrani(kayit_tipi):
+    """kayit_tipi: 'talep' | 'portfoy'
+    HER ZAMAN TÜM HAVUZU gösterir (Zeta + Startkey/mail birlikte) —
+    kaynağa göre ayrı filtre yok, çünkü Zeta'ya özel görünüm zaten
+    ayrı bir sayfada (Danisman_Paylasimlar.py)."""
+    if kayit_tipi == "talep":
+        veri_cek = talepleri_cek
+        baslik = "Talep Panosu"
+        ikon = ":material/download:"
+    else:
+        veri_cek = portfoyleri_cek
+        baslik = "Portföy Panosu"
+        ikon = ":material/home_work:"
+
+    render_topbar(baslik, ikon=ikon, geri_hedefi="pages/Danisman_Secim.py")
+
+    # "+N yeni" rozetinden geldiyse, zaman filtresi varsayılan olarak
+    # 'Son 24 saat' açık başlar — tek seferlik: sayfa render olduktan
+    # sonra bayrak sıfırlanır ki kullanıcı manuel değiştirdiğinde tekrar
+    # geri gelmesin.
+    rozetten_geldi = st.session_state.pop("dp_sadece_yeni", False)
+    zaman_varsayilan = "Son 24 saat" if rozetten_geldi else "Tümü"
+
+    render_pano_icerik(
+        veri_cek(), kayit_tipi, baslik, key_prefix=kayit_tipi,
+        zaman_varsayilan=zaman_varsayilan,
+    )
