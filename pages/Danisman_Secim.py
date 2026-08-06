@@ -63,6 +63,18 @@ div[class*="st-key-dp_portfoy_git"] button:hover {
 .dp-stat-num { font-size: 22px; font-weight: 800; color: #1b2540; }
 .dp-stat-num.portfoy { color: #b8892f; }
 
+/* Stat satırı üstünde beliren boş, ince çerçeveli kutu — Streamlit'in
+   kendi sütun (stColumn) elemanının bir yerden miras aldığı border/
+   background'ı sıfırlıyoruz. Header'daki aynı türden kutu sorununu
+   çözen desenle birebir aynı yaklaşım: kendi HTML'imize değil,
+   Streamlit'in gerçek testid'li elemanına dokunuyoruz. */
+div[class*="st-key-dp_kart_talep"] [data-testid="stColumn"],
+div[class*="st-key-dp_kart_portfoy"] [data-testid="stColumn"] {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
 /* "+N yeni" rozetleri — mockup'taki .new-badge ile aynı mantık: saf/
    doygun renk değil, marka renginin %8-12 opaklığı (pastel görünüm
    böyle elde ediliyor, farklı bir palet eklemekle değil). Pill şekli
@@ -111,13 +123,17 @@ div[class*="st-key-dp_ekle_btn"] button {
     background: #ffffff !important;
     color: #5b6478 !important;
 }
-/* Yıldız glifini (★) buton metninden ayrı, gold renkte göstermeye
-   çalışıyoruz — native <button> içindeki düz metnin sadece ilk
-   karakterini hedefleyen ::first-letter ile. Bu bazı tarayıcılarda
-   çalışır; çalışmazsa yıldız da metin rengiyle (gri) kalır, kritik
-   bir görsel bozulma olmaz. */
-div[class*="st-key-dp_favori_btn"] button::first-letter {
+/* Yıldız — ::first-letter denemesi güvenilir çalışmadı (Streamlit'in
+   buton metnini sardığı iç eleman yapısı net değil, kısmi metin
+   renklendirmesi tutarsız). Bunun yerine yıldızı buton METNİNDEN
+   TAMAMEN ÇIKARDIK, CSS ::before ile bağımsız bir eleman olarak
+   ekliyoruz — bu, herhangi bir iç metin yapısına bağımlı değil,
+   kendi rengini garantili taşır. */
+div[class*="st-key-dp_favori_btn"] button::before {
+    content: "★";
     color: #b8892f !important;
+    margin-right: 6px;
+    font-size: 14px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -201,7 +217,7 @@ st.write("")
 
 col_favori, col_ekle = st.columns([1, 1])
 with col_favori:
-    if st.button("★ Favori Listem", key="dp_favori_btn"):
+    if st.button("Favori Listem", key="dp_favori_btn"):
         st.switch_page("pages/Danisman_Favoriler.py")
 with col_ekle:
     if st.button("+ Ekle", key="dp_ekle_btn"):

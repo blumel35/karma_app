@@ -512,6 +512,18 @@ def hide_sidebar_css():
     [data-testid="collapsedControl"] { display: none !important; }
     [data-testid="stHeader"] { display: none !important; }
 
+    /* İçerik genişliği: app.py 'wide' layout kullanıyor ama bu, çok
+       geniş ekranlarda içeriği aşırı daraltıp yanlarda baskın krem
+       boşluklar bırakıyordu. Burada net bir max-width veriyoruz —
+       tüm ekranı germiyor, makul bir okuma genişliğinde ortalıyor. */
+    .block-container {
+        max-width: 1100px !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
+    }
+
     /* ── TEMA (2026-08): mockup ile uyumlu sıcak kırık beyaz zemin,
        beyaz kart yüzeyleri, Segoe UI, navy başlıklar, yumuşak gri
        ikincil metin. Yalnızca CSS/tema katmanı — düzen, buton
