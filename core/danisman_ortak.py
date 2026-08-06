@@ -518,7 +518,15 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
         # Başlık (varsa) + avatar — TEK bir flexbox HTML bloğu. Başlık
         # yoksa (Talep/Portföy Panosu ekranlarında mükerrer başlığı
         # önlemek için) sol taraf boş kalır, avatar yine sağda durur.
-        baslik_html = f"<h3 style='margin:0;'>{ikon} {baslik}</h3>" if baslik else "<div></div>"
+        # DÜZELTME: avatar div'i flex-shrink:0 (asla küçülmez), ama başlık
+        # (h3) buna karşılık varsayılan flex-shrink:1 ile küçülmeye
+        # zorlanıyor, dar alanda satır kırıyordu ("Danışman" / "Panosu").
+        # white-space:nowrap + flex-shrink:0 ile başlığın de asla
+        # sıkışmamasını garanti ediyoruz — mockup'ta zaten tek satırdı.
+        baslik_html = (
+            f"<h3 style='margin:0;white-space:nowrap;flex-shrink:0;'>{ikon} {baslik}</h3>"
+            if baslik else "<div></div>"
+        )
         avatar_html = ""
         if su_kullanici:
             avatar_html = (
@@ -615,6 +623,24 @@ def hide_sidebar_css():
     div[class*="st-key-dp_kart_talep"] div[data-testid="stVerticalBlockBorderWrapper"],
     div[class*="st-key-dp_kart_portfoy"] div[data-testid="stVerticalBlockBorderWrapper"],
     div[class*="st-key-dp_activity_box"] div[data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: #ffffff !important;
+        border-color: #e3e1da !important;
+        border-radius: 16px !important;
+        box-shadow: 0 1px 3px rgba(27, 37, 64, 0.06) !important;
+    }
+
+    /* DÜZELTME: dp_page_frame'in KENDİ dış kutusu (görünür border/arka
+       planı taşıyan gerçek eleman) yukarıdaki kuralla hiç boyanmıyordu.
+       Sebep: st.container(border=True, key=...) çağrısında class,
+       stVerticalBlockBorderWrapper'ın İÇİNE değil, onun ÇOCUĞU olan
+       stVerticalBlock'a ekleniyor — yani wrapper, class'ı taşıyan
+       elemanın torunu değil EBEVEYNİ. Yukarıdaki descendant seçici bu
+       yüzden sadece İÇERİDEKİ kartların (dp_kart_talep vb., onlar
+       gerçekten içeride nested olduğu için) kendi wrapper'ını
+       boyuyordu, çerçevenin kendisini hiç boyamıyordu — altından krem
+       zemin sızıyordu. :has() ile artık "içinde bu class'lı çocuk olan
+       wrapper'ı bul" diyerek doğru (ebeveyn) yöne işaret ediyoruz. */
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(> div[class*="st-key-dp_page_frame"]) {
         background-color: #ffffff !important;
         border-color: #e3e1da !important;
         border-radius: 16px !important;
