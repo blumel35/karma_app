@@ -406,7 +406,19 @@ def render_activity_bar():
 def render_topbar(baslik, ikon="📊", geri_hedefi=None):
     """Tüm Danışman ekranlarının ortak üst barı: (opsiyonel) geri butonu +
     başlık solda, hamburger menü sağda. Hamburger içinde: Kendi Kayıtlarım,
-    Zeta Paylaşımları, Çıkış Yap."""
+    Zeta Paylaşımları, Çıkış Yap.
+
+    MİMARİ NOT: st.columns() KULLANILMIYOR. Streamlit'in kendi sütun
+    bileşeni (stColumn/stHorizontalBlock) kendi varsayılan stilini
+    (border, background) taşıyor ve bunu CSS ile her seferinde ezmek
+    kırılgan/güvenilmez çıktı (bu dosyada defalarca yaşandı). Bunun
+    yerine: dp_topbar_wrap'ın kendi stVerticalBlock'unu (children'ı dikey
+    değil yatay dizen) doğrudan flex'e çeviriyoruz — içine koyduğumuz
+    Streamlit elemanları (popover, opsiyonel geri butonu, TEK bir HTML
+    markdown bloğu) otomatik olarak yan yana dizilir, st.columns'un
+    kendi DOM/stil bagajı hiç devreye girmez. Başlık+avatar artık ayrı
+    ayrı Streamlit elemanları değil, TEK bir unsafe_allow_html flexbox
+    div'i (mockup'taki .topbar ile birebir aynı mantık)."""
     from core.auth import cikis_yap
 
     st.markdown("""
@@ -421,30 +433,38 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
         background-color: #1b2540 !important;
     }
 
-    /* HEADER: sadece Streamlit'in KENDİ bileşenlerinin (popover, olası
-       border'lı container'lar) kutu/gölgesini sıfırlıyoruz — artık `*`
-       evrensel seçici YOK, çünkü o, kendi özel HTML'imizi (avatar
-       rozeti gibi) da eziyordu. Bu daha cerrahi versiyon kendi
-       elemanlarımıza hiç dokunmuyor. */
-    div[class*="st-key-dp_topbar_wrap"] [data-testid="stVerticalBlockBorderWrapper"],
-    div[class*="st-key-dp_topbar_wrap"] [data-testid="stPopover"],
-    div[class*="st-key-dp_topbar_wrap"] [data-testid="stPopover"] > button,
-    div[class*="st-key-dp_topbar_wrap"] [data-testid="stColumn"] {
-        border: none !important;
+    /* dp_topbar_wrap'ın KENDİ stVerticalBlock'unu satır (row) yönlü
+       flex'e çeviriyoruz — st.columns() yerine bu teknik kullanılıyor. */
+    div[class*="st-key-dp_topbar_wrap"] > div[data-testid="stVerticalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 14px !important;
+        flex-wrap: nowrap !important;
+    }
+    /* Her çocuk element-container varsayılan olarak içeriği kadar dar
+       dursun (popover, geri butonu) — SADECE son çocuk (başlık+avatar
+       flex div'ini taşıyan) kalan alanı doldursun. */
+    div[class*="st-key-dp_topbar_wrap"] > div[data-testid="stVerticalBlock"] > div[data-testid="element-container"] {
+        width: auto !important;
+        flex: 0 0 auto !important;
+    }
+    div[class*="st-key-dp_topbar_wrap"] > div[data-testid="stVerticalBlock"] > div[data-testid="element-container"]:last-child {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+    }
+
+    /* Streamlit'in KENDİ bileşenlerinin (popover) kutu/gölgesini
+       sıfırlıyoruz — kendi özel HTML'imize hiç dokunmuyor. */
+    div[class*="st-key-dp_topbar_wrap"] [data-testid="stPopover"] > button {
+        border: 1px solid #e3e1da !important;
         box-shadow: none !important;
-        background: transparent !important;
+        background: #ffffff !important;
     }
     div[class*="st-key-dp_topbar_wrap"] {
         border-bottom: 1px solid #ecebe5 !important;
         padding-bottom: 14px !important;
         margin-bottom: 14px !important;
-    }
-    /* Mobilde de başlık ve hamburger AYNI satırda kalsın — Streamlit
-       dar ekranda columns'ı varsayılan olarak alt alta yığar, bunu
-       zorla engelliyoruz. */
-    div[class*="st-key-dp_topbar_wrap"] [data-testid="stHorizontalBlock"] {
-        flex-wrap: nowrap !important;
-        align-items: flex-start !important;
     }
     /* Avatar rozeti — kendi sınıfıyla, üstteki reset kurallarından
        tamamen bağımsız garanti altına alınıyor. */
@@ -472,40 +492,39 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
     )
 
     with st.container(key="dp_topbar_wrap"):
-        col_menu, col_baslik, col_avatar = st.columns([1, 5, 3])
-        with col_menu:
-            # NOT: st.popover'ı önceden bir st.container(key=...) ve özel CSS
-            # ile sarmalamaya çalışmıştık — bu kombinasyon üst barın tamamen
-            # bozulmasına yol açmıştı (başlık kayboldu, 'Çıkış Yap' popover
-            # dışında göründü). Bu sefer dış wrapper (dp_topbar_wrap) ayrı
-            # tutuluyor, popover'ın kendisi hâlâ sade/doğrudan kullanılıyor.
-            with st.popover("☰"):
-                st.markdown(f"**{su_kullanici}**")
-                st.caption("Danışman")
-                st.divider()
-                if st.button("📂 Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
-                    st.switch_page("pages/Danisman_Kayitlarim.py")
-                if st.button("👥 Zeta Paylaşımları", use_container_width=True, key="dp_menu_paylasimlar"):
-                    st.switch_page("pages/Danisman_Paylasimlar.py")
-                st.divider()
-                if st.button("🚪 Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
-                    cikis_yap()
-                    st.switch_page("pages/Danisman_Giris.py")
-        with col_baslik:
-            if geri_hedefi:
-                if st.button("← Panoya Dön", key="dp_geri_btn"):
-                    st.switch_page(geri_hedefi)
-            if baslik:
-                baslik_metni = f"{ikon} {baslik}" if ikon else baslik
-                st.markdown(f"### {baslik_metni}")
-        with col_avatar:
-            if su_kullanici:
-                st.markdown(
-                    "<div style='display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:6px;'>"
-                    f"<div class='dp-avatar-circle'>{baslar}</div>"
-                    f"<span style='font-size:13px;color:#5b6478 !important;font-weight:600;white-space:nowrap;'>{su_kullanici}</span></div>",
-                    unsafe_allow_html=True,
-                )
+        with st.popover("☰"):
+            st.markdown(f"**{su_kullanici}**")
+            st.caption("Danışman")
+            st.divider()
+            if st.button("📂 Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
+                st.switch_page("pages/Danisman_Kayitlarim.py")
+            if st.button("👥 Zeta Paylaşımları", use_container_width=True, key="dp_menu_paylasimlar"):
+                st.switch_page("pages/Danisman_Paylasimlar.py")
+            st.divider()
+            if st.button("🚪 Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
+                cikis_yap()
+                st.switch_page("pages/Danisman_Giris.py")
+
+        if geri_hedefi:
+            if st.button("← Panoya Dön", key="dp_geri_btn"):
+                st.switch_page(geri_hedefi)
+
+        # Başlık (varsa) + avatar — TEK bir flexbox HTML bloğu. Başlık
+        # yoksa (Talep/Portföy Panosu ekranlarında mükerrer başlığı
+        # önlemek için) sol taraf boş kalır, avatar yine sağda durur.
+        baslik_html = f"<h3 style='margin:0;'>{ikon} {baslik}</h3>" if baslik else "<div></div>"
+        avatar_html = ""
+        if su_kullanici:
+            avatar_html = (
+                "<div style='display:flex;align-items:center;gap:8px;flex-shrink:0;'>"
+                f"<div class='dp-avatar-circle'>{baslar}</div>"
+                f"<span style='font-size:13px;color:#5b6478 !important;font-weight:600;white-space:nowrap;'>{su_kullanici}</span></div>"
+            )
+        st.markdown(
+            f"<div style='display:flex;justify-content:space-between;align-items:center;width:100%;'>"
+            f"{baslik_html}{avatar_html}</div>",
+            unsafe_allow_html=True,
+        )
 
 
 def hide_sidebar_css():
