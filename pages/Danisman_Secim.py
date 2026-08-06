@@ -84,7 +84,7 @@ with col_talep:
     with st.container(border=True, key="dp_kart_talep"):
         st.markdown(
             "<div style='height:4px;background:#1b2540;border-radius:3px;margin:-1px 0 12px 0;'></div>"
-            "<div class='dp-icon-box talep'>:material/download:</div>",
+            "<div class='dp-icon-box talep'>⬇️</div>",
             unsafe_allow_html=True,
         )
         st.markdown("**Talep Panosu**")
@@ -111,7 +111,7 @@ with col_portfoy:
     with st.container(border=True, key="dp_kart_portfoy"):
         st.markdown(
             "<div style='height:4px;background:#b8892f;border-radius:3px;margin:-1px 0 12px 0;'></div>"
-            "<div class='dp-icon-box portfoy'>:material/home_work:</div>",
+            "<div class='dp-icon-box portfoy'>🏠</div>",
             unsafe_allow_html=True,
         )
         st.markdown("**Portföy Panosu**")
