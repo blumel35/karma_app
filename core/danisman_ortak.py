@@ -391,7 +391,7 @@ def render_topbar(baslik, ikon=":material/dashboard:", geri_hedefi=None):
     /* Hamburger menü tetikleyicisi: küçük, kare, sade ikon butonu —
        önceki sürümde use_container_width=True + etiketsiz ikon, tuhaf
        bir oval/gerilmiş buton gibi görünüyordu. */
-    div[class*="st-key-dp_hamburger_menu"] button {
+    div[class*="st-key-dp_hamburger_wrap"] [data-testid="stPopover"] > button {
         width: 40px !important;
         height: 40px !important;
         padding: 0 !important;
@@ -400,7 +400,7 @@ def render_topbar(baslik, ikon=":material/dashboard:", geri_hedefi=None):
         background: #ffffff !important;
         float: right;
     }
-    div[class*="st-key-dp_hamburger_menu"] button:hover {
+    div[class*="st-key-dp_hamburger_wrap"] [data-testid="stPopover"] > button:hover {
         background: #f6f5f2 !important;
         border-color: #b8892f !important;
     }
@@ -414,14 +414,19 @@ def render_topbar(baslik, ikon=":material/dashboard:", geri_hedefi=None):
                 st.switch_page(geri_hedefi)
         st.markdown(f"### {ikon} {baslik}")
     with col_menu:
-        with st.popover(":material/menu:", key="dp_hamburger_menu"):
-            st.markdown(f"**{su_anki_danisman()}**")
-            st.caption("Danışman")
-            st.divider()
-            if st.button(":material/folder_open: Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
-                st.switch_page("pages/Danisman_Kayitlarim.py")
-            if st.button(":material/groups: Zeta Paylaşımları", use_container_width=True, key="dp_menu_paylasimlar"):
-                st.switch_page("pages/Danisman_Paylasimlar.py")
+        # NOT: Bazı Streamlit sürümlerinde st.popover() 'key' parametresini
+        # kabul etmiyor (TypeError). CSS hedeflemesi için key'i popover'ın
+        # kendisine değil, onu saran st.container'a veriyoruz — bu her
+        # sürümde çalışan daha güvenilir bir desen.
+        with st.container(key="dp_hamburger_wrap"):
+            with st.popover(":material/menu:"):
+                st.markdown(f"**{su_anki_danisman()}**")
+                st.caption("Danışman")
+                st.divider()
+                if st.button(":material/folder_open: Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
+                    st.switch_page("pages/Danisman_Kayitlarim.py")
+                if st.button(":material/groups: Zeta Paylaşımları", use_container_width=True, key="dp_menu_paylasimlar"):
+                    st.switch_page("pages/Danisman_Paylasimlar.py")
             st.divider()
             if st.button(":material/logout: Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
                 cikis_yap()
