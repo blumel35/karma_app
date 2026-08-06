@@ -203,6 +203,46 @@ danisman_pano = st.Page(
     icon=":material/dashboard:",
 )
 
+# ── 2026-08 revizyonu: eski tek-sayfa Danisman_Pano.py mimarisi,
+# ayrı bir seçim ekranı + bağlama göre ayrılmış panolar mimarisine
+# taşındı. Danisman_Pano.py artık sadece Danisman_Secim.py'ye
+# yönlendiren bir stub — geriye dönük uyumluluk için tutuluyor.
+danisman_secim = st.Page(
+    "pages/Danisman_Secim.py",
+    title="Danışman Panosu",
+    icon=":material/dashboard:",
+)
+
+danisman_talep = st.Page(
+    "pages/Danisman_Talep.py",
+    title="Danışman Talep Panosu",
+    icon=":material/download:",
+)
+
+danisman_portfoy = st.Page(
+    "pages/Danisman_Portfoy.py",
+    title="Danışman Portföy Panosu",
+    icon=":material/home_work:",
+)
+
+danisman_favoriler = st.Page(
+    "pages/Danisman_Favoriler.py",
+    title="Favori Listem",
+    icon=":material/star:",
+)
+
+danisman_kayitlarim = st.Page(
+    "pages/Danisman_Kayitlarim.py",
+    title="Kendi Kayıtlarım",
+    icon=":material/folder_open:",
+)
+
+danisman_paylasimlar = st.Page(
+    "pages/Danisman_Paylasimlar.py",
+    title="Zeta Paylaşımları",
+    icon=":material/groups:",
+)
+
 # ─────────────────────────────────────────────────────
 # NAVIGATION
 # ─────────────────────────────────────────────────────
@@ -215,6 +255,12 @@ pg = st.navigation(
             pano_goruntule,
             danisman_giris,
             danisman_pano,
+            danisman_secim,
+            danisman_talep,
+            danisman_portfoy,
+            danisman_favoriler,
+            danisman_kayitlarim,
+            danisman_paylasimlar,
         ],
 
         "Danışman": [

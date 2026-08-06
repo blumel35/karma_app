@@ -29,9 +29,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Zaten giriş yapılmışsa doğrudan panoya geç
+# Zaten giriş yapılmışsa doğrudan seçim ekranına geç
 if st.session_state.get("kullanici"):
-    st.switch_page("pages/Danisman_Pano.py")
+    st.switch_page("pages/Danisman_Secim.py")
     st.stop()
 
 _, center, _ = st.columns([1, 1.2, 1])
@@ -86,7 +86,7 @@ with center:
                         })
                     except Exception:
                         pass
-                    st.switch_page("pages/Danisman_Pano.py")
+                    st.switch_page("pages/Danisman_Secim.py")
                 else:
                     st.error("E-posta veya şifre hatalı.")
 
