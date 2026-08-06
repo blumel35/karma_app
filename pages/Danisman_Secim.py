@@ -9,8 +9,8 @@ ilk gördüğü şeyin sade bir "nereye gitmek istiyorum" seçimi olmasını
 sağlıyor:
 
 - İki büyük kart: Talep Panosu / Portföy Panosu (ana sayı + tıklanabilir
-  "+N yeni" rozeti — rozete tıklayınca ilgili panoya SADECE SON 24
-  SAATTEKİ kayıtlar filtrelenmiş halde açılır).
+  "+N yeni" rozeti — rozete tıklayınca ilgili panoya SADECE SON 7
+  GÜNDEKİ kayıtlar filtrelenmiş halde açılır).
 - Favori Listem butonu.
 - "+ Ekle" butonu — ortak dialog (core.danisman_ortak.ekle_dialog),
   Talep Panosu / Portföy Panosu ekranlarının hiçbirinde ayrıca YOK.
@@ -25,7 +25,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import oturum_kontrol
 from core.danisman_ortak import (
-    talepleri_cek, portfoyleri_cek, son_24_saat_filtrele,
+    talepleri_cek, portfoyleri_cek, son_N_gun_filtrele,
     ekle_dialog, render_activity_bar, render_topbar, hide_sidebar_css,
 )
 
@@ -111,6 +111,14 @@ div[class*="st-key-dp_ekle_btn"] button {
     background: #ffffff !important;
     color: #5b6478 !important;
 }
+/* Yıldız glifini (★) buton metninden ayrı, gold renkte göstermeye
+   çalışıyoruz — native <button> içindeki düz metnin sadece ilk
+   karakterini hedefleyen ::first-letter ile. Bu bazı tarayıcılarda
+   çalışır; çalışmazsa yıldız da metin rengiyle (gri) kalır, kritik
+   bir görsel bozulma olmaz. */
+div[class*="st-key-dp_favori_btn"] button::first-letter {
+    color: #b8892f !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -124,8 +132,8 @@ portfoyler = portfoyleri_cek()
 # birlikte) — Talep/Portföy Panosu zaten her zaman tüm havuzu gösteriyor,
 # bu yüzden rozet de aynı kapsamda tutarlı olmalı. Yalnızca Zeta'ya özel
 # görünüm için: hamburger menü → Zeta Paylaşımları.
-talep_yeni = son_24_saat_filtrele(talepler)
-portfoy_yeni = son_24_saat_filtrele(portfoyler)
+talep_yeni = son_N_gun_filtrele(talepler, 7)
+portfoy_yeni = son_N_gun_filtrele(portfoyler, 7)
 
 col_talep, col_portfoy = st.columns(2, gap="medium")
 
@@ -193,7 +201,7 @@ st.write("")
 
 col_favori, col_ekle = st.columns([1, 1])
 with col_favori:
-    if st.button("☆ Favori Listem", key="dp_favori_btn"):
+    if st.button("★ Favori Listem", key="dp_favori_btn"):
         st.switch_page("pages/Danisman_Favoriler.py")
 with col_ekle:
     if st.button("+ Ekle", key="dp_ekle_btn"):

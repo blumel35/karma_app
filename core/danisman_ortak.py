@@ -332,20 +332,20 @@ def supabase_anon_secrets():
 
 # ── AKTİVİTE ÖZETİ ("Son 24 saat") ─────────────────────────────────────
 
-def son_24_saat_ozeti():
-    """Ana ekrandaki 'Son 24 saat' widget'ında iki farklı kapsam bilinçli
-    olarak ayrı tutulur:
+def bu_hafta_ozeti():
+    """Ana ekrandaki 'Bu hafta' widget'ında iki farklı kapsam bilinçli
+    olarak ayrı tutulur (pencere: son 7 gün — önceki 24 saatlik pencere
+    çoğu zaman boş/anlamsız görünüyordu, haftalık takip daha gerçekçi):
     - Özet CÜMLESİ (kaç yeni talep/portföy) → TÜM havuz (Zeta + Startkey/
-      mail) — 'genel olarak ne kadar yeni var' sorusuna cevap verir, kart
-      rozetleriyle ('+N yeni') aynı sayıyı göstermeli.
+      mail) — kart rozetleriyle ('+N yeni') aynı sayıyı göstermeli.
     - İSİMLİ paylaşım satırları (kim ne ekledi) → SADECE ZETA — 'ekibim
       ne yaptı' sorusuna cevap verir; tüm Startkey ağını (binlerce kişi)
       burada isim isim listelemek hem yanıltıcı hem alakasız olur."""
-    talepler_yeni_tumu = son_24_saat_filtrele(talepleri_cek())
-    portfoyler_yeni_tumu = son_24_saat_filtrele(portfoyleri_cek())
+    talepler_yeni_tumu = son_N_gun_filtrele(talepleri_cek(), 7)
+    portfoyler_yeni_tumu = son_N_gun_filtrele(portfoyleri_cek(), 7)
 
-    talepler_yeni_zeta = son_24_saat_filtrele(kaynak_filtrele(talepleri_cek(), "Zeta"))
-    portfoyler_yeni_zeta = son_24_saat_filtrele(kaynak_filtrele(portfoyleri_cek(), "Zeta"))
+    talepler_yeni_zeta = son_N_gun_filtrele(kaynak_filtrele(talepleri_cek(), "Zeta"), 7)
+    portfoyler_yeni_zeta = son_N_gun_filtrele(kaynak_filtrele(portfoyleri_cek(), "Zeta"), 7)
 
     olaylar = []
     for v in talepler_yeni_zeta:
@@ -374,7 +374,7 @@ def son_24_saat_ozeti():
 def render_activity_bar():
     """Ana ekranda, aksiyon satırının altında tek bir kompakt blok —
     kart değil. 'Tüm Paylaşımlar' linki Danisman_Paylasimlar.py'ye gider."""
-    ozet = son_24_saat_ozeti()
+    ozet = bu_hafta_ozeti()
     if ozet["talep_sayisi"] == 0 and ozet["portfoy_sayisi"] == 0:
         return
 
@@ -384,7 +384,7 @@ def render_activity_bar():
             "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#b8892f' stroke-width='2' "
             "stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/>"
             "<polyline points='12 6 12 12 16 14'/></svg>"
-            f"<span><b>Son 24 saat:</b> {ozet['talep_sayisi']} yeni talep, "
+            f"<span><b>Bu hafta:</b> {ozet['talep_sayisi']} yeni talep, "
             f"{ozet['portfoy_sayisi']} yeni portföy paylaşımı</span></span>",
             unsafe_allow_html=True,
         )
@@ -457,11 +457,12 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
             st.markdown(f"### {baslik_metni}")
             if su_kullanici:
                 st.markdown(
-                    "<div style='display:flex;align-items:center;gap:8px;margin-top:2px;'>"
-                    f"<div style='width:24px;height:24px;border-radius:50%;background:#1b2540;"
-                    "color:#fff;display:flex;align-items:center;justify-content:center;"
-                    f"font-size:11px;font-weight:700;flex-shrink:0;'>{baslar}</div>"
-                    f"<span style='font-size:13px;color:#5b6478;font-weight:600;'>{su_kullanici}</span></div>",
+                    "<div style='display:flex;align-items:center;gap:8px;margin-top:4px;'>"
+                    f"<div style='width:30px;height:30px;border-radius:50%;"
+                    "background:#1b2540 !important;color:#fff !important;"
+                    "display:flex;align-items:center;justify-content:center;"
+                    f"font-size:12px;font-weight:700;flex-shrink:0;'>{baslar}</div>"
+                    f"<span style='font-size:13px;color:#5b6478 !important;font-weight:600;'>{su_kullanici}</span></div>",
                     unsafe_allow_html=True,
                 )
         with col_menu:
@@ -658,7 +659,7 @@ def render_pano_ekrani(kayit_tipi):
     # sonra bayrak sıfırlanır ki kullanıcı manuel değiştirdiğinde tekrar
     # geri gelmesin.
     rozetten_geldi = st.session_state.pop("dp_sadece_yeni", False)
-    zaman_varsayilan = "Son 24 saat" if rozetten_geldi else "Tümü"
+    zaman_varsayilan = "Son 7 gün" if rozetten_geldi else "Tümü"
 
     render_pano_icerik(
         veri_cek(), kayit_tipi, baslik, key_prefix=kayit_tipi,
