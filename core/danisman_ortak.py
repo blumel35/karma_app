@@ -25,6 +25,7 @@ Mimari (2026-08 revizyonu, 2. güncelleme):
 """
 
 import uuid
+import time
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
 
@@ -509,6 +510,20 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
             st.divider()
             if st.button("🚪 Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
                 cikis_yap()
+                # DÜZELTME (08.08.2026): Girişteki aynı yarış durumu
+                # çıkışta da vardı — cikis_yap() içindeki
+                # _tarayici_oturumu_temizle() tarayıcıya "cookie'yi sil"
+                # komutu gönderiyor ama bunun işlenmesi bir an sürüyor.
+                # Hemen ardından switch_page() sayfayı terk edince, silme
+                # komutu tamamlanmadan Danisman_Giris.py açılıyor ve orada
+                # hâlâ duran (silinmemiş) cookie'yi görüp kullanıcıyı
+                # OTOMATİK OLARAK GERİ İÇERİ ALIYORDU — çıkış yapmış
+                # gibi görünüp aslında oturumda kalmış oluyordu (gerçek
+                # testte doğrulandı). Girişteki çözümün aynısı: kısa,
+                # otomatik bir bekleme ile silme komutuna gerçek zaman
+                # tanıyoruz.
+                with st.spinner("Çıkış yapılıyor..."):
+                    time.sleep(1)
                 st.switch_page("pages/Danisman_Giris.py")
 
         if geri_hedefi:
