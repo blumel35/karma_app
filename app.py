@@ -186,6 +186,15 @@ pano_goruntule = st.Page(
     icon=":material/dashboard:",
 )
 
+# ── Cookie Teşhis — geçici tanı sayfası, tarayıcı cookie mekanizmasının
+# çalışıp çalışmadığını doğrudan görmek için (08.08.2026). auth.py'nin
+# kendi cookie kodu bu sayfadan ETKİLENMİYOR, sadece bağımsız bir test. ──
+cookie_teshis = st.Page(
+    "pages/Cookie_Teshis.py",
+    title="Cookie Teşhis",
+    icon=":material/bug_report:",
+)
+
 # ── Danışman Panosu — Karma App'ten BAĞIMSIZ görünen, sade mini-arayüz ──
 # NOT: Kendi giriş ekranı (Danisman_Giris) ve kendi sade görünümü
 # (Danisman_Pano, render_navbar yok) var — aynı Supabase hesaplarını
@@ -253,6 +262,7 @@ pg = st.navigation(
             ana,
             profil,
             pano_goruntule,
+            cookie_teshis,
             danisman_giris,
             danisman_pano,
             danisman_secim,
