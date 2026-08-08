@@ -27,6 +27,26 @@ if not oturum_kontrol():
 hide_sidebar_css()
 render_topbar("Kendi Kayıtlarım", ikon="📂", geri_hedefi="pages/Danisman_Secim.py")
 
+# KART GÖRÜNÜMÜ (bu tur revizyonu): önceki hâlde her kayıt çıplak bir
+# st.columns satırıydı, hiçbir çerçeve/kart içinde değildi — "Sil" butonu
+# görsel olarak kayıttan kopuk duruyordu. Şimdi her kayıt kendi bordered
+# container'ında, diğer danışman ekranlarındaki (Talep/Portföy kartları)
+# aynı görsel dille (beyaz kart, ince kenarlık) — Sil butonu artık aynı
+# kartın içinde, kayıtla fiziksel olarak bütünleşik.
+st.markdown("""
+<style>
+div[class*="st-key-dp_kayit_card_"] {
+    padding: 14px 16px !important;
+    margin-bottom: 10px !important;
+}
+div[class*="st-key-dp_kayit_sil_"] button {
+    border-color: #e3e1da !important;
+    color: #b3261e !important;
+    font-size: 12.5px !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 su_kullanici = su_anki_danisman()
 
 kendi_talepler = [
@@ -44,23 +64,25 @@ if not kendi_talepler and not kendi_portfoyler:
 if kendi_talepler:
     st.markdown("##### 📥 Taleplerim")
     for v in kendi_talepler:
-        c1, c2 = st.columns([5, 1])
-        with c1:
-            st.markdown(f"**Talep:** {v.get('ozet', '')}")
-        with c2:
-            if st.button("Sil", key=f"sil_talep_{v['id']}", use_container_width=True):
-                kayit_sil("alici_talepleri", v["id"])
-                talepleri_cek.clear()
-                st.rerun()
+        with st.container(border=True, key=f"dp_kayit_card_talep_{v['id']}"):
+            c1, c2 = st.columns([5, 1])
+            with c1:
+                st.markdown(f"**Talep:** {v.get('ozet', '')}")
+            with c2:
+                if st.button("Sil", key=f"dp_kayit_sil_talep_{v['id']}", use_container_width=True):
+                    kayit_sil("alici_talepleri", v["id"])
+                    talepleri_cek.clear()
+                    st.rerun()
 
 if kendi_portfoyler:
     st.markdown("##### 🏘️ Portföylerim")
     for v in kendi_portfoyler:
-        c1, c2 = st.columns([5, 1])
-        with c1:
-            st.markdown(f"**Portföy:** {v.get('ozet', '')}")
-        with c2:
-            if st.button("Sil", key=f"sil_portfoy_{v['id']}", use_container_width=True):
-                kayit_sil("portfoyler", v["id"])
-                portfoyleri_cek.clear()
-                st.rerun()
+        with st.container(border=True, key=f"dp_kayit_card_portfoy_{v['id']}"):
+            c1, c2 = st.columns([5, 1])
+            with c1:
+                st.markdown(f"**Portföy:** {v.get('ozet', '')}")
+            with c2:
+                if st.button("Sil", key=f"dp_kayit_sil_portfoy_{v['id']}", use_container_width=True):
+                    kayit_sil("portfoyler", v["id"])
+                    portfoyleri_cek.clear()
+                    st.rerun()

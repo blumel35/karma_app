@@ -30,15 +30,56 @@ render_topbar("Favori Listem", ikon="⭐", geri_hedefi="pages/Danisman_Secim.py"
 
 su_kullanici = su_anki_danisman()
 
-fcol1, fcol2 = st.columns(2)
-with fcol1:
-    kaynak_secim = st.radio("İlan Kaynağı", ["Tümü", "Zeta", "Startkey"], horizontal=True, key="df_kaynak")
-with fcol2:
-    islem_secim = st.radio("İşlem Tipi", ["Tümü", "Satılık", "Kiralık"], horizontal=True, key="df_islem")
+# KOMPAKT FİLTRE GÖRÜNÜMÜ (bu tur revizyonu) — Talep/Portföy panolarındaki
+# (core/danisman_ortak.py → render_pano_icerik) aynı pill-buton CSS deseni,
+# aynı kompakt kutuya taşındı. Etkileşim mantığına (st.radio state'i)
+# dokunulmadı — sadece görünüm.
+st.markdown("""
+<style>
+div[class*="st-key-dp_favori_filtre_box"] div[data-testid="stRadio"] > label { display: none !important; }
+div[class*="st-key-dp_favori_filtre_box"] div[data-testid="stRadio"] div[role="radiogroup"] { gap: 6px !important; }
+div[class*="st-key-dp_favori_filtre_box"] div[data-testid="stRadio"] div[role="radiogroup"] > label {
+    display: inline-flex !important; align-items: center !important;
+    border: 1px solid #e3e1da !important; border-radius: 999px !important;
+    padding: 4px 12px !important; margin: 0 !important;
+    min-height: unset !important; background: #ffffff !important;
+}
+div[class*="st-key-dp_favori_filtre_box"] div[data-testid="stRadio"] div[role="radiogroup"] > label:has(div[aria-checked="true"]) {
+    background: #1b2540 !important; border-color: #1b2540 !important;
+}
+div[class*="st-key-dp_favori_filtre_box"] div[data-testid="stRadio"] div[role="radiogroup"] > label:has(div[aria-checked="true"]) p {
+    color: #ffffff !important;
+}
+div[class*="st-key-dp_favori_filtre_box"] div[data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child {
+    display: none !important;
+}
+div[class*="st-key-dp_favori_filtre_box"] div[data-testid="stRadio"] p {
+    font-size: 12.5px !important; font-weight: 600 !important; margin: 0 !important; white-space: nowrap !important;
+}
+div[class*="st-key-dp_favori_filtre_box"] div[data-testid="stWidgetLabel"] p {
+    font-size: 11px !important; color: #8a8271 !important; font-weight: 600 !important;
+    text-transform: uppercase !important; letter-spacing: .04em !important;
+}
+div[class*="st-key-dp_favori_yenile"] button {
+    padding: 4px 12px !important; min-height: 30px !important; height: 30px !important;
+    font-size: 12.5px !important; border-radius: 8px !important;
+    border-color: #e3e1da !important; background: #ffffff !important; color: #5b6478 !important;
+}
+div[class*="st-key-dp_favori_filtre_box"] { padding: 10px 14px !important; }
+</style>
+""", unsafe_allow_html=True)
 
-if st.button("🔄 Yenile", key="df_yenile"):
-    favorileri_cek.clear()
-    st.rerun()
+with st.container(border=True, key="dp_favori_filtre_box"):
+    fcol1, fcol2, fcol3 = st.columns([2, 2, 1])
+    with fcol1:
+        kaynak_secim = st.radio("İlan Kaynağı", ["Tümü", "Zeta", "Startkey"], horizontal=True, key="df_kaynak")
+    with fcol2:
+        islem_secim = st.radio("İşlem Tipi", ["Tümü", "Satılık", "Kiralık"], horizontal=True, key="df_islem")
+    with fcol3:
+        st.write("")
+        if st.button("🔄 Yenile", key="dp_favori_yenile", use_container_width=True):
+            favorileri_cek.clear()
+            st.rerun()
 
 favori_kayitlari = favorileri_cek(su_kullanici)
 
@@ -63,7 +104,6 @@ else:
         st.info("Bu filtrede favori listende kayıt yok.")
 
     if takip_talepler:
-        st.markdown("##### 📥 Favori Taleplerim")
         html_buf = pano_html_olustur(
             takip_talepler, "Favori Taleplerim", kayit_tipi="talep",
             favori_destekli=True, favori_set=favori_set,
@@ -73,7 +113,6 @@ else:
         components.html(html_buf.getvalue().decode("utf-8"), height=1200, scrolling=True)
 
     if takip_portfoyler:
-        st.markdown("##### 🏘️ Favori Portföylerim")
         html_buf = pano_html_olustur(
             takip_portfoyler, "Favori Portföylerim", kayit_tipi="portfoy",
             favori_destekli=True, favori_set=favori_set,

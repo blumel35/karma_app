@@ -25,7 +25,7 @@ if not oturum_kontrol():
     st.switch_page("pages/Danisman_Giris.py")
 
 hide_sidebar_css()
-render_topbar("Zeta Paylaşımları", ikon=":material/groups:", geri_hedefi="pages/Danisman_Secim.py")
+render_topbar("Zeta Paylaşımları", ikon="👥", geri_hedefi="pages/Danisman_Secim.py")
 st.caption("Sadece Zeta ofisi kaynaklı kayıtlar — filtre ve zaman aralığıyla daraltabilirsin.")
 
 zeta_talep_havuzu = kaynak_filtrele(talepleri_cek(), "Zeta")

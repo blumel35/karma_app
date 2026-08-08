@@ -473,6 +473,13 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
         padding-bottom: 14px !important;
         margin-bottom: 14px !important;
     }
+    /* "← Panoya Dön" butonu — dar konteynerlerde metni dikey bölmesin
+       (Zeta Paylaşımları gibi sayfalarda gözlemlendi). Buton doğal
+       genişliğini korusun, satır kırmasın. */
+    div[class*="st-key-dp_geri_btn"] button {
+        white-space: nowrap !important;
+        width: auto !important;
+    }
     /* Avatar rozeti — kendi sınıfıyla, üstteki reset kurallarından
        tamamen bağımsız garanti altına alınıyor. */
     .dp-avatar-circle {
@@ -530,17 +537,20 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
             if st.button("← Panoya Dön", key="dp_geri_btn"):
                 st.switch_page(geri_hedefi)
 
-        # Başlık (varsa) + avatar — TEK bir flexbox HTML bloğu. Başlık
-        # yoksa (Talep/Portföy Panosu ekranlarında mükerrer başlığı
-        # önlemek için) sol taraf boş kalır, avatar yine sağda durur.
-        # DÜZELTME: avatar div'i flex-shrink:0 (asla küçülmez), ama başlık
-        # (h3) buna karşılık varsayılan flex-shrink:1 ile küçülmeye
-        # zorlanıyor, dar alanda satır kırıyordu ("Danışman" / "Panosu").
-        # white-space:nowrap + flex-shrink:0 ile başlığın de asla
-        # sıkışmamasını garanti ediyoruz — mockup'ta zaten tek satırdı.
+        # Başlık (varsa) + avatar. DÜZELTME (bu tur): önceki
+        # justify-content:space-between mantığında başlık, "kalan alanın
+        # solu"na (hamburger'in hemen yanına) yaslanıyordu — satırın
+        # GERÇEK OPTİK MERKEZİNE değil. Avatar bloğu sağda görsel ağırlık
+        # yaratınca, bu genel düzeni sağa yaslanmış/dengesiz gösteriyordu.
+        # Çözüm: başlığı bu konteynerin GENİŞLİĞİNE göre `position:absolute`
+        # ile tam ortaya sabitliyoruz — hamburger veya avatar genişliği ne
+        # olursa olsun (mockup'taki app-bar merkezleme mantığıyla aynı).
+        # Avatar ise normal akışta sağa yaslı kalıyor (flex + justify-end).
         baslik_html = (
-            f"<h3 style='margin:0;white-space:nowrap;flex-shrink:0;'>{ikon} {baslik}</h3>"
-            if baslik else "<div></div>"
+            f"<div style='position:absolute;left:50%;top:50%;"
+            f"transform:translate(-50%,-50%);white-space:nowrap;'>"
+            f"<h3 style='margin:0;'>{ikon} {baslik}</h3></div>"
+            if baslik else ""
         )
         avatar_html = ""
         if su_kullanici:
@@ -550,7 +560,8 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
                 f"<span style='font-size:13px;color:#5b6478 !important;font-weight:600;white-space:nowrap;'>{su_kullanici}</span></div>"
             )
         st.markdown(
-            f"<div style='display:flex;justify-content:space-between;align-items:center;width:100%;'>"
+            f"<div style='position:relative;display:flex;justify-content:flex-end;"
+            f"align-items:center;width:100%;min-height:32px;'>"
             f"{baslik_html}{avatar_html}</div>",
             unsafe_allow_html=True,
         )
@@ -748,6 +759,82 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
     ZAMAN_SECENEKLERI = ["Tümü", "Son 24 saat", "Son 7 gün"]
     zaman_index = ZAMAN_SECENEKLERI.index(zaman_varsayilan) if zaman_varsayilan in ZAMAN_SECENEKLERI else 0
 
+    # KOMPAKT FİLTRE GÖRÜNÜMÜ (bu tur revizyonu): st.radio'nun kendi
+    # etkileşim/state mantığına HİÇ dokunulmadı (işlevsel risk sıfır) —
+    # sadece CSS ile "dolgu pill buton" görünümüne çevriliyor. :has()
+    # tekniği bu dosyada zemin/çerçeve düzeltmesinde zaten kanıtlanmıştı,
+    # aynı güvenilir yöntem burada da kullanılıyor: radio'nun dairesel
+    # göstergesi gizleniyor, kendi etiketi (label) pill'e dönüşüyor,
+    # seçili olan (aria-checked=true içeren) lacivert dolgu + beyaz
+    # yazı alıyor.
+    st.markdown(f"""
+    <style>
+    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stRadio"] {{
+        gap: 0 !important;
+    }}
+    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stRadio"] > label {{
+        display: none !important;
+    }}
+    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stRadio"] div[role="radiogroup"] {{
+        gap: 6px !important;
+    }}
+    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stRadio"] div[role="radiogroup"] > label {{
+        display: inline-flex !important;
+        align-items: center !important;
+        border: 1px solid #e3e1da !important;
+        border-radius: 999px !important;
+        padding: 4px 12px !important;
+        margin: 0 !important;
+        min-height: unset !important;
+        background: #ffffff !important;
+    }}
+    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stRadio"] div[role="radiogroup"] > label:has(div[aria-checked="true"]) {{
+        background: #1b2540 !important;
+        border-color: #1b2540 !important;
+    }}
+    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stRadio"] div[role="radiogroup"] > label:has(div[aria-checked="true"]) p {{
+        color: #ffffff !important;
+    }}
+    /* Dairesel radio göstergesini gizle — pill'in kendisi (dolgu rengi)
+       seçili durumu zaten gösteriyor, ayrıca daireye gerek yok. */
+    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child {{
+        display: none !important;
+    }}
+    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stRadio"] p {{
+        font-size: 12.5px !important;
+        font-weight: 600 !important;
+        margin: 0 !important;
+        white-space: nowrap !important;
+    }}
+    /* Radio başlıkları (İşlem Tipi / Zaman Aralığı) — küçük, soluk,
+       üstte az yer kaplayan etiketler. */
+    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stWidgetLabel"] p {{
+        font-size: 11px !important;
+        color: #8a8271 !important;
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        letter-spacing: .04em !important;
+    }}
+    /* Yenile butonu — küçük, ikon ağırlıklı, birincil eylem gibi
+       görünmesin. */
+    div[class*="st-key-dp_yenile_{key_prefix}"] button {{
+        padding: 4px 12px !important;
+        min-height: 30px !important;
+        height: 30px !important;
+        font-size: 12.5px !important;
+        border-radius: 8px !important;
+        border-color: #e3e1da !important;
+        background: #ffffff !important;
+        color: #5b6478 !important;
+    }}
+    /* Filtre kutusunun kendi iç boşluğu — önceki hali gereğinden
+       ferah/büyüktü, kompakt bir toolbar hissi için daralttık. */
+    div[class*="st-key-dp_filtre_box_{key_prefix}"] {{
+        padding: 10px 14px !important;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
     # NOT (teknik sınır): "(Canlı)" paneli (başlık, "Toplam kayıt", A-Z,
     # kartlar) aslında core.pano_export.pano_html_olustur() tarafından
     # üretilen BAĞIMSIZ bir HTML dokümanı — components.html ile bir
@@ -759,7 +846,7 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
     # ayrı bir kutuya alıp iframe'in HEMEN üstüne, boşluksuz yerleştiriyoruz
     # — görsel olarak "tek panel" hissi veriyor, teknik olarak iki eleman.
     with st.container(border=True, key=f"dp_filtre_box_{key_prefix}"):
-        fcol1, fcol2 = st.columns([1, 1])
+        fcol1, fcol2, fcol3 = st.columns([2, 2, 1])
         with fcol1:
             islem_secim = st.radio(
                 "İşlem Tipi", ["Tümü", "Satılık", "Kiralık"],
@@ -770,11 +857,13 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
                 "Zaman Aralığı", ZAMAN_SECENEKLERI,
                 horizontal=True, index=zaman_index, key=f"dp_zaman_filtre_{key_prefix}",
             )
-        if st.button("🔄 Yenile", key=f"dp_yenile_{key_prefix}"):
-            talepleri_cek.clear()
-            portfoyleri_cek.clear()
-            favorileri_cek.clear()
-            st.rerun()
+        with fcol3:
+            st.write("")
+            if st.button("🔄 Yenile", key=f"dp_yenile_{key_prefix}", use_container_width=True):
+                talepleri_cek.clear()
+                portfoyleri_cek.clear()
+                favorileri_cek.clear()
+                st.rerun()
 
     kayitlar = islem_tipi_filtrele(kayitlar_havuzu, islem_secim)
     if zaman_secim == "Son 24 saat":
