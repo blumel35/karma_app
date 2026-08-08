@@ -86,11 +86,13 @@ def _favori_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
             kaynak_secim = st.radio(
                 "İlan Kaynağı", ["Tümü", "Zeta", "Startkey"],
                 horizontal=True, key=f"df_kaynak_{key_prefix}",
+                label_visibility="collapsed",
             )
         with fcol2:
             islem_secim = st.radio(
                 "İşlem Tipi", ["Tümü", "Satılık", "Kiralık"],
                 horizontal=True, key=f"df_islem_{key_prefix}",
+                label_visibility="collapsed",
             )
         with fcol3:
             st.markdown(f"""

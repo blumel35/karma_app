@@ -838,11 +838,13 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
             islem_secim = st.radio(
                 "İşlem Tipi", ["Tümü", "Satılık", "Kiralık"],
                 horizontal=True, key=f"dp_islem_filtre_{key_prefix}",
+                label_visibility="collapsed",
             )
         with fcol2:
             zaman_secim = st.radio(
                 "Zaman Aralığı", ZAMAN_SECENEKLERI,
                 horizontal=True, index=zaman_index, key=f"dp_zaman_filtre_{key_prefix}",
+                label_visibility="collapsed",
             )
         with fcol3:
             st.markdown(f"""
