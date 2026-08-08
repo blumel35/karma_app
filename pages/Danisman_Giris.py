@@ -14,7 +14,7 @@ import streamlit as st
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import giris_yap, set_session_fields, oturum_kontrol
-from core.personel_manager import save_login_session, enrich_session_from_personel
+from core.personel_manager import enrich_session_from_personel
 
 st.markdown("""
 <style>
@@ -79,36 +79,18 @@ with center:
                 if kullanici:
                     kullanici = enrich_session_from_personel(kullanici)
                     set_session_fields(kullanici)
-                    try:
-                        save_login_session({
-                            "id": kullanici.get("id", ""),
-                            "email": kullanici.get("email", ""),
-                            "ad": kullanici.get("ad", ""),
-                            "ad_soyad": st.session_state.get("user_name", ""),
-                            "rol": st.session_state.get("user_role", ""),
-                            "ofis_id": kullanici.get("ofis_id", ""),
-                            "ofis_adi": kullanici.get("ofis_adi", ""),
-                            "foto_url": kullanici.get("foto_url", ""),
-                            "logo_url": kullanici.get("logo_url", ""),
-                            "user_key": kullanici.get("user_key", ""),
-                        })
-                    except Exception:
-                        pass
-                    # ═══════════════════════════════════════════════════
-                    # GEÇİCİ AUTH COOKIE TEŞHİSİ (08.08.2026) — kalıcı değil.
-                    # Önceki "st.rerun()" denemesi de ("switch_page yerine
-                    # rerun" düzeltmesi) aslında sonucu değiştirmedi — o da
-                    # bir başka ANİ geçişti, cookie'yi yazan gizli component
-                    # yine kendine zaman bulamamış olabilir. Bu yüzden şimdi
-                    # HİÇBİR navigasyon/rerun yapmadan, kullanıcıya birkaç
-                    # saniye bekleyip elle F5 yapmasını söylüyoruz — böylece
-                    # component'in gerçekten yazma fırsatı bulup bulamadığını
-                    # (F12 → Application → Cookies → startkey_session) net
-                    # görebiliriz. Sonuca göre kalıcı çözüme geçilecek.
-                    # ═══════════════════════════════════════════════════
-                    st.success("Giriş başarılı. Oturum tarayıcıya kaydediliyor...")
-                    st.info("Lütfen 3 saniye bekleyin, ardından bu sayfayı F5 ile yenileyin.")
-                    st.stop()
+                    # NOT (08.08.2026): save_login_session() buradan
+                    # kaldırıldı — dosya tabanlı eski LOCAL_SESSION_RESTORE
+                    # mekanizmasının parçasıydı, Streamlit Cloud'da zaten
+                    # bilerek kapalı (sunucu-paylaşımlı dosya riski, bkz.
+                    # core/auth.py). Kalıcılık artık tamamen tarayıcı
+                    # cookie'siyle sağlanıyor (_tarayici_oturumu_kaydet),
+                    # bu çağrı cloud'da işlevsizdi, gereksiz kod olarak
+                    # temizlendi.
+                    # Cookie yazma + auth restore zinciri artık doğrulandı
+                    # (08.08.2026, Auth Restore Teşhisi ile). Normal akış:
+                    # doğrudan seçim ekranına geç.
+                    st.switch_page("pages/Danisman_Secim.py")
                 else:
                     st.error("E-posta veya şifre hatalı.")
 
