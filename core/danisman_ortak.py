@@ -605,10 +605,10 @@ def hide_sidebar_css():
        seçicisi kullanmıyoruz) — o blanket kural, Streamlit'in popover
        bileşeninin kendi iç yapısını da boyayıp header'ın yanında
        istenmeyen bir kutu/gölge oluşturuyordu. */
-    div[class*="st-key-dp_page_frame"] div[data-testid="stVerticalBlockBorderWrapper"],
-    div[class*="st-key-dp_kart_talep"] div[data-testid="stVerticalBlockBorderWrapper"],
-    div[class*="st-key-dp_kart_portfoy"] div[data-testid="stVerticalBlockBorderWrapper"],
-    div[class*="st-key-dp_activity_box"] div[data-testid="stVerticalBlockBorderWrapper"] {
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(> div[class*="st-key-dp_page_frame"]),
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(> div[class*="st-key-dp_kart_talep"]),
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(> div[class*="st-key-dp_kart_portfoy"]),
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(> div[class*="st-key-dp_activity_box"]) {
         background-color: #ffffff !important;
         border-color: #e3e1da !important;
         border-radius: 16px !important;
@@ -619,7 +619,7 @@ def hide_sidebar_css():
        zeminine yakın soft bej (mockup: #f8f7f4) — "öne çıkan panel"
        değil "sayfanın devamı" hissi için. Yukarıdaki genel beyaz kart
        kuralını, daha spesifik bu seçiciyle eziyoruz. */
-    div[class*="st-key-dp_activity_box"] div[data-testid="stVerticalBlockBorderWrapper"] {
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(> div[class*="st-key-dp_activity_box"]) {
         background-color: #f6f5f2 !important;
         border-color: #ecebe5 !important;
     }
@@ -629,7 +629,7 @@ def hide_sidebar_css():
        core/pano_export.py'deki CREAM sabitiyle (#FBF7F0) eşleşiyor ki
        iframe'in kendi krem tonuyla kesintisiz devam ediyormuş hissi
        versin. Alt köşeler düz (radius yok) — iframe'e bitişik durabilsin. */
-    div[class*="st-key-dp_filtre_box_"] div[data-testid="stVerticalBlockBorderWrapper"] {
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(> div[class*="st-key-dp_filtre_box_"]) {
         background-color: #fbf7f0 !important;
         border-color: #ecebe5 !important;
         border-bottom: none !important;
