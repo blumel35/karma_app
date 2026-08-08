@@ -61,31 +61,51 @@ def _favori_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
     """Her iki sekme de aynı çerçevesiz toolbar + filtre mantığını
     paylaşır — kod tekrarını önlemek için tek yerde."""
     _inject_filtre_pill_css()
-    fcol1, fcol2, fcol3 = st.columns([2, 2, 1])
-    with fcol1:
-        kaynak_secim = st.radio(
-            "İlan Kaynağı", ["Tümü", "Zeta", "Startkey"],
-            horizontal=True, key=f"df_kaynak_{key_prefix}",
-        )
-    with fcol2:
-        islem_secim = st.radio(
-            "İşlem Tipi", ["Tümü", "Satılık", "Kiralık"],
-            horizontal=True, key=f"df_islem_{key_prefix}",
-        )
-    with fcol3:
-        st.markdown(f"""
-        <style>
-        div[class*="st-key-df_yenile_{key_prefix}"] button {{
-            padding: 4px 10px !important; min-height: 30px !important; height: 30px !important;
-            font-size: 13px !important; border-radius: 8px !important;
-            border-color: #e3e1da !important; background: #ffffff !important; color: #5b6478 !important;
-        }}
-        </style>
-        """, unsafe_allow_html=True)
-        st.write("")
-        if st.button("↻", key=f"df_yenile_{key_prefix}", help="Yenile", use_container_width=True):
-            favorileri_cek.clear()
-            st.rerun()
+
+    # DÜZELTME (3. tur — dikey alan sıkılaştırma): Talep/Portföy/Zeta
+    # panolarındaki aynı sıkılaştırma deseni burada da uygulanıyor —
+    # filtre alanının kapladığı dikey boşluk minimuma iniyor.
+    st.markdown(f"""
+    <style>
+    div[class*="st-key-df_filtre_toolbar_{key_prefix}"] {{
+        margin-top: -8px !important;
+        margin-bottom: -8px !important;
+    }}
+    div[class*="st-key-df_filtre_toolbar_{key_prefix}"] div[data-testid="stWidgetLabel"] {{
+        margin-bottom: 2px !important;
+    }}
+    div[class*="st-key-df_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] {{
+        gap: 0.5rem !important;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+    with st.container(key=f"df_filtre_toolbar_{key_prefix}"):
+        fcol1, fcol2, fcol3 = st.columns([2, 2, 1])
+        with fcol1:
+            kaynak_secim = st.radio(
+                "İlan Kaynağı", ["Tümü", "Zeta", "Startkey"],
+                horizontal=True, key=f"df_kaynak_{key_prefix}",
+            )
+        with fcol2:
+            islem_secim = st.radio(
+                "İşlem Tipi", ["Tümü", "Satılık", "Kiralık"],
+                horizontal=True, key=f"df_islem_{key_prefix}",
+            )
+        with fcol3:
+            st.markdown(f"""
+            <style>
+            div[class*="st-key-df_yenile_{key_prefix}"] button {{
+                padding: 4px 10px !important; min-height: 30px !important; height: 30px !important;
+                font-size: 13px !important; border-radius: 8px !important;
+                border-color: #e3e1da !important; background: #ffffff !important; color: #5b6478 !important;
+            }}
+            </style>
+            """, unsafe_allow_html=True)
+            st.write("")
+            if st.button("↻", key=f"df_yenile_{key_prefix}", help="Yenile", use_container_width=True):
+                favorileri_cek.clear()
+                st.rerun()
 
     kayitlar = islem_tipi_filtrele(kaynak_filtrele(havuz, kaynak_secim), islem_secim)
 

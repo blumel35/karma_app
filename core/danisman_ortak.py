@@ -458,6 +458,7 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
        yanlış varsayımı burada tekrarlamıyoruz). */
     div[class*="st-key-dp_topbar_left"] {
         display: flex !important;
+        flex-direction: row !important;
         align-items: center !important;
         gap: 8px !important;
     }
@@ -471,8 +472,8 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
     }
     div[class*="st-key-dp_topbar_wrap"] {
         border-bottom: 1px solid #ecebe5 !important;
-        padding-bottom: 14px !important;
-        margin-bottom: 14px !important;
+        padding-bottom: 8px !important;
+        margin-bottom: 8px !important;
     }
     /* "← Panoya Dön" butonu — dar konteynerlerde metni dikey bölmesin
        (Zeta Paylaşımları gibi sayfalarda gözlemlendi). Buton doğal
@@ -808,38 +809,62 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
     # veriyordu). Artık ÇERÇEVESİZ, minimalist bir toolbar satırı:
     # bordered container yok, krem kutu yok, sadece kompakt pill'ler +
     # küçük Yenile ikonu, dikey alan minimum.
-    fcol1, fcol2, fcol3 = st.columns([2, 2, 1])
-    with fcol1:
-        islem_secim = st.radio(
-            "İşlem Tipi", ["Tümü", "Satılık", "Kiralık"],
-            horizontal=True, key=f"dp_islem_filtre_{key_prefix}",
-        )
-    with fcol2:
-        zaman_secim = st.radio(
-            "Zaman Aralığı", ZAMAN_SECENEKLERI,
-            horizontal=True, index=zaman_index, key=f"dp_zaman_filtre_{key_prefix}",
-        )
-    with fcol3:
-        st.markdown(f"""
-        <style>
-        div[class*="st-key-dp_yenile_{key_prefix}"] button {{
-            padding: 4px 10px !important;
-            min-height: 30px !important;
-            height: 30px !important;
-            font-size: 13px !important;
-            border-radius: 8px !important;
-            border-color: #e3e1da !important;
-            background: #ffffff !important;
-            color: #5b6478 !important;
-        }}
-        </style>
-        """, unsafe_allow_html=True)
-        st.write("")
-        if st.button("↻", key=f"dp_yenile_{key_prefix}", help="Yenile", use_container_width=True):
-            talepleri_cek.clear()
-            portfoyleri_cek.clear()
-            favorileri_cek.clear()
-            st.rerun()
+    # DÜZELTME (3. tur — dikey alan sıkılaştırma): Talep edilen şey,
+    # filtrelerin iframe'in İÇİNE gömülmesi değil (bu teknik olarak
+    # imkansız, yukarıdaki not) — asıl istenen, topbar + filtre alanının
+    # kapladığı TOPLAM dikey boşluğun minimuma inmesi, ki asıl içerik
+    # (alfabe + kartlar) daha yukarıda başlasın. Bu tamamen CSS ile
+    # yapılabilir: filtre satırını kendi dar key'li konteynerine alıp,
+    # SADECE bu bölgenin üst/alt boşluğunu sıkılaştırıyoruz (global
+    # spacing'e dokunmadan, sadece bu alanı hedefleyerek).
+    st.markdown(f"""
+    <style>
+    div[class*="st-key-dp_filtre_toolbar_{key_prefix}"] {{
+        margin-top: -8px !important;
+        margin-bottom: -8px !important;
+    }}
+    div[class*="st-key-dp_filtre_toolbar_{key_prefix}"] div[data-testid="stWidgetLabel"] {{
+        margin-bottom: 2px !important;
+    }}
+    div[class*="st-key-dp_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] {{
+        gap: 0.5rem !important;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+    with st.container(key=f"dp_filtre_toolbar_{key_prefix}"):
+        fcol1, fcol2, fcol3 = st.columns([2, 2, 1])
+        with fcol1:
+            islem_secim = st.radio(
+                "İşlem Tipi", ["Tümü", "Satılık", "Kiralık"],
+                horizontal=True, key=f"dp_islem_filtre_{key_prefix}",
+            )
+        with fcol2:
+            zaman_secim = st.radio(
+                "Zaman Aralığı", ZAMAN_SECENEKLERI,
+                horizontal=True, index=zaman_index, key=f"dp_zaman_filtre_{key_prefix}",
+            )
+        with fcol3:
+            st.markdown(f"""
+            <style>
+            div[class*="st-key-dp_yenile_{key_prefix}"] button {{
+                padding: 4px 10px !important;
+                min-height: 30px !important;
+                height: 30px !important;
+                font-size: 13px !important;
+                border-radius: 8px !important;
+                border-color: #e3e1da !important;
+                background: #ffffff !important;
+                color: #5b6478 !important;
+            }}
+            </style>
+            """, unsafe_allow_html=True)
+            st.write("")
+            if st.button("↻", key=f"dp_yenile_{key_prefix}", help="Yenile", use_container_width=True):
+                talepleri_cek.clear()
+                portfoyleri_cek.clear()
+                favorileri_cek.clear()
+                st.rerun()
 
     kayitlar = islem_tipi_filtrele(kayitlar_havuzu, islem_secim)
     if zaman_secim == "Son 24 saat":
