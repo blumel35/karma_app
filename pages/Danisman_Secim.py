@@ -140,7 +140,7 @@ div[class*="st-key-dp_favori_btn"] button::before {
 """, unsafe_allow_html=True)
 
 with st.container(border=True, key="dp_page_frame"):
-    render_topbar("Danışman Panosu", ikon="")
+    render_topbar("Startkey Zeta Danışman Panosu", ikon="")
     st.caption("Talep ve portföyleri canlı takip edin, hızlıca yeni kayıt ekleyin.")
     st.write("")
 

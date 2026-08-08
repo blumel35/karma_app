@@ -424,15 +424,11 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
 
     st.markdown("""
     <style>
-    /* Radio butonlarının seçili rengi — Streamlit varsayılan kırmızısı
-       yerine Karma App navy'si */
-    div[data-baseweb="radio"] div[aria-checked="true"] {
-        background-color: #1b2540 !important;
-        border-color: #1b2540 !important;
-    }
-    div[data-baseweb="radio"] div[aria-checked="true"] div {
-        background-color: #1b2540 !important;
-    }
+    /* NOT (2. tur — regresyon giderme): Bu blokta daha önce genel bir
+       "seçili radio rengi" kuralı vardı — artık _inject_filtre_pill_css()
+       (tek, ortak kaynak) bu işi üstleniyor, burada tekrar tanımlamıyoruz
+       (çakışan CSS katmanları "Tümü" pill'inin boş görünmesine sebep
+       olmuştu, bkz. o fonksiyonun docstring'i). */
 
     /* dp_topbar_wrap'ın KENDİ stVerticalBlock'unu satır (row) yönlü
        flex'e çeviriyoruz — st.columns() yerine bu teknik kullanılıyor.
@@ -447,6 +443,7 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
         align-items: center !important;
         gap: 14px !important;
         flex-wrap: nowrap !important;
+        position: relative !important;
     }
     /* Her çocuk element-container varsayılan olarak içeriği kadar dar
        dursun (popover, geri butonu) — SADECE son çocuk (başlık+avatar
@@ -537,21 +534,30 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
             if st.button("← Panoya Dön", key="dp_geri_btn"):
                 st.switch_page(geri_hedefi)
 
-        # Başlık (varsa) + avatar. DÜZELTME (bu tur): önceki
-        # justify-content:space-between mantığında başlık, "kalan alanın
-        # solu"na (hamburger'in hemen yanına) yaslanıyordu — satırın
-        # GERÇEK OPTİK MERKEZİNE değil. Avatar bloğu sağda görsel ağırlık
-        # yaratınca, bu genel düzeni sağa yaslanmış/dengesiz gösteriyordu.
-        # Çözüm: başlığı bu konteynerin GENİŞLİĞİNE göre `position:absolute`
-        # ile tam ortaya sabitliyoruz — hamburger veya avatar genişliği ne
-        # olursa olsun (mockup'taki app-bar merkezleme mantığıyla aynı).
-        # Avatar ise normal akışta sağa yaslı kalıyor (flex + justify-end).
-        baslik_html = (
-            f"<div style='position:absolute;left:50%;top:50%;"
-            f"transform:translate(-50%,-50%);white-space:nowrap;'>"
-            f"<h3 style='margin:0;'>{ikon} {baslik}</h3></div>"
-            if baslik else ""
-        )
+        # DÜZELTME (2. tur — regresyon giderme): Önceki turda başlık
+        # position:absolute ile SON flex child'ın (avatar'ı da taşıyan,
+        # zaten dar olan "kalan alan" kutusunun) İÇİNE yerleştirilmişti —
+        # bu kutunun kendisi position:relative değildi, tarayıcı da
+        # absolute'un referans noktasını daha üstteki, dar bir ataya
+        # kaydırdı; sonuç: başlık dar bir sütuna sıkışıp harf harf
+        # bölündü (gerçek testte doğrulandı, kabul edilemez bir
+        # regresyon). Çözüm: dp_topbar_wrap'ın KENDİSİNE (yukarıdaki CSS
+        # kuralında) position:relative eklendi — başlık artık AYRI, kendi
+        # markdown çağrısıyla, o satırın DOĞRUDAN çocuğu olarak render
+        # ediliyor. position:absolute bir elemanı flex akışından TAMAMEN
+        # çıkarır (flex item olarak sayılmaz), bu yüzden popover/geri
+        # butonu/avatar'ın flex düzenini hiç etkilemez — başlık artık
+        # TÜM satırın gerçek genişliğine göre ortalanıyor, dar bir alt
+        # kutuya göre değil.
+        if baslik:
+            st.markdown(
+                f"<div style='position:absolute;left:50%;top:50%;"
+                f"transform:translate(-50%,-50%);white-space:nowrap;"
+                f"pointer-events:none;'>"
+                f"<h3 style='margin:0;'>{ikon} {baslik}</h3></div>",
+                unsafe_allow_html=True,
+            )
+
         avatar_html = ""
         if su_kullanici:
             avatar_html = (
@@ -560,9 +566,9 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
                 f"<span style='font-size:13px;color:#5b6478 !important;font-weight:600;white-space:nowrap;'>{su_kullanici}</span></div>"
             )
         st.markdown(
-            f"<div style='position:relative;display:flex;justify-content:flex-end;"
+            f"<div style='display:flex;justify-content:flex-end;"
             f"align-items:center;width:100%;min-height:32px;'>"
-            f"{baslik_html}{avatar_html}</div>",
+            f"{avatar_html}</div>",
             unsafe_allow_html=True,
         )
 
@@ -682,50 +688,22 @@ def hide_sidebar_css():
         border-color: #ecebe5 !important;
     }
 
-    /* Filtre kutusu (İşlem Tipi / Zaman Aralığı / Yenile) — Talep/Portföy
-       Panosu (Canlı) ekranlarında, iframe'in HEMEN üstünde. Rengi
-       core/pano_export.py'deki CREAM sabitiyle (#FBF7F0) eşleşiyor ki
-       iframe'in kendi krem tonuyla kesintisiz devam ediyormuş hissi
-       versin. Alt köşeler düz (radius yok) — iframe'e bitişik durabilsin. */
-    div[class*="st-key-dp_filtre_box_"] div[data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #fbf7f0 !important;
-        border-color: #ecebe5 !important;
-        border-bottom: none !important;
-        border-radius: 16px 16px 0 0 !important;
-        box-shadow: none !important;
-        margin-bottom: -1px !important;
-    }
+    /* NOT (2. tur — regresyon giderme): Bu ekranda daha önce burada
+       "Filtre kutusu" (bordered, krem tonlu) CSS'i vardı — prompt'un
+       açık talebiyle (bordered/krem kutu görünmesin) kaldırıldı, yerini
+       çerçevesiz minimalist toolbar aldı (bkz. render_pano_icerik ve
+       _inject_filtre_pill_css). Radio/pill CSS'i de burada AYRICA
+       tanımlıydı — render_pano_icerik() ve Danisman_Favoriler.py'deki
+       scoped kopyalarla ÇAKIŞIYORDU (iki farklı seçici stratejisi aynı
+       elemanları hedefliyordu: biri `input:checked`, diğeri
+       `div[aria-checked="true"]`) — bu çakışma, varsayılan seçili
+       "Tümü" pill'inin metninin görünmez olmasına (beyaz yazı + beyaz
+       zemin) sebep oluyordu. Artık TEK kaynak var: _inject_filtre_pill_css()
+       — her filtre grubunun render edildiği yerde bir kez çağrılıyor. */
 
     /* İç ayırıcı çizgiler (st.divider) — açık, sıcak gri */
     .stApp hr {
         border-color: #ecebe5 !important;
-    }
-
-    /* Filtreler (İşlem Tipi / Zaman Aralığı) — pill/chip görünümü.
-       NOT: Streamlit'in radio DOM yapısı sürüme göre değişebiliyor,
-       bu yüzden birden fazla seçici deneniyor (en az biri eşleşmeli).
-       Görsel doğrulama gerekebilir. */
-    div[data-testid="stRadio"] > div[role="radiogroup"] {
-        gap: 6px !important;
-        flex-wrap: wrap !important;
-    }
-    div[data-testid="stRadio"] label {
-        border: 1px solid #e3e1da !important;
-        border-radius: 999px !important;
-        padding: 4px 14px !important;
-        background: #ffffff !important;
-        margin: 0 !important;
-    }
-    div[data-testid="stRadio"] label > div:first-child {
-        display: none !important;
-    }
-    div[data-testid="stRadio"] label:has(input:checked) {
-        background: #1b2540 !important;
-        border-color: #1b2540 !important;
-    }
-    div[data-testid="stRadio"] label:has(input:checked) p {
-        color: #ffffff !important;
-        font-weight: 600 !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -734,6 +712,71 @@ def hide_sidebar_css():
 # ── ORTAK PANO EKRANI (Talep / Portföy) ─────────────────────────────────
 # Danisman_Talep.py ve Danisman_Portfoy.py bu tek fonksiyonu çağırır —
 # iki ayrı dosyada aynı kart/A-Z/filtre mantığını tekrarlamamak için.
+
+# ── ORTAK FİLTRE PILL CSS (2. tur — regresyon giderme) ──────────────────
+# TEK, kanonik kaynak. Önceki turda üç ayrı yerde (hide_sidebar_css, eski
+# render_pano_icerik, Danisman_Favoriler.py) benzer ama BİRBİRİYLE ÇAKIŞAN
+# radio/pill CSS'i tanımlanmıştı — iki farklı "seçili mi?" tespit stratejisi
+# (biri `input:checked`, diğeri `div[aria-checked="true"]`) aynı elemanlar
+# için yarışınca, varsayılan seçili "Tümü" pill'i beyaz yazı + beyaz zemin
+# kombinasyonuna düşüp görünmez oluyordu. Artık her filtre grubunun
+# render edildiği yerde SADECE bu fonksiyon çağrılıyor, başka hiçbir yerde
+# radio/pill CSS'i tekrar tanımlanmıyor.
+#
+# Seçili durumu tespit etmek için `div[data-baseweb="radio"]` kullanılıyor
+# — bu, dosyada daha önce zaten ÇALIŞTIĞI DOĞRULANMIŞ bir seçici (seçili
+# göstergeyi navy'ye boyayan eski kural buna dayanıyordu). Aynı elemanı artık
+# TAMAMEN GİZLİYORUZ (dairesel gösterge hiç görünmesin) — bu eleman SADECE
+# göstergenin kendisi, etiket metnini (p) İÇERMİYOR, bu yüzden metni
+# yanlışlıkla gizleme riski yok (önceki `label > div:first-child` gibi
+# konuma dayalı, kırılgan bir tahmin değil).
+def _inject_filtre_pill_css():
+    st.markdown("""
+    <style>
+    div[data-testid="stRadio"] div[role="radiogroup"] {
+        gap: 6px !important;
+        flex-wrap: wrap !important;
+    }
+    div[data-testid="stRadio"] label {
+        display: inline-flex !important;
+        align-items: center !important;
+        border: 1px solid #e3e1da !important;
+        border-radius: 999px !important;
+        padding: 4px 14px !important;
+        margin: 0 !important;
+        min-height: unset !important;
+        background: #ffffff !important;
+    }
+    /* Dairesel göstergeyi gizle — data-baseweb="radio" SADECE göstergenin
+       kendisi (metin değil), :has() bu eleman display:none olsa bile DOM
+       yapısını okumaya devam eder, seçili tespiti bozulmaz. */
+    div[data-testid="stRadio"] div[data-baseweb="radio"] {
+        display: none !important;
+    }
+    div[data-testid="stRadio"] label p {
+        font-size: 12.5px !important;
+        font-weight: 600 !important;
+        margin: 0 !important;
+        white-space: nowrap !important;
+        color: #5b6478 !important;
+    }
+    div[data-testid="stRadio"] label:has(div[aria-checked="true"]) {
+        background: #1b2540 !important;
+        border-color: #1b2540 !important;
+    }
+    div[data-testid="stRadio"] label:has(div[aria-checked="true"]) p {
+        color: #ffffff !important;
+    }
+    div[data-testid="stWidgetLabel"] p {
+        font-size: 11px !important;
+        color: #8a8271 !important;
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        letter-spacing: .04em !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 
 # ── ORTAK PANO İÇERİĞİ (filtre + A-Z + kart) ────────────────────────────
 # render_pano_icerik: kayıt havuzu DIŞARIDAN verilir. Talep/Portföy Panosu
@@ -759,111 +802,50 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
     ZAMAN_SECENEKLERI = ["Tümü", "Son 24 saat", "Son 7 gün"]
     zaman_index = ZAMAN_SECENEKLERI.index(zaman_varsayilan) if zaman_varsayilan in ZAMAN_SECENEKLERI else 0
 
-    # KOMPAKT FİLTRE GÖRÜNÜMÜ (bu tur revizyonu): st.radio'nun kendi
-    # etkileşim/state mantığına HİÇ dokunulmadı (işlevsel risk sıfır) —
-    # sadece CSS ile "dolgu pill buton" görünümüne çevriliyor. :has()
-    # tekniği bu dosyada zemin/çerçeve düzeltmesinde zaten kanıtlanmıştı,
-    # aynı güvenilir yöntem burada da kullanılıyor: radio'nun dairesel
-    # göstergesi gizleniyor, kendi etiketi (label) pill'e dönüşüyor,
-    # seçili olan (aria-checked=true içeren) lacivert dolgu + beyaz
-    # yazı alıyor.
-    st.markdown(f"""
-    <style>
-    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stRadio"] {{
-        gap: 0 !important;
-    }}
-    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stRadio"] > label {{
-        display: none !important;
-    }}
-    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stRadio"] div[role="radiogroup"] {{
-        gap: 6px !important;
-    }}
-    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stRadio"] div[role="radiogroup"] > label {{
-        display: inline-flex !important;
-        align-items: center !important;
-        border: 1px solid #e3e1da !important;
-        border-radius: 999px !important;
-        padding: 4px 12px !important;
-        margin: 0 !important;
-        min-height: unset !important;
-        background: #ffffff !important;
-    }}
-    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stRadio"] div[role="radiogroup"] > label:has(div[aria-checked="true"]) {{
-        background: #1b2540 !important;
-        border-color: #1b2540 !important;
-    }}
-    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stRadio"] div[role="radiogroup"] > label:has(div[aria-checked="true"]) p {{
-        color: #ffffff !important;
-    }}
-    /* Dairesel radio göstergesini gizle — pill'in kendisi (dolgu rengi)
-       seçili durumu zaten gösteriyor, ayrıca daireye gerek yok. */
-    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child {{
-        display: none !important;
-    }}
-    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stRadio"] p {{
-        font-size: 12.5px !important;
-        font-weight: 600 !important;
-        margin: 0 !important;
-        white-space: nowrap !important;
-    }}
-    /* Radio başlıkları (İşlem Tipi / Zaman Aralığı) — küçük, soluk,
-       üstte az yer kaplayan etiketler. */
-    div[class*="st-key-dp_filtre_box_{key_prefix}"] div[data-testid="stWidgetLabel"] p {{
-        font-size: 11px !important;
-        color: #8a8271 !important;
-        font-weight: 600 !important;
-        text-transform: uppercase !important;
-        letter-spacing: .04em !important;
-    }}
-    /* Yenile butonu — küçük, ikon ağırlıklı, birincil eylem gibi
-       görünmesin. */
-    div[class*="st-key-dp_yenile_{key_prefix}"] button {{
-        padding: 4px 12px !important;
-        min-height: 30px !important;
-        height: 30px !important;
-        font-size: 12.5px !important;
-        border-radius: 8px !important;
-        border-color: #e3e1da !important;
-        background: #ffffff !important;
-        color: #5b6478 !important;
-    }}
-    /* Filtre kutusunun kendi iç boşluğu — önceki hali gereğinden
-       ferah/büyüktü, kompakt bir toolbar hissi için daralttık. */
-    div[class*="st-key-dp_filtre_box_{key_prefix}"] {{
-        padding: 10px 14px !important;
-    }}
-    </style>
-    """, unsafe_allow_html=True)
+    _inject_filtre_pill_css()
 
-    # NOT (teknik sınır): "(Canlı)" paneli (başlık, "Toplam kayıt", A-Z,
-    # kartlar) aslında core.pano_export.pano_html_olustur() tarafından
-    # üretilen BAĞIMSIZ bir HTML dokümanı — components.html ile bir
-    # iframe içinde render ediliyor. Bu yüzden filtreler (native Streamlit
-    # widget'ları, Python tarafında rerun tetiklemesi gerekiyor) o HTML'in
-    # GERÇEKTEN içine gömülemez — iframe içindeki tıklamalar Streamlit'in
-    # Python tarafına ulaşmaz. Bunun yerine filtreleri, panelin kendi krem
-    # tonuyla (#FBF7F0, core/pano_export.py'deki CREAM sabiti) renk-eşleşmiş
-    # ayrı bir kutuya alıp iframe'in HEMEN üstüne, boşluksuz yerleştiriyoruz
-    # — görsel olarak "tek panel" hissi veriyor, teknik olarak iki eleman.
-    with st.container(border=True, key=f"dp_filtre_box_{key_prefix}"):
-        fcol1, fcol2, fcol3 = st.columns([2, 2, 1])
-        with fcol1:
-            islem_secim = st.radio(
-                "İşlem Tipi", ["Tümü", "Satılık", "Kiralık"],
-                horizontal=True, key=f"dp_islem_filtre_{key_prefix}",
-            )
-        with fcol2:
-            zaman_secim = st.radio(
-                "Zaman Aralığı", ZAMAN_SECENEKLERI,
-                horizontal=True, index=zaman_index, key=f"dp_zaman_filtre_{key_prefix}",
-            )
-        with fcol3:
-            st.write("")
-            if st.button("🔄 Yenile", key=f"dp_yenile_{key_prefix}", use_container_width=True):
-                talepleri_cek.clear()
-                portfoyleri_cek.clear()
-                favorileri_cek.clear()
-                st.rerun()
+    # NOT (teknik sınır — değişmedi): "(Canlı)" paneli (başlık, "Toplam
+    # kayıt", A-Z, kartlar) core.pano_export.pano_html_olustur() ile
+    # üretilen BAĞIMSIZ bir HTML dokümanı — components.html ile iframe
+    # içinde render ediliyor. Native Streamlit filtreleri bu yüzden
+    # iframe'in GERÇEKTEN içine gömülemez. DÜZELTME (2. tur): önceki
+    # turda bu sınırı "krem tonlu, bordered bir kutu" ile telafi etmeye
+    # çalışmıştık — talep edilen yön bu değildi (ayrı dev panel hissi
+    # veriyordu). Artık ÇERÇEVESİZ, minimalist bir toolbar satırı:
+    # bordered container yok, krem kutu yok, sadece kompakt pill'ler +
+    # küçük Yenile ikonu, dikey alan minimum.
+    fcol1, fcol2, fcol3 = st.columns([2, 2, 1])
+    with fcol1:
+        islem_secim = st.radio(
+            "İşlem Tipi", ["Tümü", "Satılık", "Kiralık"],
+            horizontal=True, key=f"dp_islem_filtre_{key_prefix}",
+        )
+    with fcol2:
+        zaman_secim = st.radio(
+            "Zaman Aralığı", ZAMAN_SECENEKLERI,
+            horizontal=True, index=zaman_index, key=f"dp_zaman_filtre_{key_prefix}",
+        )
+    with fcol3:
+        st.markdown(f"""
+        <style>
+        div[class*="st-key-dp_yenile_{key_prefix}"] button {{
+            padding: 4px 10px !important;
+            min-height: 30px !important;
+            height: 30px !important;
+            font-size: 13px !important;
+            border-radius: 8px !important;
+            border-color: #e3e1da !important;
+            background: #ffffff !important;
+            color: #5b6478 !important;
+        }}
+        </style>
+        """, unsafe_allow_html=True)
+        st.write("")
+        if st.button("↻", key=f"dp_yenile_{key_prefix}", help="Yenile", use_container_width=True):
+            talepleri_cek.clear()
+            portfoyleri_cek.clear()
+            favorileri_cek.clear()
+            st.rerun()
 
     kayitlar = islem_tipi_filtrele(kayitlar_havuzu, islem_secim)
     if zaman_secim == "Son 24 saat":
