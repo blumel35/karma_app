@@ -86,22 +86,21 @@ with center:
                         })
                     except Exception:
                         pass
-                    # DÜZELTME (08.08.2026): Doğrudan st.switch_page() ÇAĞIRMA.
-                    # giris_yap() içinde çağrılan _tarayici_oturumu_kaydet()
-                    # bir custom component (gizli iframe) üzerinden tarayıcıya
-                    # "cookie yaz" komutu gönderiyor — ama bu komutun tarayıcı
-                    # tarafında GERÇEKTEN işlenmesi (iframe'in yüklenip
-                    # document.cookie'yi çalıştırması) bir an sürüyor.
-                    # st.switch_page() ANLIK bir sayfa navigasyonu olduğu için
-                    # bu ana fırsat vermeden sayfayı terk ediyor, cookie hiç
-                    # yazılmadan kayboluyordu (gerçek testte doğrulandı: cookie
-                    # tarayıcı deposunda hiç görünmüyordu).
-                    # st.rerun() ise SAYFA DEĞİŞTİRMEZ, aynı sayfayı yumuşakça
-                    # yeniden çalıştırır — bu tur, iframe'in komutu işlemesi
-                    # için yeterli zamanı verir. Dosyanın en başındaki kontrol
-                    # ("kullanici" session_state'te varsa switch_page yap) bir
-                    # SONRAKI turda zaten gerçek yönlendirmeyi yapıyor.
-                    st.rerun()
+                    # ═══════════════════════════════════════════════════
+                    # GEÇİCİ AUTH COOKIE TEŞHİSİ (08.08.2026) — kalıcı değil.
+                    # Önceki "st.rerun()" denemesi de ("switch_page yerine
+                    # rerun" düzeltmesi) aslında sonucu değiştirmedi — o da
+                    # bir başka ANİ geçişti, cookie'yi yazan gizli component
+                    # yine kendine zaman bulamamış olabilir. Bu yüzden şimdi
+                    # HİÇBİR navigasyon/rerun yapmadan, kullanıcıya birkaç
+                    # saniye bekleyip elle F5 yapmasını söylüyoruz — böylece
+                    # component'in gerçekten yazma fırsatı bulup bulamadığını
+                    # (F12 → Application → Cookies → startkey_session) net
+                    # görebiliriz. Sonuca göre kalıcı çözüme geçilecek.
+                    # ═══════════════════════════════════════════════════
+                    st.success("Giriş başarılı. Oturum tarayıcıya kaydediliyor...")
+                    st.info("Lütfen 3 saniye bekleyin, ardından bu sayfayı F5 ile yenileyin.")
+                    st.stop()
                 else:
                     st.error("E-posta veya şifre hatalı.")
 
