@@ -11,6 +11,7 @@
 # yapmadan hiçbir Karma App menüsü/navbar'ı görünmez.
 
 import streamlit as st
+import time
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import giris_yap, set_session_fields, oturum_kontrol
@@ -90,6 +91,20 @@ with center:
                     # Cookie yazma + auth restore zinciri artık doğrulandı
                     # (08.08.2026, Auth Restore Teşhisi ile). Normal akış:
                     # doğrudan seçim ekranına geç.
+                    # DÜZELTME (08.08.2026, 2. tur): Test kanıtladı ki
+                    # anlık st.switch_page() hâlâ cookie yazma komutunu
+                    # kesiyor — okuma tarafı (_cookie_ctrl önbellek hatası)
+                    # düzeldi ama YAZMA tarafında aynı zamanlama sorunu
+                    # duruyormuş (önceki "3 saniye bekle, elle F5 yap"
+                    # teşhis bloğu bunu kanıtlamıştı, kaldırırken yerine
+                    # otomatik bir eşdeğer koymamışız). Kullanıcıya elle
+                    # bekletmek yerine, Python tarafında KISA bir bekleme
+                    # ile aynı garantiyi otomatik veriyoruz: bu süre
+                    # boyunca script hâlâ "canlı" kaldığı için, cookie
+                    # component'inin deltası tarayıcıya ulaşıp işlenmeye
+                    # gerçek zaman buluyor.
+                    with st.spinner("Oturum kaydediliyor..."):
+                        time.sleep(1)
                     st.switch_page("pages/Danisman_Secim.py")
                 else:
                     st.error("E-posta veya şifre hatalı.")
