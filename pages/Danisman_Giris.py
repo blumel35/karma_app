@@ -13,7 +13,7 @@
 import streamlit as st
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from core.auth import giris_yap, set_session_fields
+from core.auth import giris_yap, set_session_fields, oturum_kontrol
 from core.personel_manager import save_login_session, enrich_session_from_personel
 
 st.markdown("""
@@ -29,8 +29,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Zaten giriş yapılmışsa doğrudan seçim ekranına geç
-if st.session_state.get("kullanici"):
+# Session'da VEYA tarayıcı cookie'sinde geçerli oturum varsa kullanıcıdan
+# yeniden şifre isteme. DÜZELTME (08.08.2026): eskiden burada sadece
+# `st.session_state.get("kullanici")` kontrol ediliyordu — bu, cookie
+# restore'unu hiç çağırmıyordu (session_state her sayfa yenilemesinde
+# sıfırlandığı için orada hiçbir zaman "kullanici" bulunamıyordu, cookie
+# var olsa bile). oturum_kontrol() ise session boşsa startkey_session
+# cookie'sini okuyup Supabase üzerinden geri yüklemeyi zaten deniyor
+# (core/auth.py) — bu çağrıyı burada da kullanmak, mevcut restore
+# mekanizmasını devreye sokuyor.
+if oturum_kontrol():
     st.switch_page("pages/Danisman_Secim.py")
     st.stop()
 
