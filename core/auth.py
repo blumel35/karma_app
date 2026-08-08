@@ -107,6 +107,12 @@ def giris_yap(email: str, sifre: str) -> dict | None:
             if not _valid_actor(kullanici):
                 return None
 
+            # Tarayıcı cookie'sine de yaz — sonraki ziyaretlerde/sayfa
+            # yenilemelerinde şifre tekrar sorulmasın diye. Bu, dosya
+            # tabanlı LOCAL_SESSION_RESTORE'dan bağımsız, tarayıcıya
+            # özel bir kalıcılık (bkz. yukarısı).
+            _tarayici_oturumu_kaydet(kullanici)
+
             # KA-AUTH-001-R4 — GÜVENLİ KİLİT KURTARMA (doğru konum):
             # bu satıra yalnız kullanılabilir VE geçerli aktör kimliği
             # taşıyan bir kullanici sözlüğü başarıyla kurulduktan SONRA,
@@ -130,7 +136,12 @@ def giris_yap(email: str, sifre: str) -> dict | None:
 
 
 def cikis_yap():
-    """Oturumu kapat, session_state ve local session dosyasını temizle."""
+    """Oturumu kapat, session_state, local session dosyasını ve tarayıcı
+    cookie'sini temizle."""
+    # Tarayıcı cookie'sini sil — aksi hâlde çıkış yapan kullanıcı bir
+    # sonraki ziyarette otomatik geri giriş yapmış gibi görünür.
+    _tarayici_oturumu_temizle()
+
     # Local login session dosyasını sil
     try:
         from core.personel_manager import clear_login_session
@@ -285,6 +296,148 @@ def _local_restore_enabled() -> bool:
 
 
 LOCAL_SESSION_RESTORE = _local_restore_enabled()
+
+
+# ─────────────────────────────────────────────────────
+# TARAYICI (COOKIE) TABANLI OTURUM KALICILIĞI — 08.08.2026
+#
+# Yukarıdaki LOCAL_SESSION_RESTORE'dan TEMELDEN FARKLI bir mekanizma:
+# LOCAL_SESSION_RESTORE sunucu diskinde PAYLAŞILAN bir dosyaya
+# (.streamlit/login_session.json) yazar — Streamlit Cloud'da tüm
+# kullanıcılar aynı sunucu sürecini paylaştığı için bu dosya "ortak"
+# olur ve yanlış kullanıcının oturumunun geri yüklenmesi riski taşır
+# (bu yüzden cloud'da bilerek KAPALI, bkz. yukarısı).
+#
+# Buradaki mekanizma ise TARAYICI cookie'si kullanır — her kullanıcının
+# kendi tarayıcısında ayrı ayrı durur, sunucuda paylaşılan hiçbir şey
+# yoktur. Cookie'ye YALNIZCA refresh_token yazılır (şifre veya
+# access_token ASLA) — ve bu token, geri yüklenirken kör güvenilmez,
+# Supabase'e karşı gerçekten doğrulanır (supa.auth.refresh_session).
+# Bu yüzden bilerek "gerçek doğrulanmış giriş" sayılır ve
+# _clear_identity_lock_on_verified_auth() çağrılır (giris_yap() ile
+# aynı muamele) — dosya tabanlı restore'un aksine.
+#
+# Kapsam: yalnız Danışman Panosu (Danisman_*.py sayfaları) için
+# düşünüldü — danışmanlar Karma App'e hiç girmeyecek, dolayısıyla
+# impersonation (auth_user/view_as_user) senaryosuyla hiç kesişmiyor.
+#
+# GEREKSİNİM: requirements.txt'e `streamlit-cookies-controller` eklenmeli.
+# Paket kurulu değilse aşağıdaki fonksiyonlar sessizce None/pas geçer —
+# mevcut davranış (şifre her seferinde sorulur) bozulmadan devam eder.
+# ─────────────────────────────────────────────────────
+
+_COOKIE_ADI = "startkey_session"
+
+
+def _cookie_ctrl():
+    try:
+        from streamlit_cookies_controller import CookieController
+    except Exception:
+        return None
+    if "_cookie_ctrl" not in st.session_state:
+        try:
+            st.session_state["_cookie_ctrl"] = CookieController()
+        except Exception:
+            return None
+    return st.session_state["_cookie_ctrl"]
+
+
+def _tarayici_oturumu_kaydet(kullanici: dict) -> None:
+    """Yalnız refresh_token'ı (+ email, teşhis amaçlı) tarayıcı
+    cookie'sine yazar. Şifre veya access_token asla yazılmaz."""
+    ctrl = _cookie_ctrl()
+    if not ctrl:
+        return
+    try:
+        import json
+        ctrl.set(
+            _COOKIE_ADI,
+            json.dumps({
+                "refresh_token": kullanici.get("refresh_token", ""),
+                "email": kullanici.get("email", ""),
+            }),
+            max_age=60 * 60 * 24 * 30,  # 30 gün
+        )
+    except Exception:
+        pass
+
+
+def _tarayici_oturumu_temizle() -> None:
+    """Çıkışta tarayıcı cookie'sini de sil — aksi hâlde çıkış yapan
+    kullanıcı bir sonraki ziyarette otomatik geri giriş yapmış olurdu."""
+    ctrl = _cookie_ctrl()
+    if not ctrl:
+        return
+    try:
+        ctrl.remove(_COOKIE_ADI)
+    except Exception:
+        pass
+
+
+def _tarayici_oturumu_yukle() -> dict | None:
+    """Cookie'deki refresh_token ile Supabase'den YENİ bir oturum ister.
+    Kör dosya güvenine dayanan LOCAL_SESSION_RESTORE'un aksine, token
+    burada gerçekten Supabase'e karşı doğrulanır — geçersiz/süresi
+    dolmuş token'da sessizce None döner, kullanıcı normal giriş
+    ekranına düşer."""
+    ctrl = _cookie_ctrl()
+    if not ctrl:
+        return None
+    try:
+        import json
+        raw = ctrl.get(_COOKIE_ADI)
+        if not raw:
+            return None
+        data = json.loads(raw) if isinstance(raw, str) else raw
+        refresh_token = (data or {}).get("refresh_token", "")
+        if not refresh_token:
+            return None
+    except Exception:
+        return None
+
+    supa = _get_supa()
+    if not supa:
+        return None
+    try:
+        res = supa.auth.refresh_session(refresh_token)
+        if not res.user:
+            return None
+        if (
+            not res.session
+            or not getattr(res.session, "access_token", None)
+            or not getattr(res.session, "refresh_token", None)
+        ):
+            return None
+
+        profil = _profil_cek(supa, res.user.id)
+        kullanici = {
+            "id":           res.user.id,
+            "email":        res.user.email,
+            "access_token": res.session.access_token,
+            "refresh_token":res.session.refresh_token,
+            "ad":           profil.get("ad", res.user.email.split("@")[0]) if profil else res.user.email.split("@")[0],
+            "rol":          profil.get("rol", "danisan") if profil else "danisan",
+            "ofis_id":      profil.get("ofis_id", "") if profil else "",
+            "ofis_adi":     profil.get("ofis_adi", "") if profil else "",
+            "foto_url":     profil.get("foto_url", "") if profil else "",
+            "logo_url":     profil.get("logo_url", "") if profil else "",
+            "foto_bytes":   None,
+            "logo_bytes":   None,
+        }
+        if not _valid_actor(kullanici):
+            return None
+
+        # Supabase token rotation yapmış olabilir (yeni refresh_token
+        # dönmüş olabilir) — cookie'yi güncel tut, aksi hâlde bir
+        # sonraki restore denemesi eski/geçersiz token kullanır.
+        _tarayici_oturumu_kaydet(kullanici)
+
+        _clear_identity_lock_on_verified_auth()
+        return kullanici
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("Tarayıcı oturumu geri yükleme hatası: %s", e)
+        return None
 
 
 # ─────────────────────────────────────────────────────
@@ -676,6 +829,16 @@ def oturum_kontrol() -> bool:
         # döndürüyor (Bölüm 3) — invalid durumda gerekli temizliği
         # kendi içinde zaten yapıyor, burada tekrar etmeye gerek yok.
         return set_session_fields(st.session_state["kullanici"])
+
+    # Tarayıcı cookie'sinden (refresh_token) geri yükleme — dosya tabanlı
+    # LOCAL_SESSION_RESTORE bayrağından TAMAMEN BAĞIMSIZ, her zaman
+    # denenir. Cloud'da güvenlidir çünkü her kullanıcının cookie'si
+    # kendi tarayıcısında ayrı durur, sunucuda paylaşılan bir şey yoktur
+    # (bkz. yukarıdaki mimari not). Token geçersizse/süresi dolmuşsa
+    # sessizce None döner, aşağıdaki akışlara devam edilir.
+    _tarayici_kullanici = _tarayici_oturumu_yukle()
+    if _tarayici_kullanici:
+        return set_session_fields(_tarayici_kullanici)
 
     if not LOCAL_SESSION_RESTORE:
         return False
