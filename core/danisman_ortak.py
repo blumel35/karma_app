@@ -405,57 +405,61 @@ def render_activity_bar():
 # ── HAMBURGER MENÜ (sağ üst) ────────────────────────────────────────────
 
 def render_topbar(baslik, ikon="📊", geri_hedefi=None):
-    """Tüm Danışman ekranlarının ortak üst barı: (opsiyonel) geri butonu +
-    başlık solda, hamburger menü sağda. Hamburger içinde: Kendi Kayıtlarım,
-    Zeta Paylaşımları, Çıkış Yap.
+    """Tüm Danışman ekranlarının ortak üst barı: sol grup (hamburger +
+    opsiyonel geri butonu), ortada başlık, sağda avatar.
 
-    MİMARİ NOT: st.columns() KULLANILMIYOR. Streamlit'in kendi sütun
-    bileşeni (stColumn/stHorizontalBlock) kendi varsayılan stilini
-    (border, background) taşıyor ve bunu CSS ile her seferinde ezmek
-    kırılgan/güvenilmez çıktı (bu dosyada defalarca yaşandı). Bunun
-    yerine: dp_topbar_wrap'ın kendi stVerticalBlock'unu (children'ı dikey
-    değil yatay dizen) doğrudan flex'e çeviriyoruz — içine koyduğumuz
-    Streamlit elemanları (popover, opsiyonel geri butonu, TEK bir HTML
-    markdown bloğu) otomatik olarak yan yana dizilir, st.columns'un
-    kendi DOM/stil bagajı hiç devreye girmez. Başlık+avatar artık ayrı
-    ayrı Streamlit elemanları değil, TEK bir unsafe_allow_html flexbox
-    div'i (mockup'taki .topbar ile birebir aynı mantık)."""
+    MİMARİ NOT (3. tur — absolute positioning TAMAMEN TERK EDİLDİ):
+    İki ayrı turda position:absolute denendi, ikisinde de başlık yanlış
+    bir ataya göre konumlanıp dar bir sütuna sıkışarak harf harf bölündü
+    (gerçek testte iki kez doğrulandı — kabul edilemez bir regresyon).
+    Kök sebep kesin olarak teşhis edilemedi (position:relative'in hangi
+    atada gerçekten "tuttuğu" canlı DOM incelemesi olmadan garanti
+    edilemiyor) — bu yüzden absolute'a üçüncü kez güvenmek yerine CSS
+    GRID'e geçildi: `grid-template-columns: auto 1fr auto`. Bu teknik
+    absolute'un aksine bir "referans atası" tahminine hiç ihtiyaç
+    duymaz — grid, KENDİ doğrudan çocuklarını (nth-of-type ile) sütunlara
+    yerleştirir, DOM derinliği/pozisyon belirsizliği riski yoktur.
+
+    Grid'in 3 sütununun HER ZAMAN tutarlı kalması için üç doğrudan
+    Streamlit elemanı HER ZAMAN render edilir (başlık boş olsa bile):
+    1) dp_topbar_left (hamburger + opsiyonel geri butonu, TEK grup)
+    2) başlık (boşsa bile boş bir <div>, sütun kaymasın diye)
+    3) avatar
+    """
     from core.auth import cikis_yap
 
     st.markdown("""
     <style>
-    /* NOT (2. tur — regresyon giderme): Bu blokta daha önce genel bir
-       "seçili radio rengi" kuralı vardı — artık _inject_filtre_pill_css()
-       (tek, ortak kaynak) bu işi üstleniyor, burada tekrar tanımlamıyoruz
-       (çakışan CSS katmanları "Tümü" pill'inin boş görünmesine sebep
-       olmuştu, bkz. o fonksiyonun docstring'i). */
-
-    /* dp_topbar_wrap'ın KENDİ stVerticalBlock'unu satır (row) yönlü
-       flex'e çeviriyoruz — st.columns() yerine bu teknik kullanılıyor.
-       DÜZELTME: class ("st-key-dp_topbar_wrap") st.container(key=...)
-       tarafından stVerticalBlock div'inin KENDİSİNE ekleniyor, ayrı bir
-       çocuk element'e değil — önceki ">" (doğrudan çocuk) seçicisi bu
-       yüzden hiçbir zaman eşleşmiyordu, flex hiç uygulanmıyordu. Artık
-       her iki niteliği (data-testid + class) AYNI elemanda arıyoruz. */
     div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] {
-        display: flex !important;
-        flex-direction: row !important;
+        display: grid !important;
+        grid-template-columns: auto 1fr auto !important;
         align-items: center !important;
         gap: 14px !important;
-        flex-wrap: nowrap !important;
-        position: relative !important;
     }
-    /* Her çocuk element-container varsayılan olarak içeriği kadar dar
-       dursun (popover, geri butonu) — SADECE son çocuk (başlık+avatar
-       flex div'ini taşıyan) kalan alanı doldursun. Aynı düzeltme burada
-       da geçerli: doğrudan çocuk seçimi artık doğru elemandan başlıyor. */
-    div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] > div[data-testid="element-container"] {
-        width: auto !important;
-        flex: 0 0 auto !important;
+    /* nth-of-type ile 3 doğrudan çocuğu (her zaman tam 3 tane) sütunlara
+       eşliyoruz — pozisyona dayalı ama SAYI HER ZAMAN SABİT olduğu için
+       (fonksiyon her çağrıda tam 3 element-container üretiyor) kırılgan
+       değil, garantili. */
+    div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] > div[data-testid="element-container"]:nth-of-type(1) {
+        grid-column: 1 !important;
     }
-    div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] > div[data-testid="element-container"]:last-child {
-        flex: 1 1 auto !important;
+    div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] > div[data-testid="element-container"]:nth-of-type(2) {
+        grid-column: 2 !important;
         min-width: 0 !important;
+        overflow: hidden !important;
+        text-align: center !important;
+    }
+    div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] > div[data-testid="element-container"]:nth-of-type(3) {
+        grid-column: 3 !important;
+    }
+    /* Sol grup (hamburger + opsiyonel geri butonu) — kendi içinde yatay
+       dizilsin. Class doğrudan bu stVerticalBlock'un kendisinde, torun
+       bir elemanda değil (bu dosyada daha önce birkaç kez yaşanan
+       yanlış varsayımı burada tekrarlamıyoruz). */
+    div[class*="st-key-dp_topbar_left"] {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
     }
 
     /* Streamlit'in KENDİ bileşenlerinin (popover) kutu/gölgesini
@@ -476,6 +480,14 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
     div[class*="st-key-dp_geri_btn"] button {
         white-space: nowrap !important;
         width: auto !important;
+    }
+    /* Başlık — grid sütunu içinde ortalı, satır kırmasın, sığmazsa
+       kırpılıp "..." göstersin (satır kırıp dikey bölünmek yerine). */
+    .dp-topbar-baslik {
+        margin: 0 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
     }
     /* Avatar rozeti — kendi sınıfıyla, üstteki reset kurallarından
        tamamen bağımsız garanti altına alınıyor. */
@@ -503,74 +515,56 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
     )
 
     with st.container(key="dp_topbar_wrap"):
-        with st.popover("☰"):
-            st.markdown(f"**{su_kullanici}**")
-            st.caption("Danışman")
-            st.divider()
-            if st.button("📂 Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
-                st.switch_page("pages/Danisman_Kayitlarim.py")
-            if st.button("👥 Zeta Paylaşımları", use_container_width=True, key="dp_menu_paylasimlar"):
-                st.switch_page("pages/Danisman_Paylasimlar.py")
-            st.divider()
-            if st.button("🚪 Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
-                cikis_yap()
-                # DÜZELTME (08.08.2026): Girişteki aynı yarış durumu
-                # çıkışta da vardı — cikis_yap() içindeki
-                # _tarayici_oturumu_temizle() tarayıcıya "cookie'yi sil"
-                # komutu gönderiyor ama bunun işlenmesi bir an sürüyor.
-                # Hemen ardından switch_page() sayfayı terk edince, silme
-                # komutu tamamlanmadan Danisman_Giris.py açılıyor ve orada
-                # hâlâ duran (silinmemiş) cookie'yi görüp kullanıcıyı
-                # OTOMATİK OLARAK GERİ İÇERİ ALIYORDU — çıkış yapmış
-                # gibi görünüp aslında oturumda kalmış oluyordu (gerçek
-                # testte doğrulandı). Girişteki çözümün aynısı: kısa,
-                # otomatik bir bekleme ile silme komutuna gerçek zaman
-                # tanıyoruz.
-                with st.spinner("Çıkış yapılıyor..."):
-                    time.sleep(1)
-                st.switch_page("pages/Danisman_Giris.py")
+        # 1. GRID SÜTUNU — sol grup: hamburger + opsiyonel geri butonu,
+        # TEK bir Streamlit container'ı içinde (nth-of-type(1) garantisi).
+        with st.container(key="dp_topbar_left"):
+            with st.popover("☰"):
+                st.markdown(f"**{su_kullanici}**")
+                st.caption("Danışman")
+                st.divider()
+                if st.button("📂 Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
+                    st.switch_page("pages/Danisman_Kayitlarim.py")
+                if st.button("👥 Zeta Paylaşımları", use_container_width=True, key="dp_menu_paylasimlar"):
+                    st.switch_page("pages/Danisman_Paylasimlar.py")
+                st.divider()
+                if st.button("🚪 Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
+                    cikis_yap()
+                    # DÜZELTME (08.08.2026): Girişteki aynı yarış durumu
+                    # çıkışta da vardı — cikis_yap() içindeki
+                    # _tarayici_oturumu_temizle() tarayıcıya "cookie'yi sil"
+                    # komutu gönderiyor ama bunun işlenmesi bir an sürüyor.
+                    # Hemen ardından switch_page() sayfayı terk edince, silme
+                    # komutu tamamlanmadan Danisman_Giris.py açılıyor ve orada
+                    # hâlâ duran (silinmemiş) cookie'yi görüp kullanıcıyı
+                    # OTOMATİK OLARAK GERİ İÇERİ ALIYORDU — çıkış yapmış
+                    # gibi görünüp aslında oturumda kalmış oluyordu (gerçek
+                    # testte doğrulandı). Girişteki çözümün aynısı: kısa,
+                    # otomatik bir bekleme ile silme komutuna gerçek zaman
+                    # tanıyoruz.
+                    with st.spinner("Çıkış yapılıyor..."):
+                        time.sleep(1)
+                    st.switch_page("pages/Danisman_Giris.py")
 
-        if geri_hedefi:
-            if st.button("← Panoya Dön", key="dp_geri_btn"):
-                st.switch_page(geri_hedefi)
+            if geri_hedefi:
+                if st.button("← Panoya Dön", key="dp_geri_btn"):
+                    st.switch_page(geri_hedefi)
 
-        # DÜZELTME (2. tur — regresyon giderme): Önceki turda başlık
-        # position:absolute ile SON flex child'ın (avatar'ı da taşıyan,
-        # zaten dar olan "kalan alan" kutusunun) İÇİNE yerleştirilmişti —
-        # bu kutunun kendisi position:relative değildi, tarayıcı da
-        # absolute'un referans noktasını daha üstteki, dar bir ataya
-        # kaydırdı; sonuç: başlık dar bir sütuna sıkışıp harf harf
-        # bölündü (gerçek testte doğrulandı, kabul edilemez bir
-        # regresyon). Çözüm: dp_topbar_wrap'ın KENDİSİNE (yukarıdaki CSS
-        # kuralında) position:relative eklendi — başlık artık AYRI, kendi
-        # markdown çağrısıyla, o satırın DOĞRUDAN çocuğu olarak render
-        # ediliyor. position:absolute bir elemanı flex akışından TAMAMEN
-        # çıkarır (flex item olarak sayılmaz), bu yüzden popover/geri
-        # butonu/avatar'ın flex düzenini hiç etkilemez — başlık artık
-        # TÜM satırın gerçek genişliğine göre ortalanıyor, dar bir alt
-        # kutuya göre değil.
-        if baslik:
-            st.markdown(
-                f"<div style='position:absolute;left:50%;top:50%;"
-                f"transform:translate(-50%,-50%);white-space:nowrap;"
-                f"pointer-events:none;'>"
-                f"<h3 style='margin:0;'>{ikon} {baslik}</h3></div>",
-                unsafe_allow_html=True,
-            )
+        # 2. GRID SÜTUNU — başlık. HER ZAMAN render edilir (boşsa bile
+        # boş bir div) — sütun sayısı/sırası hiçbir zaman kaymasın diye.
+        st.markdown(
+            f"<h3 class='dp-topbar-baslik'>{ikon} {baslik}</h3>" if baslik else "<div></div>",
+            unsafe_allow_html=True,
+        )
 
+        # 3. GRID SÜTUNU — avatar.
         avatar_html = ""
         if su_kullanici:
             avatar_html = (
-                "<div style='display:flex;align-items:center;gap:8px;flex-shrink:0;'>"
+                "<div style='display:flex;align-items:center;gap:8px;flex-shrink:0;justify-content:flex-end;'>"
                 f"<div class='dp-avatar-circle'>{baslar}</div>"
                 f"<span style='font-size:13px;color:#5b6478 !important;font-weight:600;white-space:nowrap;'>{su_kullanici}</span></div>"
             )
-        st.markdown(
-            f"<div style='display:flex;justify-content:flex-end;"
-            f"align-items:center;width:100%;min-height:32px;'>"
-            f"{avatar_html}</div>",
-            unsafe_allow_html=True,
-        )
+        st.markdown(avatar_html, unsafe_allow_html=True)
 
 
 def hide_sidebar_css():
