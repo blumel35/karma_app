@@ -330,16 +330,26 @@ _COOKIE_ADI = "startkey_session"
 
 
 def _cookie_ctrl():
+    """DÜZELTME (08.08.2026): Controller nesnesini artık session_state
+    içinde SAKLAMIYORUZ. Kök sebep: streamlit-cookies-controller ilk
+    oluşturulduğunda tarayıcıya asenkron bir `getAll` isteği gönderiyor;
+    ilk anda boş ({}) dönebiliyor, tarayıcıdan gerçek cookie listesi
+    gelince component kendi kendine bir rerun tetikliyor — kütüphane
+    bilerek HER rerun'da YENİ bir instance oluşturulacak şekilde
+    tasarlanmış (kendi `key`'i session_state'te zaten varsa oradan
+    cookie listesini okuyor, yoksa browser'dan istiyor). Biz ilk (boş)
+    anda oluşan nesneyi kalıcı tutup tekrar tekrar aynı nesneyi
+    döndürdüğümüz için, tarayıcıda gerçekten var olan cookie'yi hiç
+    görmüyorduk — bu, Auth Restore Teşhisi'nde net şekilde doğrulandı.
+    """
     try:
         from streamlit_cookies_controller import CookieController
     except Exception:
         return None
-    if "_cookie_ctrl" not in st.session_state:
-        try:
-            st.session_state["_cookie_ctrl"] = CookieController()
-        except Exception:
-            return None
-    return st.session_state["_cookie_ctrl"]
+    try:
+        return CookieController(key="startkey_auth_cookies")
+    except Exception:
+        return None
 
 
 def _tarayici_oturumu_kaydet(kullanici: dict) -> None:
