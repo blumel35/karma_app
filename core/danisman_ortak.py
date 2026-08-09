@@ -823,16 +823,25 @@ def _inject_filtre_pill_css():
         gap: 6px !important;
         flex-wrap: wrap !important;
     }
-    /* DÜZELTME (3. tur — gerçek kök sebep bulundu): Bu kural
-       "div[data-testid=stRadio] label" seçicisiyle HEM pill
-       etiketlerini HEM DE grup başlığını ("İşlem Tipi" gibi, o da
-       teknik olarak <label data-testid="stWidgetLabel"> içinde)
-       hedefliyordu — display:inline-flex !important ile başlığı
-       ZORLA görünür kılıyordu. Ayrı, scoped bir display:none denemesi
-       bununla yarışıp kaybediyordu (gerçek DOM incelemesiyle
-       doğrulandı). Çözüm: pill kuralı artık :not() ile stWidgetLabel'ı
-       hariç tutuyor, başlık için AYRI ve KESİN bir gizleme kuralı var. */
-    div[data-testid="stRadio"] label:not([data-testid="stWidgetLabel"]) {
+    /* DÜZELTME (4. tur — yapısal çözüm, diğer AI'ın önerisiyle):
+       Önceki iki deneme (parametreye güvenme, sonra :not() ile hariç
+       tutma) DOM'daki bir özniteliğin "olmadığını" doğrulamaya
+       dayanıyordu — kırılgan. Gerçek DOM incelemesi doğruladı ki
+       stWidgetLabel (grup başlığı, örn. "İşlem Tipi"), radiogroup
+       div'inin İÇİNDE DEĞİL, ONUNLA KARDEŞ bir eleman:
+         <div class="stRadio">
+           <label data-testid="stWidgetLabel">İşlem Tipi</label>
+           <div role="radiogroup"> ...pill seçenekleri... </div>
+         </div>
+       Bu yüzden pill stilini SADECE "div[role=radiogroup] label"
+       seçicisiyle uygulamak YAPISAL olarak grup başlığını asla
+       eşleştiremez — hiçbir öznitelik tahminine/hariç tutmaya gerek
+       kalmadan kesin bir ayrım. Grup başlığı ayrıca (ekstra güvence
+       için) doğrudan da gizleniyor. */
+    div[data-testid="stRadio"] [data-testid="stWidgetLabel"] {
+        display: none !important;
+    }
+    div[data-testid="stRadio"] div[role="radiogroup"] label {
         display: inline-flex !important;
         align-items: center !important;
         border: 1px solid #e3e1da !important;
@@ -842,35 +851,25 @@ def _inject_filtre_pill_css():
         min-height: unset !important;
         background: #ffffff !important;
     }
-    div[data-testid="stRadio"] label[data-testid="stWidgetLabel"] {
-        display: none !important;
-    }
     /* Dairesel göstergeyi gizle — data-baseweb="radio" SADECE göstergenin
        kendisi (metin değil), :has() bu eleman display:none olsa bile DOM
        yapısını okumaya devam eder, seçili tespiti bozulmaz. */
-    div[data-testid="stRadio"] div[data-baseweb="radio"] {
+    div[data-testid="stRadio"] div[role="radiogroup"] div[data-baseweb="radio"] {
         display: none !important;
     }
-    div[data-testid="stRadio"] label p {
+    div[data-testid="stRadio"] div[role="radiogroup"] label p {
         font-size: 12.5px !important;
         font-weight: 600 !important;
         margin: 0 !important;
         white-space: nowrap !important;
         color: #5b6478 !important;
     }
-    div[data-testid="stRadio"] label:has(div[aria-checked="true"]) {
+    div[data-testid="stRadio"] div[role="radiogroup"] label:has(div[aria-checked="true"]) {
         background: #1b2540 !important;
         border-color: #1b2540 !important;
     }
-    div[data-testid="stRadio"] label:has(div[aria-checked="true"]) p {
+    div[data-testid="stRadio"] div[role="radiogroup"] label:has(div[aria-checked="true"]) p {
         color: #ffffff !important;
-    }
-    div[data-testid="stWidgetLabel"] p {
-        font-size: 11px !important;
-        color: #8a8271 !important;
-        font-weight: 600 !important;
-        text-transform: uppercase !important;
-        letter-spacing: .04em !important;
     }
     </style>
     """, unsafe_allow_html=True)
