@@ -231,6 +231,13 @@ danisman_favoriler = st.Page(
     icon=":material/star:",
 )
 
+# ── Uzmanlık Bölgelerim — Favori Listem'in COĞRAFİ kardeşi (09.08.2026) ──
+danisman_uzmanlik_bolgeleri = st.Page(
+    "pages/Danisman_UzmanlikBolgeleri.py",
+    title="Uzmanlık Bölgelerim",
+    icon=":material/pin_drop:",
+)
+
 danisman_kayitlarim = st.Page(
     "pages/Danisman_Kayitlarim.py",
     title="Kendi Kayıtlarım",
@@ -259,6 +266,7 @@ pg = st.navigation(
             danisman_talep,
             danisman_portfoy,
             danisman_favoriler,
+            danisman_uzmanlik_bolgeleri,
             danisman_kayitlarim,
             danisman_paylasimlar,
         ],

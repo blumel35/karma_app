@@ -322,6 +322,59 @@ def favori_cikar(favori_id):
     supabase.table("favoriler").delete().eq("id", favori_id).execute()
 
 
+# ── UZMANLIK BÖLGELERİ ("Favori Listem"in COĞRAFİ kardeşi) ──────────────
+# Bilinçli olarak Talep/Portföy Panosu'nun içine bir filtre katmanı olarak
+# EKLENMEDİ — o sayfalarda zaten birden fazla filtre katmanı birbirini
+# eziyordu (08.08.2026 regresyon turu). Bunun yerine ayrı bir sayfa
+# (Danisman_UzmanlikBolgeleri.py), Favoriler ile birebir aynı iskelet:
+# sekmeli (Talepler/Portföyler), kendi filtre toolbar'ı, kart görünümü.
+#
+# Favoriler'den TEK mimari fark: "favori" durumu kayıt kartındaki ⭐'a
+# tıklanarak (tekil ekle/çıkar) belirleniyordu — burada "favorilenen" şey
+# bir kayıt değil bir COĞRAFİ ALAN, bu yüzden ayrı bir seçim arayüzü var
+# (en fazla 5 ilçe) ve "kaydet" ile TÜM seçim tek seferde değiştiriliyor
+# (düşük sıklıkla değişen bir ayar olduğu için tekil ekle/çıkar yerine
+# bu daha basit).
+
+def uzmanlik_bolgelerini_cek(kullanici):
+    """NOT: favorileri_cek()'in aksine cache'siz — bu sayfa kendi
+    içinde kaydet sonrası zaten st.rerun() çağırıyor, ayrıca ttl bazlı
+    bir cache'e ihtiyaç yok, her zaman taze veri okunuyor."""
+    resp = supabase.table("uzmanlik_bolgeleri").select("*").eq("kullanici", kullanici).execute()
+    return resp.data or []
+
+
+def uzmanlik_bolgelerini_kaydet(ilceler):
+    """Kullanıcının uzmanlık bölgelerini TAMAMEN değiştirir (mevcut
+    kayıtları silip yeni seçimi ekler). En fazla 5 ilçe — UI tarafında
+    (st.multiselect max_selections=5) zaten zorlanıyor, burada ikinci
+    bir güvenlik önlemi olarak tekrar kesiliyor."""
+    kullanici = su_anki_danisman()
+    ilceler = list(ilceler)[:5]
+    supabase.table("uzmanlik_bolgeleri").delete().eq("kullanici", kullanici).execute()
+    if ilceler:
+        supabase.table("uzmanlik_bolgeleri").insert(
+            [{"kullanici": kullanici, "ilce": ilce} for ilce in ilceler]
+        ).execute()
+
+
+def _kayit_ilcesi_eslesiyor_mu(kayit, secili_ilceler_norm):
+    """Bir kaydın ilceler listesindeki (yoksa tekil ilce alanındaki) HER
+    HANGİ BİR ilçesi, seçili uzmanlık bölgeleriyle eşleşiyor mu?
+    _ilce_normalize ile karşılaştırılıyor — core/pano_export.py'de zaten
+    kullanılan aynı normalizasyon (Türkçe karakter/büyük-küçük harf
+    farklarına dayanıklı), tahmin edilmiş yeni bir mantık değil."""
+    kayit_ilceleri = kayit.get("ilceler") or ([kayit.get("ilce")] if kayit.get("ilce") else [])
+    return any(_ilce_normalize(i) in secili_ilceler_norm for i in kayit_ilceleri if i)
+
+
+def uzmanlik_bolgesi_filtrele(kayitlar, secili_ilceler):
+    if not secili_ilceler:
+        return []
+    secili_norm = {_ilce_normalize(i) for i in secili_ilceler}
+    return [v for v in kayitlar if _kayit_ilcesi_eslesiyor_mu(v, secili_norm)]
+
+
 # ── SUPABASE ANON SIRLARI (kartlardaki ⭐ yıldız JS'i için) ────────────
 
 def supabase_anon_secrets():

@@ -114,6 +114,7 @@ div[class*="st-key-dp_portfoy_yeni_rozet"] button:hover {
    "Talep/Portföy Panosuna Git" gibi tam genişlik/ağır butonlarla
    karışmasınlar diye bilinçli olarak küçültüldü. */
 div[class*="st-key-dp_favori_btn"] button,
+div[class*="st-key-dp_uzmanlik_btn"] button,
 div[class*="st-key-dp_ekle_btn"] button {
     width: auto !important;
     display: inline-flex !important;
@@ -133,6 +134,13 @@ div[class*="st-key-dp_ekle_btn"] button {
 div[class*="st-key-dp_favori_btn"] button::before {
     content: "★";
     color: #b8892f !important;
+    margin-right: 6px;
+    font-size: 14px;
+}
+/* Konum iğnesi — Favori Listem'deki ★ ile aynı desen, kendi rengiyle
+   (navy) garantili bir eleman olarak eklendi. */
+div[class*="st-key-dp_uzmanlik_btn"] button::before {
+    content: "📍";
     margin-right: 6px;
     font-size: 14px;
 }
@@ -217,7 +225,10 @@ with st.container(border=True, key="dp_page_frame"):
 
     st.write("")
 
-    col_favori, col_ekle = st.columns([1, 1])
+    col_uzmanlik, col_favori, col_ekle = st.columns([1, 1, 1])
+    with col_uzmanlik:
+        if st.button("Uzmanlık Bölgelerim", key="dp_uzmanlik_btn"):
+            st.switch_page("pages/Danisman_UzmanlikBolgeleri.py")
     with col_favori:
         if st.button("Favori Listem", key="dp_favori_btn"):
             st.switch_page("pages/Danisman_Favoriler.py")
