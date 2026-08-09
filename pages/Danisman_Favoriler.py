@@ -74,6 +74,33 @@ def _favori_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
     div[class*="st-key-df_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] {{
         gap: 0.5rem !important;
     }}
+    div[class*="st-key-df_yenile_{key_prefix}"] button {{
+        width: 38px !important; min-width: 38px !important; padding: 0 !important;
+        min-height: 38px !important; height: 38px !important;
+        font-size: 15px !important; border-radius: 8px !important;
+        border-color: #e3e1da !important; background: #ffffff !important; color: #5b6478 !important;
+    }}
+
+    /* Mobil kompaktlama — danisman_ortak.render_pano_icerik'teki AYNI
+       desen (2 satır: 1. satır Kaynak, 2. satır İşlem Tipi + Yenile). */
+    @media (max-width: 480px) {{
+        div[class*="st-key-df_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] {{
+            display: grid !important;
+            grid-template-columns: 1fr auto !important;
+            grid-template-areas: "kaynak kaynak" "islem yenile" !important;
+            row-gap: 6px !important;
+            align-items: center !important;
+        }}
+        div[class*="st-key-df_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(1) {{
+            grid-area: kaynak !important; width: auto !important; min-width: 0 !important;
+        }}
+        div[class*="st-key-df_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2) {{
+            grid-area: islem !important; width: auto !important; min-width: 0 !important;
+        }}
+        div[class*="st-key-df_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(3) {{
+            grid-area: yenile !important; width: auto !important; min-width: 0 !important;
+        }}
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -92,16 +119,6 @@ def _favori_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
                 label_visibility="collapsed",
             )
         with fcol3:
-            st.markdown(f"""
-            <style>
-            div[class*="st-key-df_yenile_{key_prefix}"] button {{
-                width: 38px !important; min-width: 38px !important; padding: 0 !important;
-                min-height: 38px !important; height: 38px !important;
-                font-size: 15px !important; border-radius: 8px !important;
-                border-color: #e3e1da !important; background: #ffffff !important; color: #5b6478 !important;
-            }}
-            </style>
-            """, unsafe_allow_html=True)
             if st.button("↻", key=f"df_yenile_{key_prefix}", help="Yenile"):
                 favorileri_cek.clear()
                 st.rerun()

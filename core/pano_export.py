@@ -421,6 +421,20 @@ function favoriToggle(el) {{
     header {{ padding-top: 20px; padding-bottom: 12px; }}
     header h1 {{ font-size: 19px; line-height: 1.25; }}
     header .meta {{ font-size: 11.5px; }}
+
+    /* DÜZELTME (mobil A-Z sıkılaştırma, 09.08.2026): flex-wrap ile 29
+       harf mobilde 3-4 satıra yayılıp gerçek kayıtlara ulaşmayı
+       geciktiriyordu. Mobilde TEK YATAY satıra sabitlenip yana
+       kaydırılabilir hale getiriliyor — masaüstü davranışı (flex-wrap,
+       çok satırlı) bu media query dışında olduğu için değişmiyor. */
+    nav.harfler {{
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }}
+    nav.harfler::-webkit-scrollbar {{ display: none; }}
+    nav.harfler .harf {{ flex-shrink: 0; }}
   }}
 </style>
 </head>

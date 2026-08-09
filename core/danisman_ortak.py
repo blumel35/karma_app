@@ -610,9 +610,18 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
 
         /* Üstteki fazla boşluğu azalt — Streamlit'in varsayılan mobil
            üst dolgusu (block-container padding-top) gereğinden fazla
-           boş alan bırakıyordu. */
+           boş alan bırakıyordu. DÜZELTME (09.08.2026): bazı alt
+           sayfalarda (özellikle 2 satıra düşen başlıklarda) bu boşluk
+           hâlâ göze batıyordu — 1.2rem'den 0.75rem'e düşürüldü. */
         [data-testid="stAppViewContainer"] .main .block-container {
-            padding-top: 1.2rem !important;
+            padding-top: 0.75rem !important;
+        }
+        /* Topbar'ın kendi alt boşluğu da mobilde biraz sıkılaştırıldı
+           (masaüstü değeri — 8px — dokunulmadı, bu kural sadece bu
+           media query içinde geçerli). */
+        div[class*="st-key-dp_topbar_wrap"] {
+            padding-bottom: 6px !important;
+            margin-bottom: 6px !important;
         }
     }
     </style>
@@ -947,6 +956,58 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
     div[class*="st-key-dp_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] {{
         gap: 0.5rem !important;
     }}
+    div[class*="st-key-dp_yenile_{key_prefix}"] button {{
+        width: 38px !important;
+        min-width: 38px !important;
+        padding: 0 !important;
+        min-height: 38px !important;
+        height: 38px !important;
+        font-size: 15px !important;
+        border-radius: 8px !important;
+        border-color: #e3e1da !important;
+        background: #ffffff !important;
+        color: #5b6478 !important;
+    }}
+
+    /* DÜZELTME (mobil filtre+yenile kompaktlama, 09.08.2026): Streamlit
+       3 sütunu (İşlem Tipi / Zaman Aralığı / Yenile) mobilde varsayılan
+       olarak 3 AYRI satıra yığıyordu — Yenile butonu kendi başına, sola
+       yaslı, yalnız bir satır işgal ediyordu. HEDEF tüm filtreleri tek
+       satıra sıkıştırmak DEĞİL (360-400px'te okunmaz olur) — hedef en
+       fazla 2 kompakt satır, Yenile'nin kendi ilgili filtre satırının
+       SAĞINDA yer alması. CSS Grid ile: 1. satır = İşlem Tipi (tam
+       genişlik), 2. satır = Zaman Aralığı + Yenile (yan yana). Topbar'da
+       zaten kanıtlanmış aynı nth-of-type + grid-area deseni. */
+    @media (max-width: 480px) {{
+        div[class*="st-key-dp_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] {{
+            display: grid !important;
+            grid-template-columns: 1fr auto !important;
+            grid-template-areas: "islem islem" "zaman yenile" !important;
+            row-gap: 6px !important;
+            align-items: center !important;
+        }}
+        div[class*="st-key-dp_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(1) {{
+            grid-area: islem !important;
+            width: auto !important;
+            min-width: 0 !important;
+        }}
+        div[class*="st-key-dp_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2) {{
+            grid-area: zaman !important;
+            width: auto !important;
+            min-width: 0 !important;
+        }}
+        div[class*="st-key-dp_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(3) {{
+            grid-area: yenile !important;
+            width: auto !important;
+            min-width: 0 !important;
+        }}
+        /* Yenile sütunundaki üstteki boş st.write("") boşluğu mobilde
+           artık gerekmiyor — buton zaten filtre pilleriyle aynı satırda
+           dikey ortalı (align-items:center yukarıda). */
+        div[class*="st-key-dp_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(3) [data-testid="stElementContainer"]:first-child {{
+            display: none !important;
+        }}
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -965,22 +1026,6 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
                 label_visibility="collapsed",
             )
         with fcol3:
-            st.markdown(f"""
-            <style>
-            div[class*="st-key-dp_yenile_{key_prefix}"] button {{
-                width: 38px !important;
-                min-width: 38px !important;
-                padding: 0 !important;
-                min-height: 38px !important;
-                height: 38px !important;
-                font-size: 15px !important;
-                border-radius: 8px !important;
-                border-color: #e3e1da !important;
-                background: #ffffff !important;
-                color: #5b6478 !important;
-            }}
-            </style>
-            """, unsafe_allow_html=True)
             st.write("")
             if st.button("↻", key=f"dp_yenile_{key_prefix}", help="Yenile"):
                 talepleri_cek.clear()
@@ -1033,6 +1078,14 @@ def render_pano_ekrani(kayit_tipi):
         baslik = "Portföy Panosu"
         ikon = "🏘️"
 
+    # ÖNEMLİ (mobil topbar standardizasyonu, 09.08.2026): Başlık burada
+    # BİLİNÇLİ OLARAK BOŞ bırakılıyor — render_pano_icerik() içindeki
+    # pano_html_olustur() zaten iframe'in kendi büyük "Talep Panosu
+    # (Canlı)" / "Portföy Panosu (Canlı)" başlığını üretiyor. Buraya
+    # (topbar'a) da bir başlık eklenirse aynı sayfada pano başlığı İKİ
+    # KEZ görünür. Mobil topbar tutarlılığı burada SADECE navigasyon
+    # satırının (☰, geri, avatar) hizası/boşluğu içindir — başlık metni
+    # değil.
     render_topbar("", geri_hedefi="pages/Danisman_Secim.py")
 
     # "+N yeni" rozetinden geldiyse, zaman filtresi varsayılan olarak

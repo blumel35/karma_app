@@ -66,14 +66,29 @@ div[class*="st-key-dp_portfoy_git"] button:hover {
 /* Stat satırındaki boş kutu — Streamlit'in kendi sütun grubu
    (stHorizontalBlock) ve tekil sütun (stColumn) elemanlarının bir
    yerden miras aldığı border/background'ı sıfırlıyoruz. Header'daki
-   aynı türden kutu sorununu çözen desenle birebir aynı yaklaşım. */
+   aynı türden kutu sorununu çözen desenle birebir aynı yaklaşım.
+   DÜZELTME (09.08.2026 — mobil regresyon): Bu kural masaüstünde
+   çalışıyordu ama mobilde (dar ekranda stColumn'lar dikey yığılınca)
+   "255 aktif talep" üstünde boş, kenarlıklı bir kutu kalıyordu — reset
+   yalnızca stHorizontalBlock/stColumn'u kapsıyordu, altlarındaki
+   stVerticalBlock/stElementContainer sarmalayıcılarını KAPSAMIYORDU.
+   Seçici bu iki katmanı da içerecek şekilde genişletildi; ayrıca olası
+   bir kalıntı min-height/padding ihtimaline karşı bunlar da sıfırlandı.
+   Canlıda hâlâ görünürse: DevTools → Inspect ile gerçek elemanı bulup
+   buraya class'ını ekle (bu geniş kural zarar vermez, sadece garanti
+   payı). */
 div[class*="st-key-dp_kart_talep"] [data-testid="stHorizontalBlock"],
 div[class*="st-key-dp_kart_portfoy"] [data-testid="stHorizontalBlock"],
 div[class*="st-key-dp_kart_talep"] [data-testid="stColumn"],
-div[class*="st-key-dp_kart_portfoy"] [data-testid="stColumn"] {
+div[class*="st-key-dp_kart_portfoy"] [data-testid="stColumn"],
+div[class*="st-key-dp_kart_talep"] [data-testid="stVerticalBlock"],
+div[class*="st-key-dp_kart_portfoy"] [data-testid="stVerticalBlock"],
+div[class*="st-key-dp_kart_talep"] [data-testid="stElementContainer"],
+div[class*="st-key-dp_kart_portfoy"] [data-testid="stElementContainer"] {
     border: none !important;
     background: transparent !important;
     box-shadow: none !important;
+    min-height: 0 !important;
 }
 
 /* "+N yeni" rozetleri — mockup'taki .new-badge ile aynı mantık: saf/

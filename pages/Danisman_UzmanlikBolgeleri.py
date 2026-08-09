@@ -34,7 +34,7 @@ if not oturum_kontrol():
     st.switch_page("pages/Danisman_Giris.py")
 
 hide_sidebar_css()
-render_topbar("Uzmanlık Bölgelerim", ikon="📍", geri_hedefi="pages/Danisman_Secim.py")
+render_topbar("Uzmanlık Bölgelerim", ikon="", geri_hedefi="pages/Danisman_Secim.py")
 
 su_kullanici = su_anki_danisman()
 mevcut_kayitlar = uzmanlik_bolgelerini_cek(su_kullanici)
@@ -89,6 +89,27 @@ def _bolge_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
     div[class*="st-key-ub_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] {{
         gap: 0.5rem !important;
     }}
+    div[class*="st-key-ub_yenile_{key_prefix}"] button {{
+        width: 38px !important; min-width: 38px !important; padding: 0 !important;
+        min-height: 38px !important; height: 38px !important;
+        font-size: 15px !important; border-radius: 8px !important;
+        border-color: #e3e1da !important; background: #ffffff !important; color: #5b6478 !important;
+    }}
+
+    /* Mobil: tek filtre grubu (İşlem Tipi) olduğu için 2 sütun zaten
+       tek satıra sığar — yalnızca varsayılan mobil dikey yığılmayı
+       (Streamlit'in stColumn'ları <480px altında stack etmesi) devre
+       dışı bırakıp Yenile'yi filtre pillerinin sağında tutuyoruz. */
+    @media (max-width: 480px) {{
+        div[class*="st-key-ub_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] {{
+            display: grid !important;
+            grid-template-columns: 1fr auto !important;
+            align-items: center !important;
+        }}
+        div[class*="st-key-ub_filtre_toolbar_{key_prefix}"] div[data-testid="stColumn"] {{
+            width: auto !important; min-width: 0 !important;
+        }}
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -101,16 +122,6 @@ def _bolge_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
                 label_visibility="collapsed",
             )
         with fcol2:
-            st.markdown(f"""
-            <style>
-            div[class*="st-key-ub_yenile_{key_prefix}"] button {{
-                width: 38px !important; min-width: 38px !important; padding: 0 !important;
-                min-height: 38px !important; height: 38px !important;
-                font-size: 15px !important; border-radius: 8px !important;
-                border-color: #e3e1da !important; background: #ffffff !important; color: #5b6478 !important;
-            }}
-            </style>
-            """, unsafe_allow_html=True)
             if st.button("↻", key=f"ub_yenile_{key_prefix}", help="Yenile"):
                 talepleri_cek.clear()
                 portfoyleri_cek.clear()
