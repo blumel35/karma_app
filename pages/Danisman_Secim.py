@@ -63,6 +63,54 @@ div[class*="st-key-dp_portfoy_git"] button:hover {
 .dp-stat-num { font-size: 22px; font-weight: 800; color: #1b2540; }
 .dp-stat-num.portfoy { color: #b8892f; }
 
+/* DÜZELTME (09.08.2026 — mobil kart sıkılaştırma): Talep/Portföy
+   kartları mobilde gereğinden fazla dikey yer kaplıyordu. Kartlar
+   TEK SÜTUNDA KALIYOR (bu daha önce onaylanmış bir karardı, geri
+   alınmadı) — sadece her kartın iç boşlukları ve eleman boyutları
+   küçültülüp "kare" değil "kısa dikdörtgen" hissi versin diye
+   sıkılaştırıldı. */
+@media (max-width: 480px) {
+    div[class*="st-key-dp_kart_talep"] div[data-testid="stVerticalBlockBorderWrapper"],
+    div[class*="st-key-dp_kart_portfoy"] div[data-testid="stVerticalBlockBorderWrapper"] {
+        padding: 12px 14px !important;
+    }
+    .dp-icon-box {
+        width: 28px !important;
+        height: 28px !important;
+        border-radius: 7px !important;
+        font-size: 15px !important;
+        margin-bottom: 4px !important;
+    }
+    .dp-icon-box svg {
+        width: 15px !important;
+        height: 15px !important;
+    }
+    .dp-stat-row {
+        padding-top: 6px !important;
+        margin-top: 4px !important;
+    }
+    .dp-stat-num {
+        font-size: 18px !important;
+    }
+    div[class*="st-key-dp_talep_git"] button,
+    div[class*="st-key-dp_portfoy_git"] button {
+        padding: 8px 12px !important;
+        font-size: 13px !important;
+    }
+    div[class*="st-key-dp_talep_yeni_rozet"] button,
+    div[class*="st-key-dp_portfoy_yeni_rozet"] button {
+        padding: 4px 10px !important;
+        font-size: 11.5px !important;
+    }
+    /* Kartların içindeki st.write("") boşluk verici satırlar — masaüstünde
+       gerekli dikey nefes payı için vardı, mobilde sıkılaştırma hedefiyle
+       çelişiyor. Bu boş paragrafları mobilde tamamen görünmez yapıyoruz. */
+    div[class*="st-key-dp_kart_talep"] [data-testid="stElementContainer"]:has(p:empty),
+    div[class*="st-key-dp_kart_portfoy"] [data-testid="stElementContainer"]:has(p:empty) {
+        display: none !important;
+    }
+}
+
 /* Stat satırındaki boş kutu — Streamlit'in kendi sütun grubu
    (stHorizontalBlock) ve tekil sütun (stColumn) elemanlarının bir
    yerden miras aldığı border/background'ı sıfırlıyoruz. Header'daki
@@ -152,13 +200,10 @@ div[class*="st-key-dp_favori_btn"] button::before {
     margin-right: 6px;
     font-size: 14px;
 }
-/* Konum iğnesi — Favori Listem'deki ★ ile aynı desen, kendi rengiyle
-   (navy) garantili bir eleman olarak eklendi. */
-div[class*="st-key-dp_uzmanlik_btn"] button::before {
-    content: "📍";
-    margin-right: 6px;
-    font-size: 14px;
-}
+/* DÜZELTME (09.08.2026): 📍 pin emojisi kaldırıldı — ekran görüntülerinde
+   hâlâ göründüğü belirtildi. Karar: "Uzmanlık Bölgelerim" sade metin
+   olarak kalsın (⭐ Favori Listem'in aksine, pin uygulamanın başka hiçbir
+   yerinde tekrarlanmıyordu, bu yüzden kaldırılması tercih edildi). */
 
 /* NOT (2. tur — geri alındı): Daha önce burada mobilde kartları zorla
    yan yana (50%/50%) tutan bir medya sorgusu vardı. Gerçek testte
@@ -175,11 +220,17 @@ with st.container(border=True, key="dp_page_frame"):
     # DÜZELTME (2. tur): "+ Ekle" butonu artık alttaki chip satırında
     # değil, açıklama cümlesiyle AYNI satırda, sağda — sık kullanılan bir
     # eylem olduğu için daha görünür/erişilebilir bir konuma taşındı.
-    cap_col, ekle_col = st.columns([5, 1])
+    # DÜZELTME (09.08.2026): Buton metni "+ Ekle" yerine "+ Yeni Talep/
+    # Portföy Ekle" oldu — ne ekleneceği tek bakışta net olsun diye.
+    # Sütun oranı da [5,1]'den [3,2]'ye genişletildi; buton kendi
+    # içeriğine göre otomatik genişlikte (width:auto, aşağıdaki CSS'te)
+    # ama daha uzun metnin dar bir sütuna sıkışıp taşmaması için ekle_col
+    # daha fazla yer alıyor.
+    cap_col, ekle_col = st.columns([3, 2])
     with cap_col:
         st.caption("Talep ve portföyleri canlı takip edin, hızlıca yeni kayıt ekleyin.")
     with ekle_col:
-        if st.button("+ Ekle", key="dp_ekle_btn", use_container_width=True):
+        if st.button("+ Yeni Talep/Portföy Ekle", key="dp_ekle_btn", use_container_width=True):
             ekle_dialog()
     st.write("")
 

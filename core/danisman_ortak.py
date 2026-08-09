@@ -247,6 +247,21 @@ def kayit_sil(tablo, kayit_id):
     supabase.table(tablo).delete().eq("id", kayit_id).execute()
 
 
+def kayit_notunu_guncelle(tablo, kayit_id, alan, yeni_deger):
+    """Kendi Kayıtlarım ekranından bir kaydın not alanını günceller —
+    talep için 'ozel_kriterler', portföy için 'ozellikler' (aynı alanlar
+    ilk oluşturmada _yeni_talep_ekle/_yeni_portfoy_ekle'nin 'Ek Not'
+    girdisini yazdığı alanlar — burada da AYNI alan kullanılıyor ki
+    oluşturma sırasında girilen not ile sonradan düzenlenen not
+    ÇAKIŞMASIN, tek bir kaynak olsun).
+    GÜVENLİK SINIRI: Bu fonksiyon kendi başına bir yetki kontrolü yapmıyor
+    — çağıran ekran (Danisman_Kayitlarim.py) zaten yalnızca kaynak=Zeta
+    VE talep_eden_danisan=giriş yapan kullanıcı olan kayıtları listeleyip
+    bu fonksiyonu çağırıyor, dolayısıyla kullanıcı yalnızca kendi
+    kayıtlarının notunu değiştirebilir."""
+    supabase.table(tablo).update({alan: yeni_deger}).eq("id", kayit_id).execute()
+
+
 @st.dialog("Yeni Talep / Portföy Ekle")
 def ekle_dialog(varsayilan_tip="Talep"):
     """Ana ekrandaki tek '+ Ekle' butonundan açılan ortak dialog.
@@ -595,7 +610,7 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
         }
         div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] > div[data-testid="element-container"]:nth-of-type(2) {
             grid-area: baslik !important;
-            justify-self: start !important;
+            justify-self: center !important;
         }
         div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] > div[data-testid="element-container"]:nth-of-type(3) {
             grid-area: avatar !important;
@@ -606,6 +621,8 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
             text-overflow: unset !important;
             font-size: 17px !important;
             line-height: 1.25 !important;
+            text-align: center !important;
+            letter-spacing: 0.01em !important;
         }
 
         /* Üstteki fazla boşluğu azalt — Streamlit'in varsayılan mobil
@@ -898,6 +915,25 @@ def _inject_filtre_pill_css():
     }
     div[data-testid="stRadio"] div[role="radiogroup"] label:has(div[aria-checked="true"]) p {
         color: #ffffff !important;
+    }
+
+    /* DÜZELTME (09.08.2026 — mobil pill taşması): Zaman Aralığı grubunda
+       ("Tümü / Son 24 saat / Son 7 gün") ve bazı 3'lü İşlem Tipi
+       gruplarında, filtre satırı mobilde Yenile butonuyla aynı satırı
+       paylaşınca daralan genişlik yüzünden SON pill (Son 7 gün / Kiralık)
+       bir alt satıra taşıyordu. Kök sebep pill'lerin masaüstü boyutunda
+       kalması (padding 4px 14px, font 12.5px) — mobilde daha küçük
+       pill'lerle aynı satıra üçü de rahatça sığıyor. */
+    @media (max-width: 480px) {
+        div[data-testid="stRadio"] div[role="radiogroup"] {
+            gap: 4px !important;
+        }
+        div[data-testid="stRadio"] div[role="radiogroup"] label {
+            padding: 4px 8px !important;
+        }
+        div[data-testid="stRadio"] div[role="radiogroup"] label p {
+            font-size: 11px !important;
+        }
     }
     </style>
     """, unsafe_allow_html=True)

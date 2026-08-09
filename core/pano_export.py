@@ -160,6 +160,22 @@ def _kart_html(v, kayit_tipi, favori_destekli=False, favorili_mi=False):
     konu = _esc(_html_temizle(v.get("mail_konusu", "")))
     icerik = _esc(_html_temizle(v.get("mail_icerigi", ""))).replace("\n", "<br>")
 
+    # "İlana Git" linki — SADECE portföy kartlarında (talep/alıcı arayışı
+    # kayıtlarının bağlı olacağı bir "ilan" yok, bu alan sadece portfoyler
+    # tablosunda anlamlı). 3_Portfoy_Tablosu.py'deki aynı "ilan_linki"
+    # sütunu ve "↗ İlana Git" metni kullanılıyor — tutarlılık için.
+    # Kartın "üstünde" (başlıktan önce, rozet satırının hemen altında)
+    # gösteriliyor ki ilana ihtiyacı olan kullanıcı kartı okumadan önce
+    # görsün.
+    ilan_linki = v.get("ilan_linki") or ""
+    ilan_link_html = ""
+    if kayit_tipi == "portfoy" and ilan_linki:
+        ilan_linki_esc = _esc(ilan_linki)
+        ilan_link_html = (
+            f'<a class="kart-ilan-link" href="{ilan_linki_esc}" '
+            f'target="_blank" rel="noopener noreferrer">↗ İlana Git</a>'
+        )
+
     yildiz_html = ""
     if favori_destekli:
         kayit_id = v.get("id")
@@ -180,6 +196,7 @@ def _kart_html(v, kayit_tipi, favori_destekli=False, favorili_mi=False):
           {yildiz_html}
         </div>
       </div>
+      {ilan_link_html}
       <div class="kart-baslik">{ozet or mulk}</div>
       <div class="kart-alt">{bolge + ' · ' if bolge else ''}{mulk} · {oda}</div>
       <div class="kart-deger">{deger_etiket}: <b>{deger}</b></div>
@@ -400,6 +417,14 @@ function favoriToggle(el) {{
   }}
   .kart-yildiz:hover {{ transform: scale(1.15); }}
   .kart-yildiz.yildiz-aktif {{ color: var(--gold); }}
+  .kart-ilan-link {{
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 700; color: var(--navy);
+    background: var(--cream-2); border: 1px solid var(--border);
+    padding: 3px 10px; border-radius: 20px; text-decoration: none;
+    margin-bottom: 8px; width: fit-content;
+  }}
+  .kart-ilan-link:hover {{ background: var(--gold); color: #fff; border-color: var(--gold); }}
   .kart-detay summary {{
     cursor: pointer; font-size: 12.5px; color: var(--navy); font-weight: 600;
     padding-top: 8px; border-top: 1px dashed var(--border);

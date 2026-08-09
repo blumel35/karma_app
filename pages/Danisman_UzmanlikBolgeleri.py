@@ -43,8 +43,15 @@ mevcut_ilceler = [k["ilce"] for k in mevcut_kayitlar]
 # ── İLÇE SEÇİM ALANI ─────────────────────────────────────────────────
 # Hiç seçim yoksa açık başlar (kullanıcıyı doğrudan seçime yönlendirir),
 # seçim varsa kapalı başlar (sayfa açılışında hemen kayıtlara odaklanır).
+# DÜZELTME (09.08.2026): Expander başlığı önceden sadece SAYI gösteriyordu
+# ("şu an 5 seçili") — seçim varken expander varsayılan KAPALI başladığı
+# için kullanıcı HANGİ ilçelerin seçili olduğunu görmek için her seferinde
+# expander'ı açmak zorunda kalıyordu. Artık gerçek ilçe adları başlığın
+# içinde, açmaya gerek kalmadan görünüyor. Ayrıca 📍 emoji kaldırıldı —
+# uygulamanın geri kalanındaki sade başlık diliyle tutarlı olsun diye.
+secili_ozet = ", ".join(mevcut_ilceler) if mevcut_ilceler else "henüz seçim yok"
 with st.expander(
-    f"📍 İlçelerini seç (en fazla 5) — şu an {len(mevcut_ilceler)} seçili",
+    f"İlçelerini seç (en fazla 5) — {secili_ozet}",
     expanded=not mevcut_ilceler,
 ):
     secim = st.multiselect(

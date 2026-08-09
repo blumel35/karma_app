@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import oturum_kontrol
 from core.danisman_ortak import (
     talepleri_cek, portfoyleri_cek, kaynak_filtrele, su_anki_danisman,
-    kayit_sil, render_topbar, hide_sidebar_css,
+    kayit_sil, kayit_notunu_guncelle, render_topbar, hide_sidebar_css,
 )
 
 if not oturum_kontrol():
@@ -44,6 +44,12 @@ div[class*="st-key-dp_kayit_sil_"] button {
     color: #b3261e !important;
     font-size: 12.5px !important;
 }
+/* Not kaydet butonu — Sil ile karışmasın diye nötr (kırmızı değil) */
+div[class*="st-key-dp_not_kaydet_"] button {
+    border-color: #e3e1da !important;
+    color: #1b2540 !important;
+    font-size: 12.5px !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -61,6 +67,13 @@ kendi_portfoyler = [
 if not kendi_talepler and not kendi_portfoyler:
     st.info("Henüz Danışman Panosu'ndan eklediğin bir kayıt yok.")
 
+# NOT ALANI (09.08.2026): Kayıt oluşturulurken girilen "Ek Not" daha önce
+# sadece o an yazılabiliyordu, sonradan hiçbir yerden düzenlenemiyordu.
+# Şimdi her kartın altında aynı alan (talep: ozel_kriterler, portföy:
+# ozellikler) görünür ve düzenlenebilir — "Notu Kaydet" ile Supabase'e
+# yazılır. Boş bırakılıp kaydedilirse not temizlenmiş olur (bilinçli;
+# ayrı bir "notu sil" eylemi eklemeye gerek yok).
+
 if kendi_talepler:
     st.markdown("##### 📥 Taleplerim")
     for v in kendi_talepler:
@@ -73,6 +86,17 @@ if kendi_talepler:
                     kayit_sil("alici_talepleri", v["id"])
                     talepleri_cek.clear()
                     st.rerun()
+            yeni_not = st.text_area(
+                "Not", value=v.get("ozel_kriterler") or "",
+                key=f"dp_not_talep_{v['id']}", height=68,
+                label_visibility="collapsed",
+                placeholder="Bu talep için not ekle (opsiyonel)...",
+            )
+            if st.button("Notu Kaydet", key=f"dp_not_kaydet_talep_{v['id']}"):
+                kayit_notunu_guncelle("alici_talepleri", v["id"], "ozel_kriterler", yeni_not.strip())
+                talepleri_cek.clear()
+                st.success("Not kaydedildi.")
+                st.rerun()
 
 if kendi_portfoyler:
     st.markdown("##### 🏘️ Portföylerim")
@@ -86,3 +110,14 @@ if kendi_portfoyler:
                     kayit_sil("portfoyler", v["id"])
                     portfoyleri_cek.clear()
                     st.rerun()
+            yeni_not = st.text_area(
+                "Not", value=v.get("ozellikler") or "",
+                key=f"dp_not_portfoy_{v['id']}", height=68,
+                label_visibility="collapsed",
+                placeholder="Bu portföy için not ekle (opsiyonel)...",
+            )
+            if st.button("Notu Kaydet", key=f"dp_not_kaydet_portfoy_{v['id']}"):
+                kayit_notunu_guncelle("portfoyler", v["id"], "ozellikler", yeni_not.strip())
+                portfoyleri_cek.clear()
+                st.success("Not kaydedildi.")
+                st.rerun()
