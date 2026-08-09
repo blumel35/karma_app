@@ -415,6 +415,12 @@ function favoriToggle(el) {{
   }}
   @media (max-width: 640px) {{
     header, main, nav.harfler {{ padding-left: 16px; padding-right: 16px; }}
+    /* DÜZELTME: header h1 sabit 27px'ti, ekran genişliğinden bağımsız
+       — mobilde uzun başlıklar ("Uzmanlık Bölgem Talepleri" gibi) 2
+       satıra düşüp ekranın büyük bir kısmını kaplıyordu. */
+    header {{ padding-top: 20px; padding-bottom: 12px; }}
+    header h1 {{ font-size: 19px; line-height: 1.25; }}
+    header .meta {{ font-size: 11.5px; }}
   }}
 </style>
 </head>
