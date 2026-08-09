@@ -485,9 +485,10 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
     <style>
     div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] {
         display: grid !important;
-        grid-template-columns: auto 1fr auto !important;
+        grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, auto) !important;
         align-items: center !important;
-        gap: 14px !important;
+        gap: 8px !important;
+        overflow-x: hidden !important;
     }
     /* nth-of-type ile 3 doğrudan çocuğu (her zaman tam 3 tane) sütunlara
        eşliyoruz — pozisyona dayalı ama SAYI HER ZAMAN SABİT olduğu için
@@ -558,6 +559,28 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
         font-weight: 700 !important;
         flex-shrink: 0 !important;
     }
+
+    /* MOBİL (dar ekran) — DÜZELTME: yukarıdaki minmax(0,...) yatay
+       kaydırmayı engelliyor ama başlık yine de aşırı sıkışıp
+       kırpılabilir. Nefes payı açmak için: avatarın isim metnini
+       gizleyip sadece daireyi (MB) bırakıyoruz, "← Panoya Dön"
+       yerine sadece "←" gösteriyoruz — gerçek testte doğrulanmadı,
+       makul bir ilk deneme. */
+    @media (max-width: 480px) {
+        .dp-avatar-name {
+            display: none !important;
+        }
+        div[class*="st-key-dp_geri_btn"] button {
+            padding: 8px 10px !important;
+        }
+        div[class*="st-key-dp_geri_btn"] button p {
+            font-size: 0 !important;
+        }
+        div[class*="st-key-dp_geri_btn"] button p::before {
+            content: "←";
+            font-size: 16px;
+        }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -616,7 +639,7 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
             avatar_html = (
                 "<div style='display:flex;align-items:center;gap:8px;flex-shrink:0;justify-content:flex-end;'>"
                 f"<div class='dp-avatar-circle'>{baslar}</div>"
-                f"<span style='font-size:13px;color:#5b6478 !important;font-weight:600;white-space:nowrap;'>{su_kullanici}</span></div>"
+                f"<span class='dp-avatar-name' style='font-size:13px;color:#5b6478 !important;font-weight:600;white-space:nowrap;'>{su_kullanici}</span></div>"
             )
         st.markdown(avatar_html, unsafe_allow_html=True)
 
