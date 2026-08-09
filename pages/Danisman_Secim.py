@@ -37,13 +37,15 @@ hide_sidebar_css()
 st.markdown("""
 <style>
 div[class*="st-key-dp_talep_git"] button,
-div[class*="st-key-dp_portfoy_git"] button {
+div[class*="st-key-dp_portfoy_git"] button,
+div[class*="st-key-dp_ekle_btn"] button {
     background-color: #1b2540 !important;
     border-color: #1b2540 !important;
     color: #ffffff !important;
 }
 div[class*="st-key-dp_talep_git"] button:hover,
-div[class*="st-key-dp_portfoy_git"] button:hover {
+div[class*="st-key-dp_portfoy_git"] button:hover,
+div[class*="st-key-dp_ekle_btn"] button:hover {
     background-color: #28345a !important;
     border-color: #28345a !important;
     color: #ffffff !important;
@@ -172,10 +174,15 @@ div[class*="st-key-dp_portfoy_yeni_rozet"] button:hover {
     background-color: rgba(184,137,47,.20) !important;
 }
 
-/* "Favori Listem" / "Ekle" — sekonder eylemler, mockup'taki .action-chip
-   gibi kompakt: içeriğe göre genişlik, ince kenarlık, küçük padding.
-   "Talep/Portföy Panosuna Git" gibi tam genişlik/ağır butonlarla
-   karışmasınlar diye bilinçli olarak küçültüldü. */
+/* "Favori Listem" / "Uzmanlık Bölgelerim" / "+ Yeni Talep/Portföy Ekle" —
+   üçü de kompakt pill boyutunda (içeriğe göre genişlik, ince kenarlık
+   yerine dolgu rengi ekle'de), "Talep/Portföy Panosuna Git" gibi tam
+   genişlik/ağır butonlarla karışmasınlar diye bilinçli olarak küçük
+   tutuldu. DÜZELTME (09.08.2026): "+ Ekle" artık navy dolgu (yukarıdaki
+   dp_talep_git/dp_portfoy_git kuralı) — bu yüzden arka plan/yazı rengi
+   kuralları buradan dp_ekle_btn için AYRILDI, sadece boyut/pill şekli
+   üçü için ortak kaldı; renk kuralı favori/uzmanlık için ayrı, ekle
+   için yukarıdaki navy kuralda tanımlı (çakışmasın diye).*/
 div[class*="st-key-dp_favori_btn"] button,
 div[class*="st-key-dp_uzmanlik_btn"] button,
 div[class*="st-key-dp_ekle_btn"] button {
@@ -184,6 +191,9 @@ div[class*="st-key-dp_ekle_btn"] button {
     padding: 8px 16px !important;
     font-weight: 600 !important;
     font-size: 13px !important;
+}
+div[class*="st-key-dp_favori_btn"] button,
+div[class*="st-key-dp_uzmanlik_btn"] button {
     border-color: #e3e1da !important;
     background: #ffffff !important;
     color: #5b6478 !important;

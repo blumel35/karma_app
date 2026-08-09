@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import oturum_kontrol
 from core.pano_export import pano_html_olustur
 from core.danisman_ortak import (
-    talepleri_cek, portfoyleri_cek, kaynak_filtrele, islem_tipi_filtrele,
+    talepleri_cek, portfoyleri_cek, islem_tipi_filtrele,
     favorileri_cek, su_anki_danisman, supabase_anon_secrets,
     render_topbar, hide_sidebar_css, _inject_filtre_pill_css,
 )
@@ -59,7 +59,11 @@ sekme_talep, sekme_portfoy = st.tabs([
 
 def _favori_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
     """Her iki sekme de aynı çerçevesiz toolbar + filtre mantığını
-    paylaşır — kod tekrarını önlemek için tek yerde."""
+    paylaşır — kod tekrarını önlemek için tek yerde.
+    DÜZELTME (09.08.2026): "İlan Kaynağı" (Tümü/Zeta/Startkey) filtresi
+    kaldırıldı — favori listesinde bu ayrımın pratik bir faydası yoktu.
+    Artık Uzmanlık Bölgelerim'deki AYNI basit desen: tek filtre grubu
+    (İşlem Tipi) + Yenile, aynı satırda."""
     _inject_filtre_pill_css()
 
     # DÜZELTME (3. tur — dikey alan sıkılaştırma): Talep/Portföy/Zeta
@@ -81,49 +85,35 @@ def _favori_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
         border-color: #e3e1da !important; background: #ffffff !important; color: #5b6478 !important;
     }}
 
-    /* Mobil kompaktlama — danisman_ortak.render_pano_icerik'teki AYNI
-       desen (2 satır: 1. satır Kaynak, 2. satır İşlem Tipi + Yenile). */
+    /* Mobil: tek filtre grubu olduğu için 2 sütun zaten tek satıra
+       sığar — Uzmanlık Bölgelerim'deki AYNI desen. */
     @media (max-width: 480px) {{
         div[class*="st-key-df_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] {{
             display: grid !important;
             grid-template-columns: 1fr auto !important;
-            grid-template-areas: "kaynak kaynak" "islem yenile" !important;
-            row-gap: 6px !important;
             align-items: center !important;
         }}
-        div[class*="st-key-df_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(1) {{
-            grid-area: kaynak !important; width: auto !important; min-width: 0 !important;
-        }}
-        div[class*="st-key-df_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(2) {{
-            grid-area: islem !important; width: auto !important; min-width: 0 !important;
-        }}
-        div[class*="st-key-df_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-of-type(3) {{
-            grid-area: yenile !important; width: auto !important; min-width: 0 !important;
+        div[class*="st-key-df_filtre_toolbar_{key_prefix}"] div[data-testid="stColumn"] {{
+            width: auto !important; min-width: 0 !important;
         }}
     }}
     </style>
     """, unsafe_allow_html=True)
 
     with st.container(key=f"df_filtre_toolbar_{key_prefix}"):
-        fcol1, fcol2, fcol3 = st.columns([2, 2, 1])
+        fcol1, fcol2 = st.columns([4, 1])
         with fcol1:
-            kaynak_secim = st.radio(
-                "İlan Kaynağı", ["Tümü", "Zeta", "Startkey"],
-                horizontal=True, key=f"df_kaynak_{key_prefix}",
-                label_visibility="collapsed",
-            )
-        with fcol2:
             islem_secim = st.radio(
                 "İşlem Tipi", ["Tümü", "Satılık", "Kiralık"],
                 horizontal=True, key=f"df_islem_{key_prefix}",
                 label_visibility="collapsed",
             )
-        with fcol3:
+        with fcol2:
             if st.button("↻", key=f"df_yenile_{key_prefix}", help="Yenile"):
                 favorileri_cek.clear()
                 st.rerun()
 
-    kayitlar = islem_tipi_filtrele(kaynak_filtrele(havuz, kaynak_secim), islem_secim)
+    kayitlar = islem_tipi_filtrele(havuz, islem_secim)
 
     if not kayitlar:
         st.info("Bu filtrede favori listende kayıt yok.")

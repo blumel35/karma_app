@@ -158,7 +158,7 @@ def _bolge_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
 
 
 with sekme_talep:
-    _bolge_sekme_icerik(bolge_talepler, "talep", "ub_talep", "Uzmanlık Bölgem Talepleri")
+    _bolge_sekme_icerik(bolge_talepler, "talep", "ub_talep", "Bölgemdeki Talepler")
 
 with sekme_portfoy:
-    _bolge_sekme_icerik(bolge_portfoyler, "portfoy", "ub_portfoy", "Uzmanlık Bölgem Portföyleri")
+    _bolge_sekme_icerik(bolge_portfoyler, "portfoy", "ub_portfoy", "Bölgemdeki Portföyler")
