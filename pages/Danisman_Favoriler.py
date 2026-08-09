@@ -95,14 +95,14 @@ def _favori_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
             st.markdown(f"""
             <style>
             div[class*="st-key-df_yenile_{key_prefix}"] button {{
-                padding: 4px 10px !important; min-height: 30px !important; height: 30px !important;
-                font-size: 13px !important; border-radius: 8px !important;
+                width: 38px !important; min-width: 38px !important; padding: 0 !important;
+                min-height: 38px !important; height: 38px !important;
+                font-size: 15px !important; border-radius: 8px !important;
                 border-color: #e3e1da !important; background: #ffffff !important; color: #5b6478 !important;
             }}
             </style>
             """, unsafe_allow_html=True)
-            st.write("")
-            if st.button("↻", key=f"df_yenile_{key_prefix}", help="Yenile", use_container_width=True):
+            if st.button("↻", key=f"df_yenile_{key_prefix}", help="Yenile"):
                 favorileri_cek.clear()
                 st.rerun()
 

@@ -145,25 +145,12 @@ div[class*="st-key-dp_uzmanlik_btn"] button::before {
     font-size: 14px;
 }
 
-/* MOBİL: Talep/Portföy kartları Streamlit'in varsayılan davranışıyla
-   (dar ekranda sütunları alt alta dizme) alt alta düşüp 2 kutuluk yer
-   kaplıyordu — "üst üste durunca 1 kutuluk yer kaplasın" talebiyle,
-   bu SATIRA ÖZEL (dp_kartlar_row key'i) olarak yan yana kalmaya
-   ZORLANIYOR. İçerik (başlık, sayı, buton) dar sütunda sıkışabilir —
-   gerçek testte doğrulanmadı, gerekirse bir sonraki turda kart içi
-   font/padding'i mobilde ayrıca küçültürüz. */
-@media (max-width: 640px) {
-    div[class*="st-key-dp_kartlar_row"] [data-testid="stHorizontalBlock"] {
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        gap: 8px !important;
-    }
-    div[class*="st-key-dp_kartlar_row"] [data-testid="stColumn"] {
-        width: 50% !important;
-        min-width: 0 !important;
-        flex: 1 1 50% !important;
-    }
-}
+/* NOT (2. tur — geri alındı): Daha önce burada mobilde kartları zorla
+   yan yana (50%/50%) tutan bir medya sorgusu vardı. Gerçek testte
+   içeriğin (sayı, rozet, buton) dar sütunda taştığı görüldü — amatör
+   bir görünüme sebep oluyordu. Streamlit'in DOĞAL davranışına
+   (mobilde sütunları alt alta, tam genişlikte dizmek) geri dönüldü —
+   daha güvenli, taşma riski yok. */
 </style>
 """, unsafe_allow_html=True)
 

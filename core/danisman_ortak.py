@@ -560,12 +560,15 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
         flex-shrink: 0 !important;
     }
 
-    /* MOBİL (dar ekran) — DÜZELTME: yukarıdaki minmax(0,...) yatay
-       kaydırmayı engelliyor ama başlık yine de aşırı sıkışıp
-       kırpılabilir. Nefes payı açmak için: avatarın isim metnini
-       gizleyip sadece daireyi (MB) bırakıyoruz, "← Panoya Dön"
-       yerine sadece "←" gösteriyoruz — gerçek testte doğrulanmadı,
-       makul bir ilk deneme. */
+    /* MOBİL (dar ekran) — DÜZELTME (3. tur, diğer AI'ın önerisiyle):
+       Başlığı tek satırda tutmaya çalışmak (kırpma, küçültme, sarma)
+       hepsi farklı derecelerde başarısız oldu — kök sorun "başlığı
+       navigasyon düğmeleriyle aynı yatay yarışa sokmak". Çözüm: mobilde
+       topbar'ı TAMAMEN 2 SATIRA ayırıyoruz (CSS Grid Areas ile):
+         1. satır: [sol grup: hamburger+geri]  ...  [avatar]
+         2. satır: [başlık] (tam genişlik, kendi satırında rahat yer)
+       Grid'in 3 doğrudan çocuğu (sol grup, başlık, avatar) DOM sırası
+       değişmeden, sadece grid-area atamalarıyla yeniden yerleşiyor. */
     @media (max-width: 480px) {
         .dp-avatar-name {
             display: none !important;
@@ -580,20 +583,36 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
             content: "←";
             font-size: 16px;
         }
-        /* DÜZELTME (2. tur): "..." ile kırpma kabul edilemez bulundu —
-           başlık artık kırpılmıyor, gerektiğinde 2 satıra SARIYOR
-           (nowrap/ellipsis yerine normal white-space + küçültülmüş
-           font). Grid satırı yüksekliği içeriğe göre otomatik
-           büyüyeceği için 2 satır olması düzeni bozmuyor. */
+        div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] {
+            grid-template-columns: auto 1fr auto !important;
+            grid-template-rows: auto auto !important;
+            grid-template-areas: "sol . avatar" "baslik baslik baslik" !important;
+            row-gap: 6px !important;
+            align-items: center !important;
+        }
+        div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] > div[data-testid="element-container"]:nth-of-type(1) {
+            grid-area: sol !important;
+        }
+        div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] > div[data-testid="element-container"]:nth-of-type(2) {
+            grid-area: baslik !important;
+            justify-self: start !important;
+        }
+        div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] > div[data-testid="element-container"]:nth-of-type(3) {
+            grid-area: avatar !important;
+        }
         .dp-topbar-baslik {
             white-space: normal !important;
             overflow: visible !important;
             text-overflow: unset !important;
-            font-size: 15px !important;
+            font-size: 17px !important;
             line-height: 1.25 !important;
         }
-        div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] {
-            align-items: start !important;
+
+        /* Üstteki fazla boşluğu azalt — Streamlit'in varsayılan mobil
+           üst dolgusu (block-container padding-top) gereğinden fazla
+           boş alan bırakıyordu. */
+        [data-testid="stAppViewContainer"] .main .block-container {
+            padding-top: 1.2rem !important;
         }
     }
     </style>
@@ -949,10 +968,12 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
             st.markdown(f"""
             <style>
             div[class*="st-key-dp_yenile_{key_prefix}"] button {{
-                padding: 4px 10px !important;
-                min-height: 30px !important;
-                height: 30px !important;
-                font-size: 13px !important;
+                width: 38px !important;
+                min-width: 38px !important;
+                padding: 0 !important;
+                min-height: 38px !important;
+                height: 38px !important;
+                font-size: 15px !important;
                 border-radius: 8px !important;
                 border-color: #e3e1da !important;
                 background: #ffffff !important;
@@ -961,7 +982,7 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
             </style>
             """, unsafe_allow_html=True)
             st.write("")
-            if st.button("↻", key=f"dp_yenile_{key_prefix}", help="Yenile", use_container_width=True):
+            if st.button("↻", key=f"dp_yenile_{key_prefix}", help="Yenile"):
                 talepleri_cek.clear()
                 portfoyleri_cek.clear()
                 favorileri_cek.clear()
