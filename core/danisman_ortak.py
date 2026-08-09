@@ -823,7 +823,16 @@ def _inject_filtre_pill_css():
         gap: 6px !important;
         flex-wrap: wrap !important;
     }
-    div[data-testid="stRadio"] label {
+    /* DÜZELTME (3. tur — gerçek kök sebep bulundu): Bu kural
+       "div[data-testid=stRadio] label" seçicisiyle HEM pill
+       etiketlerini HEM DE grup başlığını ("İşlem Tipi" gibi, o da
+       teknik olarak <label data-testid="stWidgetLabel"> içinde)
+       hedefliyordu — display:inline-flex !important ile başlığı
+       ZORLA görünür kılıyordu. Ayrı, scoped bir display:none denemesi
+       bununla yarışıp kaybediyordu (gerçek DOM incelemesiyle
+       doğrulandı). Çözüm: pill kuralı artık :not() ile stWidgetLabel'ı
+       hariç tutuyor, başlık için AYRI ve KESİN bir gizleme kuralı var. */
+    div[data-testid="stRadio"] label:not([data-testid="stWidgetLabel"]) {
         display: inline-flex !important;
         align-items: center !important;
         border: 1px solid #e3e1da !important;
@@ -832,6 +841,9 @@ def _inject_filtre_pill_css():
         margin: 0 !important;
         min-height: unset !important;
         background: #ffffff !important;
+    }
+    div[data-testid="stRadio"] label[data-testid="stWidgetLabel"] {
+        display: none !important;
     }
     /* Dairesel göstergeyi gizle — data-baseweb="radio" SADECE göstergenin
        kendisi (metin değil), :has() bu eleman display:none olsa bile DOM
@@ -913,9 +925,6 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
     div[class*="st-key-dp_filtre_toolbar_{key_prefix}"] {{
         margin-top: -8px !important;
         margin-bottom: -8px !important;
-    }}
-    div[class*="st-key-dp_filtre_toolbar_{key_prefix}"] div[data-testid="stWidgetLabel"] {{
-        display: none !important;
     }}
     div[class*="st-key-dp_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] {{
         gap: 0.5rem !important;
