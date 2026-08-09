@@ -144,12 +144,41 @@ div[class*="st-key-dp_uzmanlik_btn"] button::before {
     margin-right: 6px;
     font-size: 14px;
 }
+
+/* MOBİL: Talep/Portföy kartları Streamlit'in varsayılan davranışıyla
+   (dar ekranda sütunları alt alta dizme) alt alta düşüp 2 kutuluk yer
+   kaplıyordu — "üst üste durunca 1 kutuluk yer kaplasın" talebiyle,
+   bu SATIRA ÖZEL (dp_kartlar_row key'i) olarak yan yana kalmaya
+   ZORLANIYOR. İçerik (başlık, sayı, buton) dar sütunda sıkışabilir —
+   gerçek testte doğrulanmadı, gerekirse bir sonraki turda kart içi
+   font/padding'i mobilde ayrıca küçültürüz. */
+@media (max-width: 640px) {
+    div[class*="st-key-dp_kartlar_row"] [data-testid="stHorizontalBlock"] {
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 8px !important;
+    }
+    div[class*="st-key-dp_kartlar_row"] [data-testid="stColumn"] {
+        width: 50% !important;
+        min-width: 0 !important;
+        flex: 1 1 50% !important;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
 with st.container(border=True, key="dp_page_frame"):
     render_topbar("Startkey Zeta Danışman Panosu", ikon="")
-    st.caption("Talep ve portföyleri canlı takip edin, hızlıca yeni kayıt ekleyin.")
+
+    # DÜZELTME (2. tur): "+ Ekle" butonu artık alttaki chip satırında
+    # değil, açıklama cümlesiyle AYNI satırda, sağda — sık kullanılan bir
+    # eylem olduğu için daha görünür/erişilebilir bir konuma taşındı.
+    cap_col, ekle_col = st.columns([5, 1])
+    with cap_col:
+        st.caption("Talep ve portföyleri canlı takip edin, hızlıca yeni kayıt ekleyin.")
+    with ekle_col:
+        if st.button("+ Ekle", key="dp_ekle_btn", use_container_width=True):
+            ekle_dialog()
     st.write("")
 
     talepler = talepleri_cek()
@@ -161,7 +190,13 @@ with st.container(border=True, key="dp_page_frame"):
     talep_yeni = son_N_gun_filtrele(talepler, 7)
     portfoy_yeni = son_N_gun_filtrele(portfoyler, 7)
 
-    col_talep, col_portfoy = st.columns(2, gap="medium")
+    # DÜZELTME (2. tur): Talep/Portföy kartlarını kendi key'li konteynerine
+    # alıyoruz — mobilde bu SATIRA ÖZEL bir CSS kuralı uygulayabilmek için
+    # (Streamlit'in varsayılan davranışı dar ekranda sütunları alt alta
+    # dizmek; burada bilinçli olarak bunu geçersiz kılıp yan yana, dar iki
+    # dikdörtgen halinde tutuyoruz — "1 kutuluk yer" talebi).
+    with st.container(key="dp_kartlar_row"):
+        col_talep, col_portfoy = st.columns(2, gap="small")
 
     with col_talep:
         with st.container(border=True, key="dp_kart_talep"):
@@ -225,16 +260,13 @@ with st.container(border=True, key="dp_page_frame"):
 
     st.write("")
 
-    col_uzmanlik, col_favori, col_ekle = st.columns([1, 1, 1])
+    col_uzmanlik, col_favori = st.columns([1, 1])
     with col_uzmanlik:
         if st.button("Uzmanlık Bölgelerim", key="dp_uzmanlik_btn"):
             st.switch_page("pages/Danisman_UzmanlikBolgeleri.py")
     with col_favori:
         if st.button("Favori Listem", key="dp_favori_btn"):
             st.switch_page("pages/Danisman_Favoriler.py")
-    with col_ekle:
-        if st.button("+ Ekle", key="dp_ekle_btn"):
-            ekle_dialog()
 
     st.write("")
     render_activity_bar()
