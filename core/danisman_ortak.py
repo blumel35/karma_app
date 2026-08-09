@@ -580,6 +580,21 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
             content: "←";
             font-size: 16px;
         }
+        /* DÜZELTME (2. tur): "..." ile kırpma kabul edilemez bulundu —
+           başlık artık kırpılmıyor, gerektiğinde 2 satıra SARIYOR
+           (nowrap/ellipsis yerine normal white-space + küçültülmüş
+           font). Grid satırı yüksekliği içeriğe göre otomatik
+           büyüyeceği için 2 satır olması düzeni bozmuyor. */
+        .dp-topbar-baslik {
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: unset !important;
+            font-size: 15px !important;
+            line-height: 1.25 !important;
+        }
+        div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] {
+            align-items: start !important;
+        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -900,7 +915,7 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
         margin-bottom: -8px !important;
     }}
     div[class*="st-key-dp_filtre_toolbar_{key_prefix}"] div[data-testid="stWidgetLabel"] {{
-        margin-bottom: 2px !important;
+        display: none !important;
     }}
     div[class*="st-key-dp_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] {{
         gap: 0.5rem !important;

@@ -72,7 +72,7 @@ def _favori_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
         margin-bottom: -8px !important;
     }}
     div[class*="st-key-df_filtre_toolbar_{key_prefix}"] div[data-testid="stWidgetLabel"] {{
-        margin-bottom: 2px !important;
+        display: none !important;
     }}
     div[class*="st-key-df_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] {{
         gap: 0.5rem !important;

@@ -86,6 +86,9 @@ def _bolge_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
         margin-top: -8px !important;
         margin-bottom: -8px !important;
     }}
+    div[class*="st-key-ub_filtre_toolbar_{key_prefix}"] div[data-testid="stWidgetLabel"] {{
+        display: none !important;
+    }}
     div[class*="st-key-ub_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] {{
         gap: 0.5rem !important;
     }}
