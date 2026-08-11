@@ -65,8 +65,11 @@ div[class*="st-key-dp_ekle_btn"] button:hover {
 }
 }
 .dp-icon-box {
-    width: 38px; height: 38px; border-radius: 9px;
-    display: flex; align-items: center; justify-content: center;
+    width: 38px !important;
+    max-width: 38px !important;
+    height: 38px; border-radius: 9px;
+    display: inline-flex !important; flex: 0 0 auto !important;
+    align-items: center; justify-content: center;
     font-size: 20px; margin-bottom: 8px;
 }
 .dp-icon-box.talep { background: rgba(27,37,64,.08); color: #1b2540; }
@@ -220,14 +223,14 @@ div[class*="st-key-dp_uzmanlik_btn"] button {
    verildi. Bu kural yukarıdaki paylaşılan (beyaz) kuraldan SONRA geldiği
    için CSS cascade'de öncelikli, override ediyor. */
 div[class*="st-key-dp_uzmanlik_btn"] button {
-    border-color: #cfe0e0 !important;
-    background: #eaf1f1 !important;
-    color: #2f5858 !important;
+    border-color: #a3d9d3 !important;
+    background: #d9f0ee !important;
+    color: #1c5c58 !important;
 }
 div[class*="st-key-dp_uzmanlik_btn"] button:hover {
-    border-color: #b9d4d4 !important;
-    background: #ddeaea !important;
-    color: #2f5858 !important;
+    border-color: #7ec9c1 !important;
+    background: #c5e8e4 !important;
+    color: #1c5c58 !important;
 }
 /* Yıldız — ::first-letter denemesi güvenilir çalışmadı (Streamlit'in
    buton metnini sardığı iç eleman yapısı net değil, kısmi metin
