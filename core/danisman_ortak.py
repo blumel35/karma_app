@@ -637,11 +637,11 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
 
         /* Üstteki fazla boşluğu azalt — Streamlit'in varsayılan mobil
            üst dolgusu (block-container padding-top) gereğinden fazla
-           boş alan bırakıyordu. DÜZELTME (09.08.2026): bazı alt
-           sayfalarda (özellikle 2 satıra düşen başlıklarda) bu boşluk
-           hâlâ göze batıyordu — 1.2rem'den 0.75rem'e düşürüldü. */
+           boş alan bırakıyordu. DÜZELTME (11.08.2026 — 2. tur): 0.75rem
+           hâlâ yetersizdi, ekran görüntülerinde üstte belirgin boşluk
+           kalıyordu — 0.35rem'e düşürüldü. */
         [data-testid="stAppViewContainer"] .main .block-container {
-            padding-top: 0.75rem !important;
+            padding-top: 0.35rem !important;
         }
         /* Topbar'ın kendi alt boşluğu da mobilde biraz sıkılaştırıldı
            (masaüstü değeri — 8px — dokunulmadı, bu kural sadece bu
@@ -1015,20 +1015,20 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
         color: #5b6478 !important;
     }}
 
-    /* DÜZELTME (mobil filtre+yenile kompaktlama, 09.08.2026): Streamlit
-       3 sütunu (İşlem Tipi / Zaman Aralığı / Yenile) mobilde varsayılan
-       olarak 3 AYRI satıra yığıyordu — Yenile butonu kendi başına, sola
-       yaslı, yalnız bir satır işgal ediyordu. HEDEF tüm filtreleri tek
-       satıra sıkıştırmak DEĞİL (360-400px'te okunmaz olur) — hedef en
-       fazla 2 kompakt satır, Yenile'nin kendi ilgili filtre satırının
-       SAĞINDA yer alması. CSS Grid ile: 1. satır = İşlem Tipi (tam
-       genişlik), 2. satır = Zaman Aralığı + Yenile (yan yana). Topbar'da
-       zaten kanıtlanmış aynı nth-of-type + grid-area deseni. */
+    /* DÜZELTME (mobil filtre+yenile kompaktlama, 09.08.2026, GÜNCELLEME
+       11.08.2026 — 2. tur): İlk halinde 1. satır = İşlem Tipi (tam
+       genişlik), 2. satır = Zaman Aralığı + Yenile yan yana idi — ama
+       canlıda "Son 24 saat"/"Son 7 gün" pill'leri Yenile ile aynı dar
+       satırı paylaşınca hâlâ 3. satıra taşıyordu (metinleri İşlem
+       Tipi'nden uzun: "Son 24 saat", "Son 7 gün"). Çözüm: SATIRLAR
+       DEĞİŞTİRİLDİ — artık 1. satır = İşlem Tipi (kısa: Tümü/Satılık/
+       Kiralık) + Yenile yan yana, 2. satır = Zaman Aralığı TEK BAŞINA
+       tam genişlikte, taşmasın diye ihtiyacı olan tüm alanı alıyor. */
     @media (max-width: 480px) {{
         div[class*="st-key-dp_filtre_toolbar_{key_prefix}"] div[data-testid="stHorizontalBlock"] {{
             display: grid !important;
             grid-template-columns: 1fr auto !important;
-            grid-template-areas: "islem islem" "zaman yenile" !important;
+            grid-template-areas: "islem yenile" "zaman zaman" !important;
             row-gap: 6px !important;
             align-items: center !important;
         }}

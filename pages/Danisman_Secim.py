@@ -64,6 +64,20 @@ div[class*="st-key-dp_ekle_btn"] button:hover {
     color: #3d4457 !important;
 }
 }
+/* NOT (11.08.2026 — ikinci deneme): İlk düzeltme (inline-flex + width
+   !important doğrudan .dp-icon-box üzerinde) canlıda çözmedi — demek ki
+   sorun kutunun KENDİ genişliğinde değil, onu SARAN Streamlit elemanının
+   (muhtemelen bir platform güncellemesiyle gelen yeni varsayılan arka
+   plan/genişlik davranışı) üzerinde. Bu kural, ikon kutusunu içeren
+   markdown sarmalayıcısını doğrudan hedefleyip olası arka planı/
+   genişliğini sıfırlıyor — .dp-icon-box'ın KENDİ rengine dokunmadan. */
+div[class*="st-key-dp_kart_talep"] [data-testid="stMarkdownContainer"]:has(.dp-icon-box),
+div[class*="st-key-dp_kart_portfoy"] [data-testid="stMarkdownContainer"]:has(.dp-icon-box),
+div[class*="st-key-dp_kart_talep"] [data-testid="stElementContainer"]:has(.dp-icon-box),
+div[class*="st-key-dp_kart_portfoy"] [data-testid="stElementContainer"]:has(.dp-icon-box) {
+    background: transparent !important;
+    width: fit-content !important;
+}
 .dp-icon-box {
     width: 38px !important;
     max-width: 38px !important;
@@ -82,44 +96,59 @@ div[class*="st-key-dp_ekle_btn"] button:hover {
 .dp-stat-num { font-size: 22px; font-weight: 800; color: #1b2540; }
 .dp-stat-num.portfoy { color: #b8892f; }
 
-/* DÜZELTME (09.08.2026 — mobil kart sıkılaştırma): Talep/Portföy
-   kartları mobilde gereğinden fazla dikey yer kaplıyordu. Kartlar
-   TEK SÜTUNDA KALIYOR (bu daha önce onaylanmış bir karardı, geri
-   alınmadı) — sadece her kartın iç boşlukları ve eleman boyutları
-   küçültülüp "kare" değil "kısa dikdörtgen" hissi versin diye
-   sıkılaştırıldı. */
+/* DÜZELTME (09.08.2026 — mobil kart sıkılaştırma, GÜNCELLEME 11.08.2026
+   — 2. tur, daha da sıkılaştırıldı): Talep/Portföy kartları mobilde
+   hâlâ fazla yer kaplıyordu. Kartlar TEK SÜTUNDA KALIYOR (bu daha önce
+   onaylanmış bir karardı, geri alınmadı) — iç boşluklar ve eleman
+   boyutları bir tur daha küçültüldü. Ayrıca dp_page_frame'in (tüm
+   sayfayı saran çerçeve) kendi üst dolgusu da mobilde daraltıldı —
+   üst tarafta göze batan boşluğun bir kısmı buradan geliyordu. */
 @media (max-width: 480px) {
+    div[class*="st-key-dp_page_frame"] {
+        padding: 14px 14px 16px 14px !important;
+    }
     div[class*="st-key-dp_kart_talep"] div[data-testid="stVerticalBlockBorderWrapper"],
     div[class*="st-key-dp_kart_portfoy"] div[data-testid="stVerticalBlockBorderWrapper"] {
-        padding: 12px 14px !important;
+        padding: 10px 12px !important;
     }
     .dp-icon-box {
-        width: 28px !important;
-        height: 28px !important;
-        border-radius: 7px !important;
-        font-size: 15px !important;
-        margin-bottom: 4px !important;
+        width: 24px !important;
+        height: 24px !important;
+        max-width: 24px !important;
+        border-radius: 6px !important;
+        font-size: 13px !important;
+        margin-bottom: 3px !important;
     }
     .dp-icon-box svg {
-        width: 15px !important;
-        height: 15px !important;
+        width: 13px !important;
+        height: 13px !important;
     }
     .dp-stat-row {
-        padding-top: 6px !important;
-        margin-top: 4px !important;
+        padding-top: 5px !important;
+        margin-top: 3px !important;
     }
     .dp-stat-num {
-        font-size: 18px !important;
+        font-size: 16px !important;
+    }
+    div[class*="st-key-dp_kart_talep"] p,
+    div[class*="st-key-dp_kart_portfoy"] p {
+        margin-bottom: 2px !important;
+        font-size: 12.5px !important;
     }
     div[class*="st-key-dp_talep_git"] button,
     div[class*="st-key-dp_portfoy_git"] button {
-        padding: 8px 12px !important;
-        font-size: 13px !important;
+        padding: 7px 12px !important;
+        font-size: 12.5px !important;
     }
     div[class*="st-key-dp_talep_yeni_rozet"] button,
     div[class*="st-key-dp_portfoy_yeni_rozet"] button {
-        padding: 4px 10px !important;
-        font-size: 11.5px !important;
+        padding: 3px 9px !important;
+        font-size: 11px !important;
+    }
+    /* Kartlar arası dikey boşluk da azaltıldı (Streamlit sütun grubu
+       varsayılan gap'i). */
+    div[class*="st-key-dp_kartlar_row"] div[data-testid="stHorizontalBlock"] {
+        row-gap: 8px !important;
     }
     /* Kartların içindeki st.write("") boşluk verici satırlar — masaüstünde
        gerekli dikey nefes payı için vardı, mobilde sıkılaştırma hedefiyle
