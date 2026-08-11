@@ -37,18 +37,32 @@ hide_sidebar_css()
 st.markdown("""
 <style>
 div[class*="st-key-dp_talep_git"] button,
-div[class*="st-key-dp_portfoy_git"] button,
-div[class*="st-key-dp_ekle_btn"] button {
+div[class*="st-key-dp_portfoy_git"] button {
     background-color: #1b2540 !important;
     border-color: #1b2540 !important;
     color: #ffffff !important;
 }
 div[class*="st-key-dp_talep_git"] button:hover,
-div[class*="st-key-dp_portfoy_git"] button:hover,
-div[class*="st-key-dp_ekle_btn"] button:hover {
+div[class*="st-key-dp_portfoy_git"] button:hover {
     background-color: #28345a !important;
     border-color: #28345a !important;
     color: #ffffff !important;
+}
+/* DÜZELTME (10.08.2026): "+ Yeni Talep/Portföy Ekle" navy dolgudan
+   gri/soft zemine geçti — mockup karşılaştırmasında karar verildi.
+   Sık kullanılan ama "ağır" hissettirmemesi istenen bir eylem için
+   nötr gri daha uygun bulundu; "Talep/Portföy Panosuna Git" gibi asıl
+   birincil (navy) eylemlerden bilinçli olarak ayrıştırıldı. */
+div[class*="st-key-dp_ekle_btn"] button {
+    background-color: #eef0f3 !important;
+    border-color: #dde1e6 !important;
+    color: #3d4457 !important;
+}
+div[class*="st-key-dp_ekle_btn"] button:hover {
+    background-color: #e2e5ea !important;
+    border-color: #ccd1d8 !important;
+    color: #3d4457 !important;
+}
 }
 .dp-icon-box {
     width: 38px; height: 38px; border-radius: 9px;
@@ -197,6 +211,23 @@ div[class*="st-key-dp_uzmanlik_btn"] button {
     border-color: #e3e1da !important;
     background: #ffffff !important;
     color: #5b6478 !important;
+}
+/* DÜZELTME (10.08.2026): "Uzmanlık Bölgelerim" artık Favori Listem ile
+   AYNI nötr beyaz stili paylaşmıyor — sık kullanılacak bir ekran olduğu
+   için kendine has bir vurgu istendi. Palette'te lacivert (Talep) ve
+   gold (Portföy) zaten dolu olduğundan, gri (Ekle ile karışmasın) yerine
+   ayrı bir slate/teal tonu seçildi — mockup karşılaştırmasında karar
+   verildi. Bu kural yukarıdaki paylaşılan (beyaz) kuraldan SONRA geldiği
+   için CSS cascade'de öncelikli, override ediyor. */
+div[class*="st-key-dp_uzmanlik_btn"] button {
+    border-color: #cfe0e0 !important;
+    background: #eaf1f1 !important;
+    color: #2f5858 !important;
+}
+div[class*="st-key-dp_uzmanlik_btn"] button:hover {
+    border-color: #b9d4d4 !important;
+    background: #ddeaea !important;
+    color: #2f5858 !important;
 }
 /* Yıldız — ::first-letter denemesi güvenilir çalışmadı (Streamlit'in
    buton metnini sardığı iç eleman yapısı net değil, kısmi metin

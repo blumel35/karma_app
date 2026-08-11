@@ -552,21 +552,31 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
         width: auto !important;
     }
     /* Başlık — grid sütunu içinde ortalı, satır kırmasın, sığmazsa
-       kırpılıp "..." göstersin (satır kırıp dikey bölünmek yerine). */
+       kırpılıp "..." göstersin (satır kırıp dikey bölünmek yerine).
+       DÜZELTME (10.08.2026): Başlık rengi artık AÇIKÇA lacivert —
+       önceden Streamlit'in varsayılan metin rengine bırakılmıştı,
+       kararlaştırılan "başlık lacivert kalsın" tercihiyle tutarlı
+       olsun diye netleştirildi. */
     .dp-topbar-baslik {
         margin: 0 !important;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
+        color: #1b2540 !important;
     }
     /* Avatar rozeti — kendi sınıfıyla, üstteki reset kurallarından
-       tamamen bağımsız garanti altına alınıyor. */
+       tamamen bağımsız garanti altına alınıyor.
+       DÜZELTME (10.08.2026): Lacivert dolu daireden soluk/pastel gold
+       zemin + koyu gold yazıya geçildi — amaç "her yer lacivert olmasın"
+       (monotonluğu kırmak) ama tam doygun gold gibi göz önce buraya
+       gitmesin diye BİLİNÇLİ OLARAK soluk tutuldu (mockup'ta 3 seçenek
+       karşılaştırılıp bu seçildi). */
     .dp-avatar-circle {
         width: 30px !important;
         height: 30px !important;
         border-radius: 50% !important;
-        background: #1b2540 !important;
-        color: #ffffff !important;
+        background: #f0e2c4 !important;
+        color: #8a6519 !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
