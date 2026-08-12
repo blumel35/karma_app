@@ -48,9 +48,12 @@ jobs:
 
       - name: Otomatik mail çekimini çalıştır
         env:
-          # Faz 2.5 kararı: ilk kurulumda AI kategorizasyonu KAPALI başlat.
-          # Bir süre sorunsuz çalıştıktan sonra "true" yap.
-          AI_KATEGORIZASYON_AKTIF: "false"
+          # Faz 2.5 kararı tamamlandı (12.08.2026): fetch adımı bir süredir
+          # sorunsuz çalışıyor, AI kategorizasyon adımı da otomasyona dahil
+          # edildi. Cron zaten 30 dakikada bir çalıştığı için (aşağıda
+          # değişmedi), AI adımı da aynı ritimde devreye giriyor — günlük
+          # tavan 48 çalıştırma × 20 kayıt = 960 kayıt, bolca pay var.
+          AI_KATEGORIZASYON_AKTIF: "true"
           AI_ISLEME_LIMITI: "20"
         run: |
           python scripts/mail_auto_job.py
@@ -73,4 +76,7 @@ jobs:
 # 3) İlk hafta AI_KATEGORIZASYON_AKTIF="false" kalsın — sadece ham
 #    mail çekimi otomatik çalışsın, AI kategorize etme manuel buton
 #    ile test edilsin. Sorunsuz geçince bu satırı "true" yap.
+#    -> 12.08.2026: bu adım tamamlandı, AI_KATEGORIZASYON_AKTIF="true"
+#       yapıldı. AI kategorize etme artık her 30 dakikalık çekimin
+#       hemen ardından otomatik çalışıyor.
 # ============================================================
