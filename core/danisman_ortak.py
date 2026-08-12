@@ -456,12 +456,28 @@ def son_24_saat_ozeti():
       zaman penceresi farklı (24 saat vs 7 gün).
     - İSİMLİ paylaşım satırları (kim ne ekledi) → SADECE ZETA — 'ekibim
       ne yaptı' sorusuna cevap verir; tüm Startkey ağını (binlerce kişi)
-      burada isim isim listelemek hem yanıltıcı hem alakasız olur."""
+      burada isim isim listelemek hem yanıltıcı hem alakasız olur.
+
+    DÜZELTME (12.08.2026 — Zeta Portföyleri): resmi portal ilanları
+    (kaynak zeta1/zeta2) artık "yeni bir portföy paylaştı" genel
+    cümlesiyle KARIŞTIRILMIYOR — kendi ayrı olay türü ("yeni bir Zeta
+    portföyü yayınladı") ve ayrı bir sayaç (ilan_sayisi) var. Bu, ofis-
+    içi paylaşım ile portalda YAYINLANAN resmi ilan arasındaki ayrımı
+    (uygulamanın geri kalanında zaten kurduğumuz) aktivite akışında da
+    koruyor."""
     talepler_yeni_tumu = son_24_saat_filtrele(talepleri_cek())
     portfoyler_yeni_tumu = son_24_saat_filtrele(portfoyleri_cek())
 
     talepler_yeni_zeta = son_24_saat_filtrele(kaynak_filtrele(talepleri_cek(), "Zeta"))
-    portfoyler_yeni_zeta = son_24_saat_filtrele(kaynak_filtrele(portfoyleri_cek(), "Zeta"))
+    portfoyler_yeni_zeta = [
+        v for v in son_24_saat_filtrele(kaynak_filtrele(portfoyleri_cek(), "Zeta"))
+        if str(v.get("kaynak") or "").strip().lower() not in ILAN_PORTAL_DEGERLERI
+    ]
+    portfoyler_yeni_ilan = [
+        v for v in portfoyleri_cek()
+        if str(v.get("kaynak") or "").strip().lower() in ILAN_PORTAL_DEGERLERI
+    ]
+    portfoyler_yeni_ilan = son_24_saat_filtrele(portfoyler_yeni_ilan)
 
     olaylar = []
     for v in talepler_yeni_zeta:
@@ -476,12 +492,19 @@ def son_24_saat_ozeti():
             "eylem": "yeni bir portföy paylaştı",
             "tarih": kayit_tarihi_dt(v.get("kayit_tarihi")),
         })
+    for v in portfoyler_yeni_ilan:
+        olaylar.append({
+            "danisman": v.get("talep_eden_danisan") or "Bilinmeyen",
+            "eylem": "yeni bir Zeta portföyü yayınladı",
+            "tarih": kayit_tarihi_dt(v.get("kayit_tarihi")),
+        })
     olaylar = [o for o in olaylar if o["tarih"] is not None]
     olaylar.sort(key=lambda o: o["tarih"], reverse=True)
 
     return {
         "talep_sayisi": len(talepler_yeni_tumu),
         "portfoy_sayisi": len(portfoyler_yeni_tumu),
+        "ilan_sayisi": len(portfoyler_yeni_ilan),
         "son_olaylar": olaylar[:2],
         "toplam_olay": len(olaylar),
     }
@@ -491,17 +514,20 @@ def render_activity_bar():
     """Ana ekranda, aksiyon satırının altında tek bir kompakt blok —
     kart değil. 'Tüm Paylaşımlar' linki Danisman_Paylasimlar.py'ye gider."""
     ozet = son_24_saat_ozeti()
-    if ozet["talep_sayisi"] == 0 and ozet["portfoy_sayisi"] == 0:
+    if ozet["talep_sayisi"] == 0 and ozet["portfoy_sayisi"] == 0 and ozet["ilan_sayisi"] == 0:
         return
 
     with st.container(border=True, key="dp_activity_box"):
+        # DÜZELTME (12.08.2026): "N yeni ilan" bilgisi, varsa cümleye
+        # eklendi — resmi portal ilanları artık ayrı bir sinyal.
+        ilan_cumle = f", {ozet['ilan_sayisi']} yeni Zeta ilanı" if ozet["ilan_sayisi"] else ""
         st.markdown(
             "<span style='display:inline-flex;align-items:center;gap:6px;'>"
             "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#b8892f' stroke-width='2' "
             "stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/>"
             "<polyline points='12 6 12 12 16 14'/></svg>"
             f"<span><b>Son 24 saat:</b> {ozet['talep_sayisi']} yeni talep, "
-            f"{ozet['portfoy_sayisi']} yeni portföy paylaşımı</span></span>",
+            f"{ozet['portfoy_sayisi']} yeni portföy paylaşımı{ilan_cumle}</span></span>",
             unsafe_allow_html=True,
         )
         for olay in ozet["son_olaylar"]:
@@ -745,6 +771,8 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                 st.divider()
                 if st.button("📂 Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
                     st.switch_page("pages/Danisman_Kayitlarim.py")
+                if st.button("📢 Zeta Portföyleri", use_container_width=True, key="dp_menu_zeta_ilan"):
+                    st.switch_page("pages/Danisman_ZetaPortfoyleri.py")
                 if st.button("👥 Zeta Paylaşımları", use_container_width=True, key="dp_menu_paylasimlar"):
                     st.switch_page("pages/Danisman_Paylasimlar.py")
                 st.divider()

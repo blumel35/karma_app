@@ -250,6 +250,15 @@ danisman_paylasimlar = st.Page(
     icon=":material/groups:",
 )
 
+# ── Zeta Portföyleri — Revy'den senkronize, portallarda YAYINLANAN
+# resmi ilanlar (12.08.2026). "Zeta Paylaşımları"ndan BAĞIMSIZ — o
+# ofis-içi elle paylaşımları gösterir, bu ise portaldeki canlı envanteri.
+danisman_zeta_portfoyleri = st.Page(
+    "pages/Danisman_ZetaPortfoyleri.py",
+    title="Zeta Portföyleri",
+    icon=":material/campaign:",
+)
+
 # ─────────────────────────────────────────────────────
 # NAVIGATION
 # ─────────────────────────────────────────────────────
@@ -269,6 +278,7 @@ pg = st.navigation(
             danisman_uzmanlik_bolgeleri,
             danisman_kayitlarim,
             danisman_paylasimlar,
+            danisman_zeta_portfoyleri,
         ],
 
         "Danışman": [

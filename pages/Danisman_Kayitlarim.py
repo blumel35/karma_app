@@ -75,16 +75,19 @@ div[class*="st-key-dp_not_kaydet_"] button {
 su_kullanici = su_anki_danisman()
 
 # YENİ (12.08.2026 — İlanlarım / Kayıtlarım ayrımı):
-#   "İlanlarım"  → Revy'den senkronize, portallarda (sahibinden vb.)
-#                  FİİLEN YAYINLANAN resmi ilanlar (kaynak zeta1/zeta2).
-#                  SALT OKUNUR — bu kayıtların kaynağı Revy/portal,
-#                  buradan silinmesi/düzenlenmesi anlamlı değil; sadece
-#                  "↗ İlana Git" linkiyle referans amaçlı gösteriliyor.
-#   "Kayıtlarım" → Danışman Panosu'ndan elle girilmiş, ilan sitelerinde
-#                  BULUNMAYAN talep/portföyler (kaynak zeta/ofis).
+#   "Zeta Portföylerim" → Revy'den senkronize, portallarda (sahibinden
+#                  vb.) FİİLEN YAYINLANAN resmi ilanların — SALT OKUNUR
+#                  (kaynağı Revy/portal, buradan silinmesi/düzenlenmesi
+#                  anlamlı değil), sadece "↗ İlana Git" linkiyle referans.
+#   "Taleplerim" / "Portföylerim" → Danışman Panosu'ndan elle girilmiş,
+#                  ilan sitelerinde BULUNMAYAN kayıtlar (kaynak zeta/ofis).
 #                  Silinebilir/notu düzenlenebilir — değişmedi.
-# revy_sync.py henüz üretime entegre değil, bu yüzden "kendi_ilanlarim"
-# bugün muhtemelen boş dönüyor — entegre edildiğinde otomatik dolacak.
+# revy_sync.py artık üretime entegre — "Zeta Portföylerim" gerçek veriyle
+# dolmaya başlamış olmalı.
+#
+# DÜZELTME (12.08.2026 — 2. tur): Üç bölüm artık ALT ALTA koşullu
+# başlıklar yerine SEKME (st.tabs) olarak gösteriliyor — Favoriler ve
+# Uzmanlık Bölgelerim'deki aynı desen, tutarlılık için.
 kendi_ilanlarim = [
     v for v in portfoyleri_cek()
     if str(v.get("kaynak") or "").strip().lower() in ILAN_PORTAL_DEGERLERI
@@ -97,28 +100,36 @@ kendi_talepler = [
 kendi_portfoyler = [
     v for v in kaynak_filtrele(portfoyleri_cek(), "Zeta")
     if v.get("talep_eden_danisan") == su_kullanici
-    # DÜZELTME: "zeta1"/"zeta2" (resmi ilanlar) artık burada DEĞİL,
-    # yukarıdaki "İlanlarım" bölümünde — revy_sync entegre edildiğinde
-    # bu iki liste birbirine karışmasın diye.
+    # "zeta1"/"zeta2" (resmi ilanlar) burada DEĞİL, "Zeta Portföylerim"
+    # sekmesinde — ikisi birbirine karışmasın diye.
     and str(v.get("kaynak") or "").strip().lower() not in ILAN_PORTAL_DEGERLERI
 ]
 
 if not kendi_ilanlarim and not kendi_talepler and not kendi_portfoyler:
     st.info("Henüz Danışman Panosu'ndan eklediğin bir kayıt yok.")
+    st.stop()
 
-if kendi_ilanlarim:
-    st.markdown("##### 📢 İlanlarım")
-    st.caption("Portallarda (sahibinden vb.) yayınlanan aktif ilanların — salt okunur.")
-    for v in kendi_ilanlarim:
-        with st.container(border=True, key=f"dp_kayit_card_ilan_{v['id']}"):
-            st.markdown(f"**İlan:** {v.get('ozet', '')}")
-            ilan_linki = v.get("ilan_linki")
-            if ilan_linki:
-                st.markdown(
-                    f"<a class='dp-ilan-link' href='{_esc(ilan_linki)}' target='_blank' "
-                    f"rel='noopener noreferrer'>↗ İlana Git</a>",
-                    unsafe_allow_html=True,
-                )
+sekme_ilan, sekme_talep, sekme_portfoy = st.tabs([
+    f"Zeta Portföylerim ({len(kendi_ilanlarim)})",
+    f"Taleplerim ({len(kendi_talepler)})",
+    f"Portföylerim ({len(kendi_portfoyler)})",
+])
+
+with sekme_ilan:
+    if not kendi_ilanlarim:
+        st.caption("Henüz Revy'den senkronize edilmiş bir ilanın yok.")
+    else:
+        st.caption("Portallarda (sahibinden vb.) yayınlanan aktif ilanların — salt okunur.")
+        for v in kendi_ilanlarim:
+            with st.container(border=True, key=f"dp_kayit_card_ilan_{v['id']}"):
+                st.markdown(f"**İlan:** {v.get('ozet', '')}")
+                ilan_linki = v.get("ilan_linki")
+                if ilan_linki:
+                    st.markdown(
+                        f"<a class='dp-ilan-link' href='{_esc(ilan_linki)}' target='_blank' "
+                        f"rel='noopener noreferrer'>↗ İlana Git</a>",
+                        unsafe_allow_html=True,
+                    )
 
 # NOT ALANI (09.08.2026): Kayıt oluşturulurken girilen "Ek Not" daha önce
 # sadece o an yazılabiliyordu, sonradan hiçbir yerden düzenlenemiyordu.
@@ -127,8 +138,9 @@ if kendi_ilanlarim:
 # yazılır. Boş bırakılıp kaydedilirse not temizlenmiş olur (bilinçli;
 # ayrı bir "notu sil" eylemi eklemeye gerek yok).
 
-if kendi_talepler:
-    st.markdown("##### 📥 Taleplerim")
+with sekme_talep:
+    if not kendi_talepler:
+        st.caption("Henüz Danışman Panosu'ndan eklediğin bir talep yok.")
     for v in kendi_talepler:
         with st.container(border=True, key=f"dp_kayit_card_talep_{v['id']}"):
             c1, c2 = st.columns([5, 1])
@@ -151,8 +163,9 @@ if kendi_talepler:
                 st.success("Not kaydedildi.")
                 st.rerun()
 
-if kendi_portfoyler:
-    st.markdown("##### 🏘️ Portföylerim")
+with sekme_portfoy:
+    if not kendi_portfoyler:
+        st.caption("Henüz Danışman Panosu'ndan eklediğin bir portföy yok.")
     for v in kendi_portfoyler:
         with st.container(border=True, key=f"dp_kayit_card_portfoy_{v['id']}"):
             c1, c2 = st.columns([5, 1])
