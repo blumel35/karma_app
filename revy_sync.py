@@ -10,6 +10,7 @@ import time
 import shutil
 from pathlib import Path
 from datetime import datetime
+from email.utils import format_datetime
 
 import pandas as pd
 from selenium import webdriver
@@ -859,18 +860,16 @@ def df_to_supabase(df, kaynak_ofis, supabase_client, log_fn=None, hesap_dogrulan
             "kullanim_durumu": val(kullanim_col),
             "esyali": val(esyali_col),
             "ilan_durumu": val(durum_col),
-            # DÜZELTME (12.08.2026): Bu tabloyu okuyan portfoyleri_cek()
-            # (core/danisman_ortak.py, Danışman Panosu'nun TÜM ekranları
-            # bunu kullanıyor) kayıtları "kayit_tarihi" alanına göre son
-            # 60 güne süzüyor. Bu alan hiç yazılmadığı için (sadece
-            # ilan_tarihi/guncelleme_tarihi vardı, ikisi de FARKLI sütun)
-            # senkronize edilen ilanlar NULL kayit_tarihi ile geliyor ve
-            # filtreye takılıp Danışman Panosu'nda HİÇBİR YERDE
-            # görünmüyordu (Supabase'de gerçekten var olsalar bile).
-            # guncelleme_tarihi ile AYNI değer (senkron/güncelleme anı)
-            # yazılıyor — bir ilan senkronize edildiği sürece "taze"
-            # sayılsın, orijinal yayın tarihi ne kadar eski olursa olsun.
-            "kayit_tarihi": datetime.now().isoformat(),
+            # DÜZELTME (12.08.2026, 2. tur): İlk denemede .isoformat()
+            # kullanılmıştı ("2026-08-12T14:30:00") — ama bunu okuyan
+            # _tarihte_mi() (core/danisman_ortak.py) parsedate_to_datetime()
+            # kullanıyor, yani RFC822 MAIL tarih formatı bekliyor
+            # ("Wed, 12 Aug 2026 14:30:00 +0000"), ISO DEĞİL. ISO string
+            # verilince parser sessizce hata verip kaydı yine filtreye
+            # takılı bırakıyordu (canlıda doğrulandı — düzeltme sonrası
+            # hâlâ görünmüyordu). format_datetime() ile doğru formatta
+            # yazılıyor artık.
+            "kayit_tarihi": format_datetime(datetime.now()),
             "guncelleme_tarihi": datetime.now().isoformat(),
             "aktif": True,
         }
