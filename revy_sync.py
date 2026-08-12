@@ -651,6 +651,12 @@ def df_to_supabase(df, kaynak_ofis, supabase_client, log_fn=None, hesap_dogrulan
     ilce_col    = kolon_bul(df, ["İlçe", "Ilce"])
     mahalle_col = kolon_bul(df, ["Mahalle"])
     fiyat_col   = kolon_bul(df, ["Fiyat"])
+    # YENİ (13.08.2026): "İlk Fiyat" sütunu export'ta gerçekten var ama
+    # hiç yakalanmıyordu — fiyat değişimi (düştü/arttı) göstermek için
+    # gerekli. Gerçek veride 911 kayıttan sadece 18'inde dolu (çoğu
+    # ilanda fiyat hiç değişmemiş/Revy ilk fiyatı ayrı takip etmiyor) —
+    # bu normal, kart tarafında boşsa gösterilmiyor.
+    ilk_fiyat_col = kolon_bul(df, ["İlk Fiyat", "Ilk Fiyat"])
     m2_col      = kolon_bul(df, ["M2", "m²", "Metrekare"])
     oda_col     = kolon_bul(df, ["Oda sayısı", "Oda Sayısı"])
     tarih_col   = kolon_bul(df, ["İlan tarihi", "İlan Tarihi"])
@@ -850,6 +856,7 @@ def df_to_supabase(df, kaynak_ofis, supabase_client, log_fn=None, hesap_dogrulan
             "ilce": val(ilce_col),
             "mahalle": val(mahalle_col),
             "fiyat": val(fiyat_col),
+            "ilk_fiyat": int_val(ilk_fiyat_col),
             "oda_sayisi_m2": val(oda_col),
             "m2": val(m2_col),
             "ilan_tarihi": val(tarih_col),

@@ -135,6 +135,37 @@ def _kaynak_etiket(v):
     return "Startkey"
 
 
+# core/danisman_ortak.py'deki AYNI sabit — döngüsel import olmasın diye
+# (danisman_ortak.py zaten bu modülü import ediyor) burada TEKRAR
+# tanımlanıyor, _kaynak_etiket()'teki ZETA_DEGERLERI ile aynı desen.
+ILAN_PORTAL_DEGERLERI = {"zeta1", "zeta2"}
+
+
+def _portal_ilani_mi(v):
+    return str(v.get("kaynak") or "").strip().lower() in ILAN_PORTAL_DEGERLERI
+
+
+def _sayi_ayikla(deger):
+    """Fiyat/ilk_fiyat gibi alanları güvenle sayıya çevirir — Supabase'den
+    hem sayı hem metin ('7200000', '7200000.0') gelebiliyor. Ayrıştırılamazsa
+    None döner (çağıran taraf bu durumda satırı sessizce atlıyor)."""
+    if deger in (None, "", "None"):
+        return None
+    try:
+        return float(deger)
+    except (TypeError, ValueError):
+        return None
+
+
+def _sayi_formatla(sayi):
+    """1234567 -> '1.234.567' (Türkçe binlik ayraç, TL eki YOK — çağıran
+    taraf ekliyor, birim burada sabitlenmesin diye)."""
+    try:
+        return f"{int(round(sayi)):,}".replace(",", ".")
+    except (TypeError, ValueError):
+        return str(sayi)
+
+
 def _kart_html(v, kayit_tipi, favori_destekli=False, favorili_mi=False):
     islem = _islem_tipi_norm(v)
     bg, fg = _rozet_renk(islem)
@@ -159,6 +190,94 @@ def _kart_html(v, kayit_tipi, favori_destekli=False, favorili_mi=False):
 
     konu = _esc(_html_temizle(v.get("mail_konusu", "")))
     icerik = _esc(_html_temizle(v.get("mail_icerigi", ""))).replace("\n", "<br>")
+
+    # DÜZELTME (13.08.2026): Portal ilanlarının (Revy senkron, zeta1/
+    # zeta2) mail içeriği yok — "Mail içeriğini gör" onlar için anlamsız,
+    # boş bir kutu açardı. Bunun yerine Revy'nin export ettiği yapılandırılmış
+    # alanlar, ÖNEM SIRASINA göre 4 grupta gösteriliyor (rastgele sırayla
+    # değil — GD'nin bir ilana bakarken sırayla sorduğu sorular): önce
+    # fiyat durumu (değişti mi?), sonra piyasada kalma süresi, sonra
+    # fiziksel özellikler, en sonda kullanım durumu. Mail kaynaklı
+    # kayıtlarda (Startkey/mail) davranış DEĞİŞMEDİ.
+    portal_ilani = _portal_ilani_mi(v)
+    if portal_ilani:
+        gruplar_html = []
+
+        # 1) FİYAT DURUMU — en önemli sinyal. İlk fiyat varsa VE güncel
+        # fiyattan farklıysa, değişim yönü/miktarı/yüzdesi gösteriliyor.
+        # İlk fiyat çoğu kayıtta boş (Revy'nin kendi verisinde de öyle) —
+        # o zaman bu grup sessizce atlanıyor, boş satır göstermiyoruz.
+        fiyat_satirlari = []
+        guncel_fiyat_num = _sayi_ayikla(v.get("fiyat"))
+        ilk_fiyat_num = _sayi_ayikla(v.get("ilk_fiyat"))
+        if ilk_fiyat_num is not None and guncel_fiyat_num is not None and ilk_fiyat_num != guncel_fiyat_num:
+            fark = guncel_fiyat_num - ilk_fiyat_num
+            yuzde = (fark / ilk_fiyat_num * 100) if ilk_fiyat_num else 0
+            yon_ok = "↓" if fark < 0 else "↑"
+            yon_renk = "#2b6b3f" if fark < 0 else "#a13c33"  # düşüş=yeşil (alıcı için iyi haber), artış=kırmızı
+            fiyat_satirlari.append(
+                f'<div class="detay-satir"><span class="detay-etiket">İlk fiyat:</span> '
+                f'<span>{_esc(_sayi_formatla(ilk_fiyat_num))} TL</span></div>'
+            )
+            fiyat_satirlari.append(
+                f'<div class="detay-satir"><span class="detay-etiket">Değişim:</span> '
+                f'<span style="color:{yon_renk};font-weight:700;">{yon_ok} '
+                f'{_esc(_sayi_formatla(abs(fark)))} TL ({yuzde:+.1f}%)</span></div>'
+            )
+        if fiyat_satirlari:
+            gruplar_html.append('<div class="detay-grup">' + "".join(fiyat_satirlari) + '</div>')
+
+        # 2) PİYASADA KALMA SÜRESİ — ne kadardır satılık/kiralık, ne
+        # zaman yayınlanmış.
+        sure_satirlari = []
+        for alan, etiket in [("ilan_tarihi", "İlan tarihi"), ("ilan_suresi", "Yayın süresi (gün)")]:
+            deger_ham = v.get(alan)
+            if deger_ham not in (None, "", "None"):
+                sure_satirlari.append(
+                    f'<div class="detay-satir"><span class="detay-etiket">{_esc(etiket)}:</span> '
+                    f'<span>{_esc(deger_ham)}</span></div>'
+                )
+        if sure_satirlari:
+            gruplar_html.append('<div class="detay-grup">' + "".join(sure_satirlari) + '</div>')
+
+        # 3) FİZİKSEL ÖZELLİKLER — eşleştirme için asıl kullanılacak veri.
+        fiziksel_satirlari = []
+        for alan, etiket in [
+            ("kat", "Bulunduğu kat"), ("m2", "m²"), ("bina_yasi", "Bina yaşı"),
+            ("site_icerisinde", "Site içerisinde"), ("esyali", "Eşyalı"), ("mahalle", "Mahalle"),
+        ]:
+            deger_ham = v.get(alan)
+            if deger_ham not in (None, "", "None"):
+                fiziksel_satirlari.append(
+                    f'<div class="detay-satir"><span class="detay-etiket">{_esc(etiket)}:</span> '
+                    f'<span>{_esc(deger_ham)}</span></div>'
+                )
+        if fiziksel_satirlari:
+            gruplar_html.append('<div class="detay-grup">' + "".join(fiziksel_satirlari) + '</div>')
+
+        # 4) KULLANIM DURUMU — ayrı grup, satış sürecini etkileyen bilgi
+        # (boş/kiracılı/oturan var gibi).
+        kullanim_deger = v.get("kullanim_durumu")
+        if kullanim_deger not in (None, "", "None"):
+            gruplar_html.append(
+                '<div class="detay-grup">'
+                f'<div class="detay-satir"><span class="detay-etiket">Kullanım durumu:</span> '
+                f'<span>{_esc(kullanim_deger)}</span></div></div>'
+            )
+
+        detay_icerik_html = "".join(gruplar_html) if gruplar_html else '<div class="detay-satir">Ek detay bilgisi yok.</div>'
+        detay_blok_html = f"""
+      <details class="kart-detay">
+        <summary>📋 Detay Bilgilerini Gör</summary>
+        {detay_icerik_html}
+      </details>"""
+    else:
+        detay_blok_html = f"""
+      <details class="kart-detay">
+        <summary>✉ Mail içeriğini gör</summary>
+        <div class="detay-konu">{konu}</div>
+        <div class="detay-icerik">{icerik}</div>
+      </details>"""
 
     # "İlana Git" linki — SADECE portföy kartlarında (talep/alıcı arayışı
     # kayıtlarının bağlı olacağı bir "ilan" yok, bu alan sadece portfoyler
@@ -203,12 +322,7 @@ def _kart_html(v, kayit_tipi, favori_destekli=False, favorili_mi=False):
       <div class="kart-alt-satir">
         <span class="kart-danisman">👤 {danisman}</span>
         <span class="{kaynak_sinif}">{kaynak_etiketi}</span>
-      </div>
-      <details class="kart-detay">
-        <summary>✉ Mail içeriğini gör</summary>
-        <div class="detay-konu">{konu}</div>
-        <div class="detay-icerik">{icerik}</div>
-      </details>
+      </div>{detay_blok_html}
     </div>
     """
 
@@ -465,6 +579,20 @@ function favoriToggle(el) {{
     font-size: 12.5px; color: var(--ink); line-height: 1.55;
     background: var(--cream-2); border-radius: 8px; padding: 10px 12px;
   }}
+  /* Portal ilanı detay satırları — mail içeriği kutusuyla aynı zemin,
+     ama tek tek etiket:değer satırları olarak (13.08.2026). */
+  .detay-satir {{
+    font-size: 12.5px; color: var(--ink); line-height: 1.7;
+    background: var(--cream-2); border-radius: 8px; padding: 4px 12px;
+  }}
+  .detay-satir:first-child {{ border-radius: 8px 8px 0 0; padding-top: 10px; }}
+  .detay-satir:last-child {{ border-radius: 0 0 8px 8px; padding-bottom: 10px; }}
+  .detay-etiket {{ color: var(--ink-soft); font-weight: 600; }}
+  /* Detay grupları (fiyat durumu / piyasa süresi / fiziksel / kullanım)
+     arasında görsel nefes payı — hangi bilginin hangi soruya cevap
+     verdiği net ayrışsın diye (13.08.2026). */
+  .detay-grup {{ margin-bottom: 6px; }}
+  .detay-grup:last-child {{ margin-bottom: 0; }}
   @media (max-width: 640px) {{
     header, main, nav.harfler {{ padding-left: 16px; padding-right: 16px; }}
     /* DÜZELTME: header h1 sabit 27px'ti, ekran genişliğinden bağımsız
