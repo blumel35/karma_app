@@ -38,6 +38,20 @@ supabase = get_client()
 
 ZETA_DEGERLERI = {"zeta", "zeta1", "zeta2", "ofis"}
 
+# YENİ (12.08.2026 — İlanlarım / Kayıtlarım ayrımı): ZETA_DEGERLERI şu an
+# İKİ FARKLI ŞEYİ aynı torbada tutuyor:
+#   - "zeta" / "ofis"  → GD'lerin Danışman Panosu'ndan ELLE girdiği,
+#     ilan sitelerinde YAYINLANMAYAN ofis-içi paylaşımlar (talep/portföy)
+#   - "zeta1" / "zeta2" → revy_sync.py'nin Revy'den senkronize ettiği,
+#     portallarda (sahibinden vb.) FİİLEN YAYINLANAN resmi ilanlar
+# Bu ikisi KAVRAMSAL OLARAK AYRI — biri "ekip içi duyuru", diğeri "canlı
+# ilan envanteri". revy_sync henüz üretime entegre değil (bu yüzden
+# bugün pratik bir etkisi yok) ama entegre edildiğinde ZETA_DEGERLERI'nı
+# kullanan yerler (Zeta Paylaşımları, Portföy Panosu'nun genel Zeta/
+# Startkey filtresi) BİLEREK değiştirilmedi — sadece "Kendi Kayıtlarım"
+# ekranındaki YENİ "İlanlarım" bölümü bu ayrı sabiti kullanıyor.
+ILAN_PORTAL_DEGERLERI = {"zeta1", "zeta2"}
+
 IZMIR_ILCELERI = [
     "Aliağa", "Balçova", "Bayındır", "Bayraklı", "Bergama", "Beydağ",
     "Bornova", "Buca", "Çeşme", "Çiğli", "Dikili", "Foça", "Gaziemir",
