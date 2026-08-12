@@ -235,7 +235,7 @@ def _kart_html(v, kayit_tipi, favori_destekli=False, favorili_mi=False):
             if deger_ham not in (None, "", "None"):
                 sure_satirlari.append(
                     f'<div class="detay-satir"><span class="detay-etiket">{_esc(etiket)}:</span> '
-                    f'<span>{_esc(deger_ham)}</span></div>'
+                    f'<span>{_esc(str(deger_ham))}</span></div>'
                 )
         if sure_satirlari:
             gruplar_html.append('<div class="detay-grup">' + "".join(sure_satirlari) + '</div>')
@@ -250,7 +250,7 @@ def _kart_html(v, kayit_tipi, favori_destekli=False, favorili_mi=False):
             if deger_ham not in (None, "", "None"):
                 fiziksel_satirlari.append(
                     f'<div class="detay-satir"><span class="detay-etiket">{_esc(etiket)}:</span> '
-                    f'<span>{_esc(deger_ham)}</span></div>'
+                    f'<span>{_esc(str(deger_ham))}</span></div>'
                 )
         if fiziksel_satirlari:
             gruplar_html.append('<div class="detay-grup">' + "".join(fiziksel_satirlari) + '</div>')
@@ -262,7 +262,7 @@ def _kart_html(v, kayit_tipi, favori_destekli=False, favorili_mi=False):
             gruplar_html.append(
                 '<div class="detay-grup">'
                 f'<div class="detay-satir"><span class="detay-etiket">Kullanım durumu:</span> '
-                f'<span>{_esc(kullanim_deger)}</span></div></div>'
+                f'<span>{_esc(str(kullanim_deger))}</span></div></div>'
             )
 
         detay_icerik_html = "".join(gruplar_html) if gruplar_html else '<div class="detay-satir">Ek detay bilgisi yok.</div>'
