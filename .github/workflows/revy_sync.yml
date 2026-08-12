@@ -1,0 +1,48 @@
+name: Otomatik Revy Senkronizasyonu
+
+# "Otomatik Mail Çekimi" (#350) ile AYNI desen: zamanlanmış (cron) +
+# elle tetiklenebilir (workflow_dispatch). Cron UTC kullanır — 03:00 UTC
+# = 06:00 Türkiye saati (yaz/kış saati farkı yok, TR sabit UTC+3).
+# NOT (mail workflow'unda da görülen bilinen davranış): GitHub'ın
+# scheduled workflow'ları yoğun saatlerde birkaç dakika gecikebilir —
+# bu bir hata değil, GitHub'ın kendi runner kapasitesi kaynaklı.
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  revy-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Repoyu çek
+        uses: actions/checkout@v4
+
+      - name: Python kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Chrome kur (Selenium ile eşleşen sürüm)
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Bağımlılıkları kur
+        run: |
+          pip install --upgrade pip
+          pip install selenium pandas openpyxl supabase
+
+      - name: Revy Sync'i çalıştır
+        env:
+          REVY_GIRIS_URL: ${{ secrets.REVY_GIRIS_URL }}
+          REVY1_KULLANICI: ${{ secrets.REVY1_KULLANICI }}
+          REVY1_SIFRE: ${{ secrets.REVY1_SIFRE }}
+          REVY1_OFIS_AKTIF_URL: ${{ secrets.REVY1_OFIS_AKTIF_URL }}
+          REVY2_KULLANICI: ${{ secrets.REVY2_KULLANICI }}
+          REVY2_SIFRE: ${{ secrets.REVY2_SIFRE }}
+          REVY2_OFIS_AKTIF_URL: ${{ secrets.REVY2_OFIS_AKTIF_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: python revy_sync.py

@@ -78,6 +78,52 @@ def ayarlari_oku():
     except Exception:
         pass
 
+    # DÜZELTME (12.08.2026 — GitHub Actions entegrasyonu): Streamlit
+    # Secrets yoksa (CI dahil), ikinci öncelik olarak environment
+    # variable'lardan okunuyor — geçici dosya YOK, secret değerleri hiç
+    # diske yazılmıyor. Bu katman SADECE ilgili env var'lardan en az biri
+    # set edilmişse devreye girer (yani sıradan local çalıştırmada devre
+    # dışı kalır, mevcut ayarlar.txt davranışını etkilemez). Zorunlu Revy
+    # alanlarından biri eksikse SESSİZCE DEVAM ETMİYOR — anlaşılır bir
+    # hata fırlatıp veri yazma işlemine hiç geçmiyor. Hiçbir secret
+    # değeri (yalnızca hangi ayarın eksik olduğu) hata mesajına giriyor.
+    _env_eslesme = {
+        "revy_giris_url": "REVY_GIRIS_URL",
+        "revy1_kullanici": "REVY1_KULLANICI",
+        "revy1_sifre": "REVY1_SIFRE",
+        "revy1_ofis_aktif_url": "REVY1_OFIS_AKTIF_URL",
+        "revy2_kullanici": "REVY2_KULLANICI",
+        "revy2_sifre": "REVY2_SIFRE",
+        "revy2_ofis_aktif_url": "REVY2_OFIS_AKTIF_URL",
+        "supabase_url": "SUPABASE_URL",
+        "supabase_key": "SUPABASE_SECRET_KEY",
+    }
+    _revy_env_adlari = [
+        v for k, v in _env_eslesme.items() if k not in ("supabase_url", "supabase_key")
+    ]
+    if os.environ.get("GITHUB_ACTIONS", "").lower() == "true" or any(
+        os.environ.get(env_adi) for env_adi in _revy_env_adlari
+    ):
+        ayarlar = {
+            yerel_ad: os.environ[env_adi]
+            for yerel_ad, env_adi in _env_eslesme.items()
+            if os.environ.get(env_adi)
+        }
+        _revy_zorunlu = [
+            "revy_giris_url", "revy1_kullanici", "revy1_sifre",
+            "revy1_ofis_aktif_url", "revy2_kullanici", "revy2_sifre",
+            "revy2_ofis_aktif_url",
+        ]
+        eksikler = [k for k in _revy_zorunlu if not ayarlar.get(k)]
+        if eksikler:
+            raise RuntimeError(
+                "Environment variable modu tespit edildi ama zorunlu Revy "
+                f"ayarlarından {len(eksikler)} tanesi eksik: "
+                f"{', '.join(_env_eslesme[k] for k in eksikler)}. "
+                "Veri yazma işlemine geçilmiyor."
+            )
+        return ayarlar
+
     base_dir = os.path.dirname(os.path.abspath(__file__))
     ayar_dosyasi = os.path.join(base_dir, "ayarlar.txt")
     if not os.path.exists(ayar_dosyasi):
@@ -106,7 +152,10 @@ def get_supabase():
         url = st.secrets["supabase"]["url"]
         key = st.secrets["supabase"]["secret_key"]
     except Exception:
-        # Standalone çalıştırıldığında ayarlar.txt'den oku
+        # Standalone çalıştırıldığında (local ayarlar.txt VEYA GitHub
+        # Actions environment variable'ları) ayarlari_oku() üzerinden
+        # oku — env var desteği zaten orada tanımlı, burada AYRICA
+        # tekrarlanmıyor (tek kaynak, minimal diff).
         ayarlar = ayarlari_oku()
         url = ayarlar.get("supabase_url", "")
         key = ayarlar.get("supabase_key", "")
@@ -139,6 +188,17 @@ def export_klasorunu_temizle(klasor):
 # SELENIUM DRIVER
 # =============================================
 def driver_olustur(indirilen_klasor):
+    # DÜZELTME (12.08.2026 — GitHub Actions entegrasyonu): CI ortamının
+    # (GitHub Actions runner'ı) ekranı/görüntü sunucusu yok — normal
+    # (headful) Chrome orada hiç açılamaz. GITHUB_ACTIONS ortam
+    # değişkeni GitHub'ın kendi runner'larında OTOMATİK "true" olarak
+    # set edilir (resmi dokümantasyon) — bu yüzden elle bir bayrak
+    # eklemeye gerek yok, CI'da mı çalıştığımızı buradan güvenilir
+    # şekilde anlıyoruz. Yerelde (VS Code) hiçbir şey değişmiyor,
+    # tarayıcı eskisi gibi görünür açılmaya devam ediyor — headless
+    # SADECE CI'da devreye giriyor.
+    ci_ortami = os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
+
     options = Options()
     prefs = {
         "download.default_directory": str(Path(indirilen_klasor).resolve()),
@@ -153,8 +213,19 @@ def driver_olustur(indirilen_klasor):
     options.add_argument("--disable-notifications")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--remote-allow-origins=*")
+
+    if ci_ortami:
+        # "--headless=new" (eski "--headless" değil) modern Chrome'un
+        # gerçek Chrome render motorunu kullanıyor — eski headless
+        # modda bazı sitelerin bot-tespiti/JS davranışı farklılaşabiliyordu.
+        options.add_argument("--headless=new")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--window-size=1920,1080")
+
     driver = webdriver.Chrome(options=options)
-    driver.maximize_window()
+    if not ci_ortami:
+        driver.maximize_window()
     return driver
 
 
@@ -1150,4 +1221,26 @@ if __name__ == "__main__":
     ayarlar = ayarlari_oku()
     sonuclar = sync_tum_ofisler(ayarlar)
     print("\nSonuçlar:", sonuclar)
-    input("\nKapatmak için Enter...")
+
+    # DÜZELTME (12.08.2026 — GitHub Actions entegrasyonu): input() CI'da
+    # (stdin yok/etkileşimsiz ortam) SONSUZA KADAR TAKILI KALIRDI —
+    # workflow hiç bitmez, "timeout-minutes" dolana kadar (30 dk) boşuna
+    # runner tüketirdi. GITHUB_ACTIONS ortam değişkeni GitHub'ın kendi
+    # runner'larında otomatik "true" olduğu için (driver_olustur()'daki
+    # AYNI tespit yöntemi), CI'da bu adım atlanıyor — yerelde (VS Code)
+    # hiçbir şey değişmiyor, "Enter'a bas" istemi eskisi gibi çalışıyor.
+    # Ayrıca: herhangi bir ofis "failed" durumundaysa, GitHub Actions'ın
+    # bunu KIRMIZI (başarısız) olarak işaretlemesi için process exit
+    # code'u 1 döndürülüyor — aksi halde script "hata olmadan" bitmiş
+    # gibi görünür ve başarısızlık Actions sekmesinde fark edilmeyebilir.
+    if os.environ.get("GITHUB_ACTIONS", "").lower() == "true":
+        basarisiz_var = any(
+            (sonuc or {}).get("durum") == "failed"
+            for sonuc in sonuclar.values()
+        )
+        if basarisiz_var:
+            print("\n⚠️ En az bir ofis senkronizasyonu başarısız oldu — "
+                  "GitHub Actions bu çalıştırmayı BAŞARISIZ olarak işaretleyecek.")
+            raise SystemExit(1)
+    else:
+        input("\nKapatmak için Enter...")
