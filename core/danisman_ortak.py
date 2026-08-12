@@ -363,14 +363,40 @@ def uzmanlik_bolgelerini_kaydet(ilceler):
     """Kullanıcının uzmanlık bölgelerini TAMAMEN değiştirir (mevcut
     kayıtları silip yeni seçimi ekler). En fazla 5 ilçe — UI tarafında
     (st.multiselect max_selections=5) zaten zorlanıyor, burada ikinci
-    bir güvenlik önlemi olarak tekrar kesiliyor."""
+    bir güvenlik önlemi olarak tekrar kesiliyor.
+
+    DÜZELTME (12.08.2026): Önceden insert()'in dönüş değeri hiç kontrol
+    edilmiyordu. Supabase/PostgREST, tablonun Row Level Security (RLS)
+    politikası INSERT'i reddettiğinde çoğu zaman Python tarafında bir
+    İSTİSNA FIRLATMAZ — 200 OK + boş bir data listesiyle sessizce döner.
+    Sonuç: çağıran ekran "başarılı" mesajı gösterir ama satır hiç
+    eklenmemiş olur (canlıda gözlemlenen belirti tam olarak buydu).
+    Artık dönen satır sayısı gönderilenle eşleşmezse AÇIKÇA hata
+    fırlatılıyor — çağıran ekran bunu yakalayıp göstermeli."""
     kullanici = su_anki_danisman()
     ilceler = list(ilceler)[:5]
+    if not kullanici:
+        raise ValueError(
+            "Kaydedilemedi: giriş yapan kullanıcı tespit edilemedi "
+            "(su_anki_danisman() boş döndü)."
+        )
     supabase.table("uzmanlik_bolgeleri").delete().eq("kullanici", kullanici).execute()
     if ilceler:
-        supabase.table("uzmanlik_bolgeleri").insert(
+        insert_resp = supabase.table("uzmanlik_bolgeleri").insert(
             [{"kullanici": kullanici, "ilce": ilce} for ilce in ilceler]
         ).execute()
+        donen_sayi = len(insert_resp.data or [])
+        if donen_sayi != len(ilceler):
+            raise RuntimeError(
+                f"{len(ilceler)} ilçe gönderildi ama Supabase yalnızca "
+                f"{donen_sayi} satır döndürdü. Bu genellikle "
+                f"'uzmanlik_bolgeleri' tablosunun Row Level Security (RLS) "
+                f"politikasının INSERT işlemini sessizce reddettiği anlamına "
+                f"gelir — Supabase panelinde Authentication > Policies "
+                f"kısmından bu tablonun INSERT politikasını kontrol et "
+                f"(kullanılan API key'in — anon/service — bu tabloya yazma "
+                f"izni olduğundan emin ol)."
+            )
 
 
 def _kayit_ilcesi_eslesiyor_mu(kayit, secili_ilceler_norm):

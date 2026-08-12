@@ -121,12 +121,18 @@ div[class*="st-key-dp_kart_portfoy"] [data-testid="stElementContainer"]:has(.dp-
         min-width: 100% !important;
         flex: 1 1 100% !important;
     }
+    /* DÜZELTME (12.08.2026 — 4. tur): Önceki turda burada stat_col/
+       badge_col'u display:grid ile zorlamak, rozeti ("+22 yeni") kart
+       sınırının dışına taşıran YENİ bir görsel hataya yol açtı — grid,
+       Streamlit'in bu elemanlara zaten uyguladığı satır-içi flex
+       stillerle çakışmış olabilir. Bu tur DAHA MUHAFAZAKAR bir
+       yaklaşıma dönüldü: layout modunu (flex→grid) değiştirmek yerine,
+       Streamlit'in KENDİ flex düzenini koruyup sadece satır kırılmasını
+       (flex-wrap) engelliyoruz — daha az agresif, çakışma riski daha
+       düşük. */
     div[class*="st-key-dp_kart_talep"] [data-testid="stHorizontalBlock"],
     div[class*="st-key-dp_kart_portfoy"] [data-testid="stHorizontalBlock"] {
-        display: grid !important;
-        grid-template-columns: 2fr 1fr !important;
-        align-items: center !important;
-        column-gap: 8px !important;
+        flex-wrap: nowrap !important;
     }
     div[class*="st-key-dp_kart_talep"] [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"],
     div[class*="st-key-dp_kart_portfoy"] [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {

@@ -64,9 +64,15 @@ with st.expander(
         placeholder="İlçe seç (en fazla 5)...",
     )
     if st.button("Kaydet", key="ub_kaydet", type="primary"):
-        uzmanlik_bolgelerini_kaydet(secim)
-        st.success("Uzmanlık bölgelerin kaydedildi.")
-        st.rerun()
+        try:
+            uzmanlik_bolgelerini_kaydet(secim)
+            st.success("Uzmanlık bölgelerin kaydedildi.")
+            st.rerun()
+        except Exception as e:
+            # DÜZELTME (12.08.2026): Kaydetme daha önce başarısız olsa
+            # bile "başarılı" mesajı gösteriliyordu (canlıda gözlemlendi
+            # — RLS ihtimali yüksek). Artık gerçek hata metni görünür.
+            st.error(f"Kaydedilemedi: {e}")
 
 if not mevcut_ilceler:
     st.info("Henüz uzmanlık bölgesi seçmedin — yukarıdan en fazla 5 ilçe seçip kaydet.")
