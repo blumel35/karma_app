@@ -27,6 +27,7 @@ from core.auth import oturum_kontrol
 from core.danisman_ortak import (
     talepleri_cek, portfoyleri_cek, son_N_gun_filtrele,
     ekle_dialog, render_activity_bar, render_topbar, hide_sidebar_css,
+    uzmanlik_bolgelerini_cek, su_anki_danisman,
 )
 
 if not oturum_kontrol():
@@ -292,6 +293,8 @@ div[class*="st-key-dp_uzmanlik_btn"] button {
     border-color: #a3d9d3 !important;
     background: #d9f0ee !important;
     color: #1c5c58 !important;
+    display: inline-flex !important;
+    align-items: center !important;
 }
 div[class*="st-key-dp_uzmanlik_btn"] button:hover {
     border-color: #7ec9c1 !important;
@@ -310,10 +313,42 @@ div[class*="st-key-dp_favori_btn"] button::before {
     margin-right: 6px;
     font-size: 14px;
 }
-/* DÜZELTME (09.08.2026): 📍 pin emojisi kaldırıldı — ekran görüntülerinde
-   hâlâ göründüğü belirtildi. Karar: "Uzmanlık Bölgelerim" sade metin
-   olarak kalsın (⭐ Favori Listem'in aksine, pin uygulamanın başka hiçbir
-   yerinde tekrarlanmıyordu, bu yüzden kaldırılması tercih edildi). */
+/* DÜZELTME (12.08.2026 — 3. tur): Pin geri geldi ama EMOJİ (📍) olarak
+   DEĞİL — mockup'ta görülen temiz çizgisel ikon isteği üzerine, Talep/
+   Portföy kartlarındaki SVG ikonlarla AYNI çizgi stilinde (stroke,
+   currentColor mantığı — burada CSS ::before background-image ile SVG
+   data-URI kullanıldı, ::before content'e ham SVG gömülemediği için).
+   Renk, Uzmanlık Bölgelerim'in kendi teal tonuyla (#1c5c58) eşleşiyor. */
+div[class*="st-key-dp_uzmanlik_btn"] button::before {
+    content: "";
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin-right: 7px;
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231c5c58' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/%3E%3Ccircle cx='12' cy='10' r='3'/%3E%3C/svg%3E");
+}
+/* Bölge sayısı rozeti — Uzmanlık Bölgelerim butonunun yanındaki ayrı,
+   dekoratif pill (mockup'taki "4 bölge" gibi). Kendi butonu değil,
+   sadece bilgi amaçlı — tıklanabilirlik ana butonda kalıyor. */
+div[class*="st-key-dp_uzmanlik_sayi"] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+.dp-bolge-sayisi {
+    display: inline-flex;
+    align-items: center;
+    background: #eef0f3;
+    color: #5b6478;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 5px 11px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
 
 /* NOT (2. tur — geri alındı): Daha önce burada mobilde kartları zorla
    yan yana (50%/50%) tutan bir medya sorgusu vardı. Gerçek testte
@@ -425,8 +460,21 @@ with st.container(border=True, key="dp_page_frame"):
 
     col_uzmanlik, col_favori = st.columns([1, 1])
     with col_uzmanlik:
-        if st.button("Uzmanlık Bölgelerim", key="dp_uzmanlik_btn"):
-            st.switch_page("pages/Danisman_UzmanlikBolgeleri.py")
+        # DÜZELTME (12.08.2026): Buton + gerçek bölge sayısı rozeti aynı
+        # satırda, mockup'taki "Uzmanlık Bölgelerim  4 bölge" yerleşimine
+        # uygun. Sayı sabit değil — uzmanlik_bolgelerini_cek() ile canlı
+        # okunuyor, kullanıcının o an seçili ilçe adedini gösteriyor.
+        uzm_btn_col, uzm_sayi_col = st.columns([3, 1])
+        with uzm_btn_col:
+            if st.button("Uzmanlık Bölgelerim", key="dp_uzmanlik_btn", use_container_width=True):
+                st.switch_page("pages/Danisman_UzmanlikBolgeleri.py")
+        with uzm_sayi_col:
+            secili_bolge_sayisi = len(uzmanlik_bolgelerini_cek(su_anki_danisman()))
+            if secili_bolge_sayisi:
+                st.markdown(
+                    f"<div class='dp-bolge-sayisi'>{secili_bolge_sayisi} bölge</div>",
+                    unsafe_allow_html=True,
+                )
     with col_favori:
         if st.button("Favori Listem", key="dp_favori_btn"):
             st.switch_page("pages/Danisman_Favoriler.py")
