@@ -859,6 +859,18 @@ def df_to_supabase(df, kaynak_ofis, supabase_client, log_fn=None, hesap_dogrulan
             "kullanim_durumu": val(kullanim_col),
             "esyali": val(esyali_col),
             "ilan_durumu": val(durum_col),
+            # DÜZELTME (12.08.2026): Bu tabloyu okuyan portfoyleri_cek()
+            # (core/danisman_ortak.py, Danışman Panosu'nun TÜM ekranları
+            # bunu kullanıyor) kayıtları "kayit_tarihi" alanına göre son
+            # 60 güne süzüyor. Bu alan hiç yazılmadığı için (sadece
+            # ilan_tarihi/guncelleme_tarihi vardı, ikisi de FARKLI sütun)
+            # senkronize edilen ilanlar NULL kayit_tarihi ile geliyor ve
+            # filtreye takılıp Danışman Panosu'nda HİÇBİR YERDE
+            # görünmüyordu (Supabase'de gerçekten var olsalar bile).
+            # guncelleme_tarihi ile AYNI değer (senkron/güncelleme anı)
+            # yazılıyor — bir ilan senkronize edildiği sürece "taze"
+            # sayılsın, orijinal yayın tarihi ne kadar eski olursa olsun.
+            "kayit_tarihi": datetime.now().isoformat(),
             "guncelleme_tarihi": datetime.now().isoformat(),
             "aktif": True,
         }
