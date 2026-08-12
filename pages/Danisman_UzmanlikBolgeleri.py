@@ -34,7 +34,7 @@ if not oturum_kontrol():
     st.switch_page("pages/Danisman_Giris.py")
 
 hide_sidebar_css()
-render_topbar("Uzmanlık Bölgelerim", ikon="", geri_hedefi="pages/Danisman_Secim.py")
+render_topbar("Uzmanlık Bölgelerim", ikon="📍", geri_hedefi="pages/Danisman_Secim.py")
 
 su_kullanici = su_anki_danisman()
 mevcut_kayitlar = uzmanlik_bolgelerini_cek(su_kullanici)

@@ -498,9 +498,18 @@ def render_activity_bar():
 
 # ── HAMBURGER MENÜ (sağ üst) ────────────────────────────────────────────
 
-def render_topbar(baslik, ikon="📊", geri_hedefi=None):
+def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
     """Tüm Danışman ekranlarının ortak üst barı: sol grup (hamburger +
     opsiyonel geri butonu), ortada başlık, sağda avatar.
+
+    eyebrow (12.08.2026 — YENİ, SADECE ana ekran için): Verilirse,
+    başlığın ÜSTÜNE küçük, büyük harfli, harf aralıklı bir "eyebrow
+    label" eklenir (mockup'ta onaylanan "STARTKEY ZETA" + kalın
+    "Danışman Panosu" ikilisi). Diğer sayfalar bu parametreyi
+    kullanmıyor — bilinçli olarak sadece ana ekrana özel, alt sayfalar
+    kompakt/sade kalmaya devam ediyor (daha önce kararlaştırıldığı
+    gibi). Logo kutusu KASITLI OLARAK yok — mockup karşılaştırmasında
+    metin-only versiyon tercih edildi.
 
     MİMARİ NOT (3. tur — absolute positioning TAMAMEN TERK EDİLDİ):
     İki ayrı turda position:absolute denendi, ikisinde de başlık yanlış
@@ -593,6 +602,21 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
         font-weight: 800 !important;
         letter-spacing: -0.01em !important;
     }
+    /* Eyebrow label (12.08.2026, sadece ana ekran) — mockup'ta onaylanan
+       "STARTKEY ZETA" küçük etiket stili. Logo kutusu bilinçli olarak
+       yok (metin-only versiyon tercih edildi). */
+    .dp-topbar-eyebrow {
+        margin: 0 !important;
+        font-size: 10.5px !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.08em !important;
+        color: #9aa1af !important;
+        text-transform: uppercase !important;
+        line-height: 1.3 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
     /* Avatar rozeti — kendi sınıfıyla, üstteki reset kurallarından
        tamamen bağımsız garanti altına alınıyor.
        DÜZELTME (10.08.2026): Lacivert dolu daireden soluk/pastel gold
@@ -664,6 +688,12 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
             text-align: center !important;
             letter-spacing: -0.01em !important;
         }
+        .dp-topbar-eyebrow {
+            font-size: 9.5px !important;
+            text-align: center !important;
+            white-space: normal !important;
+            overflow: visible !important;
+        }
 
         /* Üstteki fazla boşluğu azalt — Streamlit'in varsayılan mobil
            üst dolgusu (block-container padding-top) gereğinden fazla
@@ -728,10 +758,16 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
 
         # 2. GRID SÜTUNU — başlık. HER ZAMAN render edilir (boşsa bile
         # boş bir div) — sütun sayısı/sırası hiçbir zaman kaymasın diye.
-        st.markdown(
-            f"<h3 class='dp-topbar-baslik'>{ikon} {baslik}</h3>" if baslik else "<div></div>",
-            unsafe_allow_html=True,
-        )
+        if eyebrow:
+            baslik_html = (
+                f"<div class='dp-topbar-eyebrow'>{eyebrow}</div>"
+                f"<h3 class='dp-topbar-baslik'>{baslik}</h3>"
+            )
+        elif baslik:
+            baslik_html = f"<h3 class='dp-topbar-baslik'>{ikon} {baslik}</h3>"
+        else:
+            baslik_html = "<div></div>"
+        st.markdown(baslik_html, unsafe_allow_html=True)
 
         # 3. GRID SÜTUNU — avatar.
         avatar_html = ""

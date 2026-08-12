@@ -282,25 +282,12 @@ div[class*="st-key-dp_uzmanlik_btn"] button {
     background: #ffffff !important;
     color: #5b6478 !important;
 }
-/* DÜZELTME (10.08.2026): "Uzmanlık Bölgelerim" artık Favori Listem ile
-   AYNI nötr beyaz stili paylaşmıyor — sık kullanılacak bir ekran olduğu
-   için kendine has bir vurgu istendi. Palette'te lacivert (Talep) ve
-   gold (Portföy) zaten dolu olduğundan, gri (Ekle ile karışmasın) yerine
-   ayrı bir slate/teal tonu seçildi — mockup karşılaştırmasında karar
-   verildi. Bu kural yukarıdaki paylaşılan (beyaz) kuraldan SONRA geldiği
-   için CSS cascade'de öncelikli, override ediyor. */
-div[class*="st-key-dp_uzmanlik_btn"] button {
-    border-color: #a3d9d3 !important;
-    background: #d9f0ee !important;
-    color: #1c5c58 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-}
-div[class*="st-key-dp_uzmanlik_btn"] button:hover {
-    border-color: #7ec9c1 !important;
-    background: #c5e8e4 !important;
-    color: #1c5c58 !important;
-}
+/* DÜZELTME (12.08.2026 — 4. tur, fikir değiştirildi): Uzmanlık
+   Bölgelerim'e kendine has teal vurgusu verilmişti (10.08.2026), sonra
+   bu turda GERİ ALINDI — artık Favori Listem ile AYNI nötr beyaz stili
+   paylaşıyor (yukarıdaki paylaşılan kural zaten bunu sağlıyor, bu
+   yüzden burada AYRICA bir override YOK). Ayrım artık sadece kendi pin
+   ikonuyla (★ yerine 📍 mantığı) sağlanıyor, renkle değil. */
 /* Yıldız — ::first-letter denemesi güvenilir çalışmadı (Streamlit'in
    buton metnini sardığı iç eleman yapısı net değil, kısmi metin
    renklendirmesi tutarsız). Bunun yerine yıldızı buton METNİNDEN
@@ -313,12 +300,15 @@ div[class*="st-key-dp_favori_btn"] button::before {
     margin-right: 6px;
     font-size: 14px;
 }
-/* DÜZELTME (12.08.2026 — 3. tur): Pin geri geldi ama EMOJİ (📍) olarak
-   DEĞİL — mockup'ta görülen temiz çizgisel ikon isteği üzerine, Talep/
-   Portföy kartlarındaki SVG ikonlarla AYNI çizgi stilinde (stroke,
-   currentColor mantığı — burada CSS ::before background-image ile SVG
-   data-URI kullanıldı, ::before content'e ham SVG gömülemediği için).
-   Renk, Uzmanlık Bölgelerim'in kendi teal tonuyla (#1c5c58) eşleşiyor. */
+/* Pin ikonu (12.08.2026 — 3. tur): temiz çizgisel SVG, Talep/Portföy
+   kartlarındaki ikonlarla aynı stroke mantığında. DÜZELTME (4. tur):
+   Buton artık nötr olduğu için ikon rengi de nötr griye (#5b6478,
+   butonun kendi yazı rengiyle aynı) çekildi — teal'e özel bir renk
+   kalmadı. */
+div[class*="st-key-dp_uzmanlik_btn"] button {
+    display: inline-flex !important;
+    align-items: center !important;
+}
 div[class*="st-key-dp_uzmanlik_btn"] button::before {
     content: "";
     display: inline-block;
@@ -327,7 +317,7 @@ div[class*="st-key-dp_uzmanlik_btn"] button::before {
     margin-right: 7px;
     background-repeat: no-repeat;
     background-size: contain;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231c5c58' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/%3E%3Ccircle cx='12' cy='10' r='3'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b6478' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/%3E%3Ccircle cx='12' cy='10' r='3'/%3E%3C/svg%3E");
 }
 /* Bölge sayısı rozeti — Uzmanlık Bölgelerim butonunun yanındaki ayrı,
    dekoratif pill (mockup'taki "4 bölge" gibi). Kendi butonu değil,
@@ -360,7 +350,7 @@ div[class*="st-key-dp_uzmanlik_sayi"] {
 """, unsafe_allow_html=True)
 
 with st.container(border=True, key="dp_page_frame"):
-    render_topbar("Startkey Zeta Danışman Panosu", ikon="")
+    render_topbar("Danışman Panosu", eyebrow="Startkey Zeta")
 
     # DÜZELTME (2. tur): "+ Ekle" butonu artık alttaki chip satırında
     # değil, açıklama cümlesiyle AYNI satırda, sağda — sık kullanılan bir
