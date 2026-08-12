@@ -217,10 +217,22 @@ def pano_html_olustur(
     kayitlar, pano_basligi, kayit_tipi="talep",
     favori_destekli=False, favori_set=None,
     supabase_url=None, supabase_anon_key=None, mevcut_kullanici=None,
+    baslik_goster=True,
 ):
     """
     kayitlar: dict listesi (Supabase satırları)
     kayit_tipi: "talep" | "portfoy"
+
+    baslik_goster (DÜZELTME 12.08.2026): Varsayılan True — geriye dönük
+    uyumluluk için. Danışman Panosu'nun UYGULAMA İÇİ ekranları (Talep/
+    Portföy Panosu, Favoriler, Uzmanlık Bölgelerim) artık kendi başlığını
+    Streamlit topbar'ında gösteriyor, bu yüzden bu sayfalar ARTIK
+    baslik_goster=False GEÇİYOR — iframe içinde ikinci bir başlık tekrar
+    etmesin diye. `pano_export_butonu_goster()` (bağımsız/indirilebilir
+    HTML dosyası — 3_Talep_Tablosu.py/3_Portfoy_Tablosu.py'den) HİÇBİR
+    ŞEY DEĞİŞTİRMEDEN varsayılan True'yu kullanmaya devam ediyor, çünkü o
+    dosya uygulamanın topbar'ı OLMADAN, tek başına açılıyor — kendi
+    başlığına ihtiyacı var.
 
     favori_destekli=True verilirse, her kartın üzerinde tıklanabilir bir
     ⭐ yıldız render edilir. Tıklanınca, Streamlit'e HİÇ UĞRAMADAN,
@@ -343,13 +355,28 @@ function favoriToggle(el) {{
     background: var(--cream); color: var(--ink); min-height: 100vh;
   }}
   header {{
-    max-width: 1280px; margin: 0 auto; padding: 30px 26px 18px;
+    max-width: 1280px; margin: 0 auto; padding: 16px 26px 14px;
   }}
+  /* DÜZELTME (12.08.2026 — başlık hiyerarşisi birleştirmesi): h1 artık
+     KOŞULLU (baslik_goster parametresi). Danışman Panosu'nun uygulama
+     içi ekranlarında (Talep/Portföy Panosu, Favoriler, Uzmanlık
+     Bölgelerim) h1 gizleniyor — o ekranlarda başlık artık Streamlit
+     topbar'ında tek kaynak olarak duruyor, burada tekrar ETMİYOR.
+     Bağımsız/indirilebilir dışa aktarım (pano_export_butonu_goster,
+     3_Talep_Tablosu.py/3_Portfoy_Tablosu.py) DEĞİŞMEDİ — o hâlâ kendi
+     h1'ini gösteriyor, çünkü uygulama topbar'ı olmadan tek başına
+     açılıyor. İki duruma göre .meta de iki farklı görünüm alıyor:
+     h1 VARSA normal alt-bilgi (13px), h1 YOKSA "mini başlık" (küçük,
+     büyük harf, harf aralıklı — mockup'ta onaylanan stil). */
   header h1 {{
     font-family: 'Montserrat', sans-serif; font-size: 27px; font-weight: 800;
-    color: var(--navy); margin: 0; letter-spacing: -.01em;
+    color: var(--navy); margin: 0 0 6px 0; letter-spacing: -.01em;
   }}
-  header .meta {{ margin-top: 6px; color: var(--ink-soft); font-size: 13px; }}
+  header .meta {{ margin: 0; color: var(--ink-soft); font-size: 13px; }}
+  header .meta.meta-tek {{
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .04em;
+  }}
   nav.harfler {{
     position: sticky; top: 0; z-index: 10;
     background: rgba(251,247,240,0.92); backdrop-filter: blur(6px);
@@ -443,9 +470,10 @@ function favoriToggle(el) {{
     /* DÜZELTME: header h1 sabit 27px'ti, ekran genişliğinden bağımsız
        — mobilde uzun başlıklar ("Uzmanlık Bölgem Talepleri" gibi) 2
        satıra düşüp ekranın büyük bir kısmını kaplıyordu. */
-    header {{ padding-top: 20px; padding-bottom: 12px; }}
+    header {{ padding-top: 14px; padding-bottom: 10px; }}
     header h1 {{ font-size: 19px; line-height: 1.25; }}
     header .meta {{ font-size: 11.5px; }}
+    header .meta.meta-tek {{ font-size: 10px; }}
 
     /* DÜZELTME (mobil A-Z sıkılaştırma, 09.08.2026): flex-wrap ile 29
        harf mobilde 3-4 satıra yayılıp gerçek kayıtlara ulaşmayı
@@ -465,8 +493,8 @@ function favoriToggle(el) {{
 </head>
 <body>
 <header>
-  <h1>{_esc(pano_basligi)}</h1>
-  <div class="meta">Oluşturulma: {tarih_str} &middot; Toplam kayıt: {toplam} &middot; {len(sirali_ilceler)} ilçe</div>
+  {"" if not baslik_goster else f'<h1>{_esc(pano_basligi)}</h1>'}
+  <div class="meta{'' if baslik_goster else ' meta-tek'}">Oluşturulma: {tarih_str} &middot; Toplam kayıt: {toplam} &middot; {len(sirali_ilceler)} ilçe</div>
 </header>
 <nav class="harfler">{nav_html}</nav>
 <main>

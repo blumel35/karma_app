@@ -589,6 +589,9 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
         overflow: hidden !important;
         text-overflow: ellipsis !important;
         color: #1b2540 !important;
+        font-size: 17px !important;
+        font-weight: 800 !important;
+        letter-spacing: -0.01em !important;
     }
     /* Avatar rozeti — kendi sınıfıyla, üstteki reset kurallarından
        tamamen bağımsız garanti altına alınıyor.
@@ -656,9 +659,10 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None):
             overflow: visible !important;
             text-overflow: unset !important;
             font-size: 17px !important;
+            font-weight: 800 !important;
             line-height: 1.25 !important;
             text-align: center !important;
-            letter-spacing: 0.01em !important;
+            letter-spacing: -0.01em !important;
         }
 
         /* Üstteki fazla boşluğu azalt — Streamlit'in varsayılan mobil
@@ -1128,6 +1132,7 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
         favori_destekli=True, favori_set=favori_set,
         supabase_url=supabase_url, supabase_anon_key=supabase_anon,
         mevcut_kullanici=su_kullanici,
+        baslik_goster=False,
     )
     components.html(html_buf.getvalue().decode("utf-8"), height=1800, scrolling=True)
 
@@ -1150,15 +1155,13 @@ def render_pano_ekrani(kayit_tipi):
         baslik = "Portföy Panosu"
         ikon = "🏘️"
 
-    # ÖNEMLİ (mobil topbar standardizasyonu, 09.08.2026): Başlık burada
-    # BİLİNÇLİ OLARAK BOŞ bırakılıyor — render_pano_icerik() içindeki
-    # pano_html_olustur() zaten iframe'in kendi büyük "Talep Panosu
-    # (Canlı)" / "Portföy Panosu (Canlı)" başlığını üretiyor. Buraya
-    # (topbar'a) da bir başlık eklenirse aynı sayfada pano başlığı İKİ
-    # KEZ görünür. Mobil topbar tutarlılığı burada SADECE navigasyon
-    # satırının (☰, geri, avatar) hizası/boşluğu içindir — başlık metni
-    # değil.
-    render_topbar("", geri_hedefi="pages/Danisman_Secim.py")
+    # DÜZELTME (12.08.2026 — başlık hiyerarşisi birleştirmesi): Önceden
+    # BİLİNÇLİ olarak boş bırakılıyordu (iframe'in kendi büyük başlığı
+    # vardı, iki başlık üst üste görünmesin diye). Artık TERSİ kararlaştı:
+    # topbar TEK ve ANA başlık kaynağı, iframe'in kendi h1'i küçük bir
+    # özet satırına indirildi (pano_export.py → _kart_html üstündeki
+    # header). Bu yüzden buraya artık gerçek başlık geliyor.
+    render_topbar(baslik, ikon=ikon, geri_hedefi="pages/Danisman_Secim.py")
 
     # "+N yeni" rozetinden geldiyse, zaman filtresi varsayılan olarak
     # 'Son 24 saat' açık başlar — tek seferlik: sayfa render olduktan

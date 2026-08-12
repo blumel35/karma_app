@@ -159,6 +159,7 @@ def _bolge_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
         favori_destekli=True, favori_set=favori_set,
         supabase_url=supabase_url, supabase_anon_key=supabase_anon,
         mevcut_kullanici=su_kullanici,
+        baslik_goster=False,
     )
     components.html(html_buf.getvalue().decode("utf-8"), height=1800, scrolling=True)
 
