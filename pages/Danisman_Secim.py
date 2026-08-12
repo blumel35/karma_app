@@ -104,6 +104,37 @@ div[class*="st-key-dp_kart_portfoy"] [data-testid="stElementContainer"]:has(.dp-
    sayfayı saran çerçeve) kendi üst dolgusu da mobilde daraltıldı —
    üst tarafta göze batan boşluğun bir kısmı buradan geliyordu. */
 @media (max-width: 480px) {
+    /* DÜZELTME (11.08.2026 — 3. tur): Platform güncellemesiyle Streamlit
+       artık st.columns()'ları mobilde daha GENİŞ bir noktada alt alta
+       dizmeye başlamış olabilir. Bunun İKİ somut sonucu görüldü:
+       (1) dp_kartlar_row'daki iki kart (Talep/Portföy) beklenenden dar
+       kaldı — her ikisi de tam genişlik almıyordu.
+       (2) Kart İÇİNDEKİ stat_col/badge_col ([2,1] oranlı, "247 aktif
+       talep" + "+22 yeni") artık yan yana değil ALT ALTA render
+       oluyordu — bu da aralarında büyük boşluklu, "kutulu" bir görünüm
+       yaratıyordu (bu bir CSS border/arka plan hatası DEĞİL, sadece
+       stacking'in kendisiydi). Her iki noktada da Streamlit'in kendi
+       responsive stacking kararına güvenmek yerine, iki sütunlu
+       düzeni AÇIKÇA zorluyoruz. */
+    div[class*="st-key-dp_kartlar_row"] [data-testid="stColumn"] {
+        width: 100% !important;
+        min-width: 100% !important;
+        flex: 1 1 100% !important;
+    }
+    div[class*="st-key-dp_kart_talep"] [data-testid="stHorizontalBlock"],
+    div[class*="st-key-dp_kart_portfoy"] [data-testid="stHorizontalBlock"] {
+        display: grid !important;
+        grid-template-columns: 2fr 1fr !important;
+        align-items: center !important;
+        column-gap: 8px !important;
+    }
+    div[class*="st-key-dp_kart_talep"] [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"],
+    div[class*="st-key-dp_kart_portfoy"] [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+        width: auto !important;
+        min-width: 0 !important;
+        flex: initial !important;
+    }
+
     div[class*="st-key-dp_page_frame"] {
         padding: 14px 14px 16px 14px !important;
     }
