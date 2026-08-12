@@ -63,9 +63,21 @@ URL_KOLON_ADAYLARI = ["İlan Url", "İlan Linki", "URL", "Link"]
 PASIFLESTIRME_URETIME_HAZIR = False
 
 # =============================================
-# AYARLAR — ayarlar.txt'den okur (mevcut yapı)
+# AYARLAR — önce Streamlit Secrets ([revy]), yoksa ayarlar.txt (mevcut yapı)
 # =============================================
 def ayarlari_oku():
+    # Streamlit Community Cloud'da ayarlar.txt dosyası deploy ortamında
+    # bulunmuyor. Önce Secrets içindeki [revy] bölümünü deniyoruz; bu
+    # başarısız olursa (local çalıştırma, Streamlit dışı çalıştırma veya
+    # [revy] tanımlı değilse) mevcut ayarlar.txt davranışına aynen düşülüyor.
+    # NOT: Secrets içeriği hiçbir şekilde loglanmıyor/yazdırılmıyor.
+    try:
+        import streamlit as st
+        if "revy" in st.secrets:
+            return dict(st.secrets["revy"])
+    except Exception:
+        pass
+
     base_dir = os.path.dirname(os.path.abspath(__file__))
     ayar_dosyasi = os.path.join(base_dir, "ayarlar.txt")
     if not os.path.exists(ayar_dosyasi):
