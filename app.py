@@ -259,6 +259,15 @@ danisman_zeta_portfoyleri = st.Page(
     icon=":material/campaign:",
 )
 
+# ── Müşterilerim — kişisel kişi defteri (13.08.2026). Talep/Portföy
+# eklerken girilen müşteri adı buraya otomatik senkronize olur, ama
+# talep/portföy silinse de kişi kaydı KALICI kalır (bağımsız tablo).
+danisman_musterilerim = st.Page(
+    "pages/Danisman_Musterilerim.py",
+    title="Müşterilerim",
+    icon=":material/contacts:",
+)
+
 # ─────────────────────────────────────────────────────
 # NAVIGATION
 # ─────────────────────────────────────────────────────
@@ -279,6 +288,7 @@ pg = st.navigation(
             danisman_kayitlarim,
             danisman_paylasimlar,
             danisman_zeta_portfoyleri,
+            danisman_musterilerim,
         ],
 
         "Danışman": [

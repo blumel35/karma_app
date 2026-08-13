@@ -242,6 +242,10 @@ def _yeni_talep_ekle(ilceler, bolge, mulk_tipi, oda, butce, islem_tipi, ek_not, 
         "musteri_telefon": musteri_telefon or None,
     }
     supabase.table("alici_talepleri").insert(kayit).execute()
+    # YENİ (13.08.2026): Müşteri adı girildiyse Müşterilerim'e otomatik
+    # senkronize edilir — talep = "Alıcı" (bu kişi bir mülk arıyor).
+    if musteri_adi.strip():
+        _musteri_senkronize(danisman_adi, musteri_adi, musteri_telefon, "Alıcı")
 
 
 def _yeni_portfoy_ekle(ilceler, bolge, mulk_tipi, oda, fiyat, islem_tipi, ek_not, danisman_adi,
@@ -267,6 +271,11 @@ def _yeni_portfoy_ekle(ilceler, bolge, mulk_tipi, oda, fiyat, islem_tipi, ek_not
         "musteri_telefon": musteri_telefon or None,
     }
     supabase.table("portfoyler").insert(kayit).execute()
+    # YENİ (13.08.2026): Müşteri adı girildiyse Müşterilerim'e otomatik
+    # senkronize edilir — portföy = "Satıcı" (bu kişinin mülkü satılıyor/
+    # kiralanıyor).
+    if musteri_adi.strip():
+        _musteri_senkronize(danisman_adi, musteri_adi, musteri_telefon, "Satıcı")
 
 
 def kayit_sil(tablo, kayit_id):
@@ -286,6 +295,90 @@ def kayit_notunu_guncelle(tablo, kayit_id, alan, yeni_deger):
     bu fonksiyonu çağırıyor, dolayısıyla kullanıcı yalnızca kendi
     kayıtlarının notunu değiştirebilir."""
     supabase.table(tablo).update({alan: yeni_deger}).eq("id", kayit_id).execute()
+
+
+# ── MÜŞTERİLERİM (kişi defteri) — YENİ (13.08.2026) ─────────────────────
+# Talep/Portföy tablolarından TAMAMEN BAĞIMSIZ bir tablo (musteriler) —
+# bilinçli tasarım: "ilanlar silinse de müşteriler kayıtlı kalsın"
+# isteği, aralarında hiçbir foreign key/cascade delete olmamasıyla
+# sağlanıyor. Şimdilik KİŞİSEL (danisman alanına göre filtrelenir,
+# ofis geneli paylaşılmıyor) — ileride ihtiyaç olursa genişletilebilir.
+
+@st.cache_data(ttl=30, show_spinner=False)
+def musterileri_cek(danisman_adi):
+    resp = (
+        supabase.table("danisman_kisiler")
+        .select("*")
+        .eq("danisman", danisman_adi)
+        .order("guncelleme_tarihi", desc=True)
+        .execute()
+    )
+    return resp.data or []
+
+
+def _musteri_senkronize(danisman_adi, ad, telefon, tip):
+    """Bir talep/portföy eklenirken müşteri adı girilmişse, bu kişiyi
+    Müşterilerim'e de otomatik ekler/günceller — AYRI bir işlem yapmana
+    gerek kalmasın diye. Telefon varsa (danisman, telefon) ikilisine göre
+    eşleşme aranır (aynı kişiyi iki kez eklememek için); telefon yoksa
+    (danisman, ad) ile aranır — isim eşleşmesi telefon kadar güvenilir
+    değil ama telefonsuz girişte elimizdeki tek anahtar bu.
+    Var olan kayıt bulunursa SADECE güncelleme_tarihi tazelenir (+ telefon
+    o zaman boşsa şimdi doluysa eklenir) — var olan bir notu ASLA
+    silmez/üzerine yazmaz."""
+    ad = (ad or "").strip()
+    if not ad:
+        return
+    telefon = (telefon or "").strip() or None
+
+    sorgu = supabase.table("danisman_kisiler").select("id, telefon").eq("danisman", danisman_adi)
+    if telefon:
+        sorgu = sorgu.eq("telefon", telefon)
+    else:
+        sorgu = sorgu.eq("ad", ad).is_("telefon", "null")
+    mevcut = sorgu.limit(1).execute()
+
+    if mevcut.data:
+        kid = mevcut.data[0]["id"]
+        guncelleme = {"guncelleme_tarihi": datetime.now(timezone.utc).isoformat()}
+        if telefon and not mevcut.data[0].get("telefon"):
+            guncelleme["telefon"] = telefon
+        supabase.table("danisman_kisiler").update(guncelleme).eq("id", kid).execute()
+    else:
+        supabase.table("danisman_kisiler").insert({
+            "danisman": danisman_adi,
+            "ad": ad,
+            "telefon": telefon,
+            "tip": tip,
+            "kaynak": "otomatik",
+        }).execute()
+    musterileri_cek.clear()
+
+
+def musteri_ekle(danisman_adi, ad, telefon, tip, notlar):
+    """Müşterilerim sayfasından elle yeni kişi ekleme (emlakçı, tedarikçi
+    vb. — bir talep/portföye bağlı olması ŞART değil)."""
+    supabase.table("danisman_kisiler").insert({
+        "danisman": danisman_adi,
+        "ad": (ad or "").strip(),
+        "telefon": (telefon or "").strip() or None,
+        "tip": tip,
+        "notlar": (notlar or "").strip() or None,
+        "kaynak": "manuel",
+    }).execute()
+    musterileri_cek.clear()
+
+
+def musteri_guncelle(musteri_id, alanlar):
+    alanlar = dict(alanlar)
+    alanlar["guncelleme_tarihi"] = datetime.now(timezone.utc).isoformat()
+    supabase.table("danisman_kisiler").update(alanlar).eq("id", musteri_id).execute()
+    musterileri_cek.clear()
+
+
+def musteri_sil(musteri_id):
+    supabase.table("danisman_kisiler").delete().eq("id", musteri_id).execute()
+    musterileri_cek.clear()
 
 
 @st.dialog("Yeni Talep / Portföy Ekle")
@@ -827,6 +920,8 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                 st.divider()
                 if st.button("📂 Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
                     st.switch_page("pages/Danisman_Kayitlarim.py")
+                if st.button("📇 Müşterilerim", use_container_width=True, key="dp_menu_musteriler"):
+                    st.switch_page("pages/Danisman_Musterilerim.py")
                 if st.button("📢 Zeta Portföyleri", use_container_width=True, key="dp_menu_zeta_ilan"):
                     st.switch_page("pages/Danisman_ZetaPortfoyleri.py")
                 if st.button("👥 Zeta Paylaşımları", use_container_width=True, key="dp_menu_paylasimlar"):
