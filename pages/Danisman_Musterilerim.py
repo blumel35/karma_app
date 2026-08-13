@@ -44,6 +44,31 @@ st.caption("Kişisel kişi defterin — sadece sana görünür, ofis geneli payl
 TIP_SECENEKLERI = ["Alıcı", "Satıcı", "İş Ortağı", "Tedarikçi", "Diğer"]
 TUM_HARFLER = list("ABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZ")
 
+
+def _telefon_html(telefon):
+    """Telefon numarasını tıklanabilir hale getirir — 📞 tıklanınca
+    telefonun kendi arama uygulamasını, WhatsApp ikonu tıklanınca
+    wa.me üzerinden WhatsApp'ı açar (13.08.2026, 4. tur — 'kopyalayıp
+    arama' yerine doğrudan yönlendirme isteği üzerine). Numara hangi
+    formatta girilmiş olursa olsun (boşluklu, +90'lı, 0'lı) son 10
+    haneyi alıp başına 90 ekleyerek E.164 formatına çeviriyor."""
+    if not telefon:
+        return ""
+    rakamlar = "".join(ch for ch in telefon if ch.isdigit())
+    son10 = rakamlar[-10:] if len(rakamlar) >= 10 else rakamlar
+    e164 = "90" + son10
+    return (
+        f" · <a class='dp-mus-tel' href='tel:+{e164}' title='Ara'>{telefon}</a>"
+        f"<a class='dp-mus-tel-ikon' href='https://wa.me/{e164}' target='_blank' title='WhatsApp'>"
+        "<svg width='13' height='13' viewBox='0 0 24 24' fill='#25D366'>"
+        "<path d='M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.85.5 3.58 1.36 5.06L2 22l5.2-1.37a9.87 9.87 0 0 0 4.84 1.24h.01"
+        "c5.46 0 9.9-4.45 9.9-9.91C21.96 6.45 17.5 2 12.04 2zm5.8 14.03c-.24.68-1.4 1.3-1.93 1.34-.5.04-1 .23-3.36-.7"
+        "-2.84-1.13-4.63-3.98-4.77-4.16-.14-.19-1.14-1.52-1.14-2.9 0-1.38.72-2.05.98-2.33.26-.28.56-.35.75-.35h.54"
+        "c.17 0 .4-.03.62.48.24.55.8 1.9.87 2.04.07.14.12.3.02.49-.09.19-.14.3-.28.46-.14.16-.29.36-.42.48-.14.14"
+        "-.28.29-.12.57.16.28.71 1.17 1.52 1.9 1.05.94 1.93 1.23 2.2 1.37.28.14.44.12.6-.07.16-.19.68-.79.86-1.06"
+        ".18-.28.36-.23.6-.14.25.09 1.6.75 1.87.89.28.14.46.21.53.32.07.12.07.68-.17 1.36z'/></svg></a>"
+    )
+
 st.markdown("""
 <style>
 .dp-mus-tip {
@@ -70,10 +95,41 @@ st.markdown("""
 }
 .dp-mus-az a:hover { background: rgba(27,37,64,.08); }
 .dp-mus-az span { font-size: 12.5px; color: #cfcabf; padding: 3px 6px; }
-div[class*="st-key-dp_mus_ekle_pop_"] button { white-space: nowrap !important; }
 .dp-mus-bolge {
     font-size: 11.5px; color: #7a8194; white-space: nowrap;
     display: flex; align-items: center; gap: 3px; justify-content: flex-end;
+}
+.dp-mus-tel {
+    color: #3d4457; font-weight: 600; text-decoration: none;
+}
+.dp-mus-tel-ikon { text-decoration: none; margin-left: 4px; vertical-align: middle; }
+/* DÜZELTME (13.08.2026, 4. tur): "+ Yeni Kişi" ve "⋮" popover
+   butonları, Streamlit'in mobildeki varsayılan sütun-yığma davranışı
+   yüzünden TAM EKRAN GENİŞLİĞİNDE devasa butonlar gibi görünüyordu.
+   İkisi de artık kendi key'li container'ları içinde — sabit, küçük
+   genişliğe zorlanıyor, mobilde de. */
+div[class*="st-key-dp_mus_ekle_pop"] button {
+    white-space: nowrap !important;
+}
+div[class*="st-key-dp_mus_aksiyon_"] button {
+    width: 40px !important; min-width: 40px !important;
+    padding: 0 8px !important;
+}
+@media (max-width: 480px) {
+    div[class*="st-key-dp_mus_aksiyon_"] {
+        width: 40px !important; min-width: 40px !important;
+        margin-left: auto !important;
+    }
+    div[class*="st-key-dp_mus_aksiyon_"] button {
+        width: 40px !important; min-width: 40px !important;
+    }
+    div[class*="st-key-dp_mus_ekle_pop"] {
+        width: auto !important; min-width: 0 !important;
+        margin-left: auto !important;
+    }
+    div[class*="st-key-dp_mus_ekle_pop"] button {
+        width: auto !important; min-width: 0 !important;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -89,35 +145,36 @@ with col_filtre:
         key="dp_mus_filtre", label_visibility="collapsed",
     )
 with col_ekle:
-    with st.popover("+ Yeni Kişi", use_container_width=True):
-        with st.form("dp_mus_yeni_form", clear_on_submit=True):
-            f_ad = st.text_input("Ad Soyad", key="dp_mus_ad")
-            f_tip = st.multiselect(
-                "Tip (birden fazla seçilebilir)", TIP_SECENEKLERI,
-                default=["Alıcı"], key="dp_mus_tip",
-            )
-            f_telefon = st.text_input("Telefon (opsiyonel)", key="dp_mus_telefon")
-            # YENİ (13.08.2026, 2. tur): "kim ne iş yapıyor, nerede
-            # çalışıyor" sorusuna notları açmadan cevap verebilmek için
-            # — özellikle İş Ortağı/Tedarikçi'de fark yaratıyor (örn.
-            # "Ender Böncü — Gayrimenkul Değerleme Uzmanı — Bornova").
-            f_uzmanlik = st.text_input(
-                "Uzmanlık / Meslek (opsiyonel)", key="dp_mus_uzmanlik",
-                placeholder="örn. Gayrimenkul Değerleme Uzmanı, Boyacı, Nakliyeci",
-            )
-            f_bolgeler = st.multiselect(
-                "Çalıştığı Bölge(ler) (opsiyonel)", IZMIR_ILCELERI, key="dp_mus_bolgeler",
-            )
-            f_not = st.text_area("Not (opsiyonel)", key="dp_mus_not", height=68)
-            if st.form_submit_button("Kaydet", type="primary", use_container_width=True):
-                if not f_ad.strip():
-                    st.error("Ad Soyad zorunlu.")
-                elif not f_tip:
-                    st.error("En az bir tip seçimi zorunlu.")
-                else:
-                    musteri_ekle(su_kullanici, f_ad, f_telefon, f_tip, f_not, f_uzmanlik, f_bolgeler)
-                    st.success("✅ Eklendi.")
-                    st.rerun()
+    with st.container(key="dp_mus_ekle_pop"):
+        with st.popover("+ Yeni Kişi", use_container_width=True):
+            with st.form("dp_mus_yeni_form", clear_on_submit=True):
+                f_ad = st.text_input("Ad Soyad", key="dp_mus_ad")
+                f_tip = st.multiselect(
+                    "Tip (birden fazla seçilebilir)", TIP_SECENEKLERI,
+                    default=["Alıcı"], key="dp_mus_tip",
+                )
+                f_telefon = st.text_input("Telefon (opsiyonel)", key="dp_mus_telefon")
+                # YENİ (13.08.2026, 2. tur): "kim ne iş yapıyor, nerede
+                # çalışıyor" sorusuna notları açmadan cevap verebilmek için
+                # — özellikle İş Ortağı/Tedarikçi'de fark yaratıyor (örn.
+                # "Ender Böncü — Gayrimenkul Değerleme Uzmanı — Bornova").
+                f_uzmanlik = st.text_input(
+                    "Uzmanlık / Meslek (opsiyonel)", key="dp_mus_uzmanlik",
+                    placeholder="örn. Gayrimenkul Değerleme Uzmanı, Boyacı, Nakliyeci",
+                )
+                f_bolgeler = st.multiselect(
+                    "Çalıştığı Bölge(ler) (opsiyonel)", IZMIR_ILCELERI, key="dp_mus_bolgeler",
+                )
+                f_not = st.text_area("Not (opsiyonel)", key="dp_mus_not", height=68)
+                if st.form_submit_button("Kaydet", type="primary", use_container_width=True):
+                    if not f_ad.strip():
+                        st.error("Ad Soyad zorunlu.")
+                    elif not f_tip:
+                        st.error("En az bir tip seçimi zorunlu.")
+                    else:
+                        musteri_ekle(su_kullanici, f_ad, f_telefon, f_tip, f_not, f_uzmanlik, f_bolgeler)
+                        st.success("✅ Eklendi.")
+                        st.rerun()
 
 # ── FİLTRE SATIRI 2: Bölge — YENİ (13.08.2026, 3. tur). "GD rehberinde
 # özellikle çok işe yarar" isteği üzerine gerçekten FİLTRELENEBİLİR
@@ -204,13 +261,12 @@ for m in gosterilecek_sirali:
     # "çok AI işi görünüyor" geri bildirimi üzerine).
     r1, r_bolge, r2 = st.columns([5, 2, 1])
     with r1:
-        telefon_metni = f" · 📞 {m['telefon']}" if m.get("telefon") else ""
         tipler = _tip_listele(m.get("tip")) or ["Diğer"]
         rozetler = "".join(f"<span class='dp-mus-tip'>{t}</span>" for t in tipler)
         uzmanlik_ek = f" <span style='color:#7a8194;font-size:12.5px;'>/ {m['uzmanlik']}</span>" if m.get("uzmanlik") else ""
+        telefon_html = _telefon_html(m.get("telefon"))
         st.markdown(
-            f"<div class='dp-mus-satir'><b>{ad}</b>{rozetler}{uzmanlik_ek}"
-            f"<span style='color:#7a8194;font-size:13px;'>{telefon_metni}</span></div>",
+            f"<div class='dp-mus-satir'><b>{ad}</b>{rozetler}{uzmanlik_ek}{telefon_html}</div>",
             unsafe_allow_html=True,
         )
     with r_bolge:
@@ -224,40 +280,46 @@ for m in gosterilecek_sirali:
                 unsafe_allow_html=True,
             )
     with r2:
-        with st.popover("⋮", use_container_width=True):
-            if m.get("kaynak") == "otomatik":
-                st.caption("↻ Talep/Portföy eklerken otomatik senkronize edildi")
-            yeni_tipler = st.multiselect(
-                "Tip", TIP_SECENEKLERI,
-                default=[t for t in _tip_listele(m.get("tip")) if t in TIP_SECENEKLERI],
-                key=f"dp_mus_tip_duzenle_{m['id']}",
-            )
-            yeni_uzmanlik = st.text_input(
-                "Uzmanlık / Meslek", value=m.get("uzmanlik") or "",
-                key=f"dp_mus_uzmanlik_duzenle_{m['id']}",
-            )
-            yeni_bolgeler = st.multiselect(
-                "Çalıştığı Bölge(ler)", IZMIR_ILCELERI, default=m.get("bolgeler") or [],
-                key=f"dp_mus_bolgeler_duzenle_{m['id']}",
-            )
-            yeni_not = st.text_area(
-                "Not", value=m.get("notlar") or "",
-                key=f"dp_mus_not_duzenle_{m['id']}", height=68,
-                label_visibility="collapsed",
-                placeholder="Bu kişi için not ekle (opsiyonel)...",
-            )
-            bp1, bp2 = st.columns(2)
-            with bp1:
-                if st.button("Kaydet", key=f"dp_mus_not_kaydet_{m['id']}", use_container_width=True):
-                    musteri_guncelle(m["id"], {
-                        "notlar": yeni_not.strip() or None,
-                        "tip": yeni_tipler or ["Diğer"],
-                        "uzmanlik": yeni_uzmanlik.strip() or None,
-                        "bolgeler": yeni_bolgeler,
-                    })
-                    st.success("Kaydedildi.")
-                    st.rerun()
-            with bp2:
-                if st.button("Sil", key=f"dp_mus_sil_{m['id']}", use_container_width=True):
-                    musteri_sil(m["id"])
-                    st.rerun()
+        with st.container(key=f"dp_mus_aksiyon_{m['id']}"):
+            with st.popover("⋮", use_container_width=True):
+                if m.get("kaynak") == "otomatik":
+                    st.caption("↻ Talep/Portföy eklerken otomatik senkronize edildi")
+                yeni_tipler = st.multiselect(
+                    "Tip", TIP_SECENEKLERI,
+                    default=[t for t in _tip_listele(m.get("tip")) if t in TIP_SECENEKLERI],
+                    key=f"dp_mus_tip_duzenle_{m['id']}",
+                )
+                yeni_uzmanlik = st.text_input(
+                    "Uzmanlık / Meslek", value=m.get("uzmanlik") or "",
+                    key=f"dp_mus_uzmanlik_duzenle_{m['id']}",
+                )
+                yeni_bolgeler = st.multiselect(
+                    "Çalıştığı Bölge(ler)", IZMIR_ILCELERI, default=m.get("bolgeler") or [],
+                    key=f"dp_mus_bolgeler_duzenle_{m['id']}",
+                )
+                yeni_telefon = st.text_input(
+                    "Telefon", value=m.get("telefon") or "",
+                    key=f"dp_mus_telefon_duzenle_{m['id']}",
+                )
+                yeni_not = st.text_area(
+                    "Not", value=m.get("notlar") or "",
+                    key=f"dp_mus_not_duzenle_{m['id']}", height=68,
+                    label_visibility="collapsed",
+                    placeholder="Bu kişi için not ekle (opsiyonel)...",
+                )
+                bp1, bp2 = st.columns(2)
+                with bp1:
+                    if st.button("Kaydet", key=f"dp_mus_not_kaydet_{m['id']}", use_container_width=True):
+                        musteri_guncelle(m["id"], {
+                            "notlar": yeni_not.strip() or None,
+                            "tip": yeni_tipler or ["Diğer"],
+                            "uzmanlik": yeni_uzmanlik.strip() or None,
+                            "bolgeler": yeni_bolgeler,
+                            "telefon": yeni_telefon.strip() or None,
+                        })
+                        st.success("Kaydedildi.")
+                        st.rerun()
+                with bp2:
+                    if st.button("Sil", key=f"dp_mus_sil_{m['id']}", use_container_width=True):
+                        musteri_sil(m["id"])
+                        st.rerun()

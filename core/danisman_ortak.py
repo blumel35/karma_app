@@ -460,7 +460,7 @@ def musteri_ekle(danisman_adi, ad, telefon, tip, notlar, uzmanlik="", bolgeler=N
         "telefon": (telefon or "").strip() or None,
         "tip": tip if isinstance(tip, list) else [tip],
         "notlar": (notlar or "").strip() or None,
-        "uzmanlik": (uzmanlik or "").strip() or None,
+        "uzmanlik": _isim_normalize(uzmanlik) or None,
         "bolgeler": bolgeler or [],
         "kaynak": "manuel",
     }).execute()
@@ -469,6 +469,12 @@ def musteri_ekle(danisman_adi, ad, telefon, tip, notlar, uzmanlik="", bolgeler=N
 
 def musteri_guncelle(musteri_id, alanlar):
     alanlar = dict(alanlar)
+    # DÜZELTME (13.08.2026, 4. tur): "uzmanlık" alanı da isimler gibi
+    # Türkçe-uyumlu büyük harfle normalize ediliyor artık ("mali müşavir"
+    # -> "Mali Müşavir") — hangi ekrandan/hangi çağrıdan geldiğine
+    # bakılmaksızın burada, merkezi olarak yapılıyor.
+    if alanlar.get("uzmanlik"):
+        alanlar["uzmanlik"] = _isim_normalize(alanlar["uzmanlik"])
     alanlar["guncelleme_tarihi"] = datetime.now(timezone.utc).isoformat()
     supabase.table("danisman_kisiler").update(alanlar).eq("id", musteri_id).execute()
     musterileri_cek.clear()
