@@ -21,6 +21,7 @@ tipi normalize etme, isim/tarih kısaltma) paylaşır — mantık tekrarını
 
 from io import BytesIO
 from datetime import datetime
+from email.utils import parsedate_to_datetime
 from html import escape as _esc
 import uuid
 import json
@@ -166,6 +167,45 @@ def _sayi_formatla(sayi):
         return str(sayi)
 
 
+def _tarih_saat_kisalt(tarih_str):
+    """_tarih_kisalt (core/rapor_export.py) ile AYNI görevi yapar ama
+    SAAT bilgisini de korur (13.08.2026 — 'mail zamanı da görünsün'
+    isteği üzerine). rapor_export.py'ye BİLEREK DOKUNULMADI — orası
+    başka ekranlarda (muhtemelen Pazar Raporu vb.) da kullanılıyor,
+    davranışını değiştirmek riskli olurdu. Bu, sadece kart görünümüne
+    özel, tamamen ayrı ve yeni bir yardımcı. kayit_tarihi RFC822
+    formatında (mail Date header'ı, danisman_ortak.py'nin _yeni_talep_
+    ekle/_yeni_portfoy_ekle'sinin ve revy_sync.py'nin ürettiği format)
+    — parsedate_to_datetime ile ayrıştırılıyor, ayrıştırılamazsa boş
+    string dönüyor (kart o zaman hiç tarih göstermez, hatalı bir tarih
+    göstermez)."""
+    if not tarih_str:
+        return ""
+    try:
+        d = parsedate_to_datetime(tarih_str)
+        return d.strftime("%d.%m.%Y %H:%M")
+    except (TypeError, ValueError, OverflowError):
+        return ""
+
+
+def _guncelleme_saat_kisalt(iso_str):
+    """guncelleme_tarihi (ISO formatında — revy_sync.py'nin her senkron
+    çalıştığında yazdığı alan) için tarih+saat kısaltması. Şu an
+    ÇOĞUNLUKLA sadece Zeta Portföyleri kayıtlarında dolu — mail/manuel
+    Talep-Portföy kayıtlarında bu alan genelde hiç yazılmıyor (o akış
+    bu alanı hiç set etmiyor), bu durumda fonksiyon boş string döner ve
+    kart o satırı hiç göstermez (uydurma bir 'son güncelleme' bilgisi
+    göstermek yerine sessizce atlanır)."""
+    if not iso_str:
+        return ""
+    try:
+        temiz = iso_str.replace("Z", "+00:00")
+        d = datetime.fromisoformat(temiz)
+        return d.strftime("%d.%m.%Y %H:%M")
+    except (TypeError, ValueError):
+        return ""
+
+
 def _kart_html(v, kayit_tipi, favori_destekli=False, favorili_mi=False):
     islem = _islem_tipi_norm(v)
     bg, fg = _rozet_renk(islem)
@@ -178,7 +218,12 @@ def _kart_html(v, kayit_tipi, favori_destekli=False, favorili_mi=False):
         ' <span class="kart-kopru-notu">(Köprü)</span>'
         if str(v.get("iliski_tipi") or "").strip().lower() == "kopru" else ""
     )
-    tarih = _esc(_tarih_kisalt(v.get("kayit_tarihi", "")))
+    # DÜZELTME (13.08.2026): Sadece tarih değil, saat de gösteriliyor —
+    # mail kaynaklı kayıtlarda mailin gerçek gelme saati, Zeta
+    # Portföyleri'nde ilk senkron anı. _tarih_kisalt (rapor_export.py)
+    # yerine yeni, ayrı _tarih_saat_kisalt kullanılıyor (yukarıdaki
+    # fonksiyon tanımına bakınız — paylaşılan rapor kodu değiştirilmedi).
+    tarih = _esc(_tarih_saat_kisalt(v.get("kayit_tarihi", "")))
     mulk = _esc(v.get("mulk_tipi") or "Belirsiz")
     oda = _esc(v.get("oda_sayisi_m2") or "-")
     ozet = _esc(v.get("ozet") or v.get("ozel_kriterler") or v.get("ozellikler") or "")
@@ -314,6 +359,17 @@ def _kart_html(v, kayit_tipi, favori_destekli=False, favorili_mi=False):
             f'{"★" if favorili_mi else "☆"}</span>'
         )
 
+    # YENİ (13.08.2026): "Son güncelleme" — sadece guncelleme_tarihi
+    # dolu olan kayıtlarda görünür (şu an çoğunlukla Zeta Portföyleri —
+    # revy_sync.py her senkronda tazeliyor). Mail/manuel Talep-Portföy
+    # kayıtlarında bu alan genelde boş, o durumda satır hiç basılmıyor
+    # (uydurma bir tarih göstermek yerine sessizce atlanıyor).
+    guncelleme_str = _guncelleme_saat_kisalt(v.get("guncelleme_tarihi"))
+    guncelleme_satiri = (
+        f'<div class="kart-guncelleme">↻ Son güncelleme: {_esc(guncelleme_str)}</div>'
+        if guncelleme_str else ""
+    )
+
     return f"""
     <div class="kart" style="--dist-color:{ilce_rengi}">
       <div class="kart-ust">
@@ -330,7 +386,7 @@ def _kart_html(v, kayit_tipi, favori_destekli=False, favorili_mi=False):
       <div class="kart-alt-satir">
         <span class="kart-danisman">👤 {danisman}{kopru_notu}</span>
         <span class="{kaynak_sinif}">{kaynak_etiketi}</span>
-      </div>{detay_blok_html}
+      </div>{guncelleme_satiri}{detay_blok_html}
     </div>
     """
 
@@ -549,6 +605,10 @@ function favoriToggle(el) {{
   .kart-alt-satir {{
     display: flex; justify-content: space-between; align-items: center;
     margin-bottom: 9px;
+  }}
+  .kart-guncelleme {{
+    font-size: 10.5px; color: var(--ink-soft); opacity: .75;
+    margin: -4px 0 9px 0;
   }}
   .kart-danisman {{ font-size: 12.5px; color: var(--ink-soft); }}
   .kart-kopru-notu {{ font-size: 11px; font-style: italic; color: var(--gold); font-weight: 600; }}
