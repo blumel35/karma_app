@@ -31,6 +31,7 @@ from core.auth import oturum_kontrol
 from core.danisman_ortak import (
     su_anki_danisman, musterileri_cek, musteri_ekle, musteri_guncelle,
     musteri_sil, render_topbar, hide_sidebar_css, IZMIR_ILCELERI, _tip_listele,
+    _tr_lower,
 )
 
 if not oturum_kontrol():
@@ -120,11 +121,24 @@ with col_ekle:
 
 # ── FİLTRE SATIRI 2: Bölge — YENİ (13.08.2026, 3. tur). "GD rehberinde
 # özellikle çok işe yarar" isteği üzerine gerçekten FİLTRELENEBİLİR
-# yapıldı — seçilen ilçelerden EN AZ BİRİNDE çalışan kişiler gösterilir. ─
-bolge_filtre = st.multiselect(
-    "Bölgeye göre filtrele (opsiyonel)", IZMIR_ILCELERI,
-    key="dp_mus_bolge_filtre", placeholder="örn. Balçova, Narlıdere...",
-)
+# yapıldı — seçilen ilçelerden EN AZ BİRİNDE çalışan kişiler gösterilir.
+# YENİ (13.08.2026, 4. tur): bölge kutusu daraltıldı, yanına serbest
+# metin arama eklendi (ad + uzmanlık + not içinde arar — "nakliye"
+# yazınca tüm nakliyeciler, "gayrimenkul danışmanı" yazınca o meslekten
+# olanlar çıksın diye). ─────────────────────────────────────────────
+col_bolge, col_arama = st.columns([2, 3])
+with col_bolge:
+    bolge_filtre = st.multiselect(
+        "Bölgeye göre filtrele", IZMIR_ILCELERI,
+        key="dp_mus_bolge_filtre", placeholder="Bölge...",
+        label_visibility="collapsed",
+    )
+with col_arama:
+    arama_metni = st.text_input(
+        "Ara", key="dp_mus_arama",
+        placeholder="İsim, meslek veya not içinde ara (örn. nakliye, gayrimenkul danışmanı)...",
+        label_visibility="collapsed",
+    )
 
 if tip_filtre != "Tümü":
     gosterilecek = [m for m in tum_musteriler if tip_filtre in _tip_listele(m.get("tip"))]
@@ -135,6 +149,15 @@ if bolge_filtre:
     gosterilecek = [
         m for m in gosterilecek
         if set(m.get("bolgeler") or []) & set(bolge_filtre)
+    ]
+
+if arama_metni.strip():
+    arama_lower = _tr_lower(arama_metni.strip())
+    gosterilecek = [
+        m for m in gosterilecek
+        if arama_lower in _tr_lower(m.get("ad") or "")
+        or arama_lower in _tr_lower(m.get("uzmanlik") or "")
+        or arama_lower in _tr_lower(m.get("notlar") or "")
     ]
 
 gosterilecek_sirali = sorted(gosterilecek, key=lambda m: (m.get("ad") or "").strip().lower())
