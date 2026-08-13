@@ -27,7 +27,7 @@ from core.danisman_ortak import (
     talepleri_cek, portfoyleri_cek, islem_tipi_filtrele,
     favorileri_cek, su_anki_danisman, supabase_anon_secrets, IZMIR_ILCELERI,
     uzmanlik_bolgelerini_cek, uzmanlik_bolgelerini_kaydet, uzmanlik_bolgesi_filtrele,
-    render_topbar, hide_sidebar_css, _inject_filtre_pill_css,
+    render_topbar, hide_sidebar_css, _inject_filtre_pill_css, ILAN_PORTAL_DEGERLERI,
 )
 
 if not oturum_kontrol():
@@ -81,7 +81,14 @@ if not mevcut_ilceler:
 supabase_url, supabase_anon = supabase_anon_secrets()
 
 bolge_talepler = uzmanlik_bolgesi_filtrele(talepleri_cek(), mevcut_ilceler)
-bolge_portfoyler = uzmanlik_bolgesi_filtrele(portfoyleri_cek(), mevcut_ilceler)
+# DÜZELTME (13.08.2026 — KRİTİK): resmi portal ilanları (zeta1/zeta2)
+# Uzmanlık Bölgelerim'e de karışıyordu — Portföy Panosu'nun artık hariç
+# tuttuğuyla tutarlı olsun diye burada da hariç tutuluyor. Resmi ilanlar
+# için ayrı sayfa: Zeta Portföyleri.
+bolge_portfoyler = uzmanlik_bolgesi_filtrele(
+    [v for v in portfoyleri_cek() if str(v.get("kaynak") or "").strip().lower() not in ILAN_PORTAL_DEGERLERI],
+    mevcut_ilceler,
+)
 
 sekme_talep, sekme_portfoy = st.tabs([
     f"Talepler ({len(bolge_talepler)})",

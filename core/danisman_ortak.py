@@ -466,7 +466,16 @@ def son_24_saat_ozeti():
     (uygulamanın geri kalanında zaten kurduğumuz) aktivite akışında da
     koruyor."""
     talepler_yeni_tumu = son_24_saat_filtrele(talepleri_cek())
-    portfoyler_yeni_tumu = son_24_saat_filtrele(portfoyleri_cek())
+    # DÜZELTME (13.08.2026 — KRİTİK, çift sayım): portfoy_sayisi ile
+    # ilan_sayisi AYRI sinyaller olsun diye tasarlanmıştı ama portfoy_sayisi
+    # hâlâ TÜM havuzdan (zeta1/zeta2 dahil) hesaplanıyordu — yani resmi
+    # ilanlar hem "portfoy_sayisi"ye hem "ilan_sayisi"ye giriyor, iki kez
+    # sayılıyordu. Artık portfoy_sayisi de resmi ilanları HARİÇ TUTUYOR —
+    # tıpkı Portföy Panosu'nun artık hariç tuttuğu gibi (tutarlılık).
+    portfoyler_yeni_tumu = [
+        v for v in son_24_saat_filtrele(portfoyleri_cek())
+        if str(v.get("kaynak") or "").strip().lower() not in ILAN_PORTAL_DEGERLERI
+    ]
 
     talepler_yeni_zeta = son_24_saat_filtrele(kaynak_filtrele(talepleri_cek(), "Zeta"))
     portfoyler_yeni_zeta = [
@@ -1221,9 +1230,20 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
 
 def render_pano_ekrani(kayit_tipi):
     """kayit_tipi: 'talep' | 'portfoy'
-    HER ZAMAN TÜM HAVUZU gösterir (Zeta + Startkey/mail birlikte) —
-    kaynağa göre ayrı filtre yok, çünkü Zeta'ya özel görünüm zaten
-    ayrı bir sayfada (Danisman_Paylasimlar.py)."""
+    'TÜM HAVUZU' gösterir (Zeta + Startkey/mail birlikte) — kaynağa göre
+    ayrı filtre yok, çünkü Zeta'ya özel görünüm zaten ayrı bir sayfada
+    (Danisman_Paylasimlar.py).
+
+    DÜZELTME (13.08.2026 — KRİTİK): 'portfoy' için TÜM HAVUZ artık
+    ILAN_PORTAL_DEGERLERİ (zeta1/zeta2 — Revy'den senkronize, portallarda
+    YAYINLANAN resmi ilanlar) İÇERMİYOR. revy_sync.py aktif olmadan önce
+    bu ayrım gerekmiyordu (portfoyler tablosunda sadece ofis-içi/mail
+    kaynaklı paylaşımlar vardı) — ama artık resmi ilanlar da AYNI tabloya
+    yazılıyor, ve bu fonksiyon hiçbir filtre uygulamadığı için o ilanlar
+    sessizce Portföy Panosu'na (TÜM ~30 danışmanın gördüğü ORTAK pano)
+    karışmaya başlamıştı. Resmi ilanların TEK gösterileceği yer artık
+    'Zeta Portföyleri' (Danisman_ZetaPortfoyleri.py) — burada değil, iki
+    yapı kesinlikle karıştırılmamalı (bilinçli tasarım kararı)."""
     if kayit_tipi == "talep":
         veri_cek = talepleri_cek
         baslik = "Talep Panosu"
@@ -1248,7 +1268,14 @@ def render_pano_ekrani(kayit_tipi):
     rozetten_geldi = st.session_state.pop("dp_sadece_yeni", False)
     zaman_varsayilan = "Son 7 gün" if rozetten_geldi else "Tümü"
 
+    kayitlar = veri_cek()
+    if kayit_tipi == "portfoy":
+        kayitlar = [
+            v for v in kayitlar
+            if str(v.get("kaynak") or "").strip().lower() not in ILAN_PORTAL_DEGERLERI
+        ]
+
     render_pano_icerik(
-        veri_cek(), kayit_tipi, baslik, key_prefix=kayit_tipi,
+        kayitlar, kayit_tipi, baslik, key_prefix=kayit_tipi,
         zaman_varsayilan=zaman_varsayilan,
     )

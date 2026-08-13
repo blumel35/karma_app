@@ -27,7 +27,7 @@ from core.auth import oturum_kontrol
 from core.danisman_ortak import (
     talepleri_cek, portfoyleri_cek, son_N_gun_filtrele,
     ekle_dialog, render_activity_bar, render_topbar, hide_sidebar_css,
-    uzmanlik_bolgelerini_cek, su_anki_danisman,
+    uzmanlik_bolgelerini_cek, su_anki_danisman, ILAN_PORTAL_DEGERLERI,
 )
 
 if not oturum_kontrol():
@@ -370,11 +370,22 @@ with st.container(border=True, key="dp_page_frame"):
     st.write("")
 
     talepler = talepleri_cek()
-    portfoyler = portfoyleri_cek()
+    # DÜZELTME (13.08.2026 — KRİTİK): "620 aktif portföy" sayısı, Portföy
+    # Panosu kartının kendisi (linkin gittiği yer) artık resmi ilanları
+    # (zeta1/zeta2) hariç tuttuğu için AYNI hariç tutmayı burada da
+    # uygulamazsak sayı ile gerçek liste birbirini tutmuyordu (örn. "620"
+    # yazıp tıklayınca 500 kayıt görünmesi gibi bir tutarsızlık). Zeta
+    # Portföyleri'nin kendi sayısı ayrı bir yerde (o sayfanın kendisinde,
+    # ileride ayrı bir kart eklenebilir) — burada DEĞİL.
+    portfoyler = [
+        v for v in portfoyleri_cek()
+        if str(v.get("kaynak") or "").strip().lower() not in ILAN_PORTAL_DEGERLERI
+    ]
     # "+N yeni" rozeti ve sayaçlar TÜM KAYNAKLARI kapsar (Zeta + Startkey/mail
-    # birlikte) — Talep/Portföy Panosu zaten her zaman tüm havuzu gösteriyor,
-    # bu yüzden rozet de aynı kapsamda tutarlı olmalı. Yalnızca Zeta'ya özel
-    # görünüm için: hamburger menü → Zeta Paylaşımları.
+    # birlikte, resmi portal ilanları HARİÇ) — Talep/Portföy Panosu zaten
+    # bu kapsamda tutarlı, bu yüzden rozet de aynı kapsamda tutarlı olmalı.
+    # Yalnızca Zeta'ya özel görünüm için: hamburger menü → Zeta Paylaşımları.
+    # Resmi ilanlar için: hamburger menü → Zeta Portföyleri.
     talep_yeni = son_N_gun_filtrele(talepler, 7)
     portfoy_yeni = son_N_gun_filtrele(portfoyler, 7)
 
