@@ -36,21 +36,33 @@ TIP_SECENEKLERI = ["Alıcı", "Satıcı", "İş Ortağı", "Tedarikçi", "Diğer
 
 st.markdown("""
 <style>
-div[class*="st-key-dp_mus_kart_"] {
-    padding: 14px 16px !important;
-    margin-bottom: 10px !important;
+/* DÜZELTME (13.08.2026): Büyük, her zaman açık kartlar bir adres
+   defteri için fazla yer kaplıyordu (her kişi ~250px). Kompakt, tek
+   satırlık listeye çevrildi — not/sil işlemleri artık bir expander
+   içinde, ihtiyaç olmadıkça hiç yer kaplamıyor. */
+div[class*="st-key-dp_mus_satir_"] {
+    padding: 2px 0 !important;
+}
+.dp-mus-tip {
+    display: inline-block;
+    font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 999px;
+    background: rgba(27,37,64,.08); color: #1b2540;
+    margin-left: 8px; vertical-align: middle;
+}
+.dp-mus-harf-baslik {
+    font-size: 13px; font-weight: 800; color: #b8892f;
+    margin: 14px 0 4px 0; padding-bottom: 3px;
+    border-bottom: 1px solid #ecebe5;
+}
+div[class*="st-key-dp_mus_islem_"] {
+    margin-top: -6px !important;
+    margin-bottom: 4px !important;
 }
 div[class*="st-key-dp_mus_sil_"] button {
     border-color: #e3e1da !important;
     color: #b3261e !important;
-    font-size: 12.5px !important;
-}
-.dp-mus-tip {
-    display: inline-block;
-    font-size: 11px; font-weight: 700;
-    padding: 3px 10px; border-radius: 999px;
-    background: rgba(27,37,64,.08); color: #1b2540;
-    margin-left: 8px;
+    font-size: 12px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -92,30 +104,45 @@ st.caption(f"{len(gosterilecek)} kişi")
 if not gosterilecek:
     st.info("Bu filtrede kayıtlı kişi yok. Yukarıdan yeni kişi ekleyebilir, ya da bir talep/portföy eklerken müşteri bilgisi girerek otomatik ekleyebilirsin.")
 
-for m in gosterilecek:
-    with st.container(border=True, key=f"dp_mus_kart_{m['id']}"):
-        c1, c2 = st.columns([5, 1])
-        with c1:
-            st.markdown(
-                f"**{m.get('ad', '')}**"
-                f"<span class='dp-mus-tip'>{m.get('tip', 'Diğer')}</span>",
-                unsafe_allow_html=True,
-            )
-            if m.get("telefon"):
-                st.caption(f"📞 {m['telefon']}")
+# DÜZELTME (13.08.2026): Alfabetik gruplu, kompakt liste — her kişi tek
+# satır (ad + tip rozeti + telefon), not/sil işlemleri bir expander
+# içinde saklı. Büyük, her zaman açık kartlar yerine gerçek bir adres
+# defteri hissi versin diye.
+gosterilecek_sirali = sorted(gosterilecek, key=lambda m: (m.get("ad") or "").strip().lower())
+
+su_anki_harf = None
+for m in gosterilecek_sirali:
+    ad = m.get("ad", "").strip()
+    ilk_harf = ad[0].upper() if ad else "#"
+    if ilk_harf != su_anki_harf:
+        su_anki_harf = ilk_harf
+        st.markdown(f"<div class='dp-mus-harf-baslik'>{ilk_harf}</div>", unsafe_allow_html=True)
+
+    telefon_metni = f" · 📞 {m['telefon']}" if m.get("telefon") else ""
+    st.markdown(
+        f"<div style='padding:6px 0;'>"
+        f"<b>{ad}</b><span class='dp-mus-tip'>{m.get('tip', 'Diğer')}</span>"
+        f"<span style='color:#7a8194;font-size:13px;'>{telefon_metni}</span>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+    with st.expander("Not / Sil", expanded=False):
+        with st.container(key=f"dp_mus_islem_{m['id']}"):
             if m.get("kaynak") == "otomatik":
                 st.caption("↻ Talep/Portföy eklerken otomatik senkronize edildi")
-        with c2:
-            if st.button("Sil", key=f"dp_mus_sil_{m['id']}", use_container_width=True):
-                musteri_sil(m["id"])
-                st.rerun()
-        yeni_not = st.text_area(
-            "Not", value=m.get("notlar") or "",
-            key=f"dp_mus_not_duzenle_{m['id']}", height=68,
-            label_visibility="collapsed",
-            placeholder="Bu kişi için not ekle (opsiyonel)...",
-        )
-        if st.button("Notu Kaydet", key=f"dp_mus_not_kaydet_{m['id']}"):
-            musteri_guncelle(m["id"], {"notlar": yeni_not.strip() or None})
-            st.success("Not kaydedildi.")
-            st.rerun()
+            yeni_not = st.text_area(
+                "Not", value=m.get("notlar") or "",
+                key=f"dp_mus_not_duzenle_{m['id']}", height=68,
+                label_visibility="collapsed",
+                placeholder="Bu kişi için not ekle (opsiyonel)...",
+            )
+            b1, b2 = st.columns([3, 1])
+            with b1:
+                if st.button("Notu Kaydet", key=f"dp_mus_not_kaydet_{m['id']}", use_container_width=True):
+                    musteri_guncelle(m["id"], {"notlar": yeni_not.strip() or None})
+                    st.success("Not kaydedildi.")
+                    st.rerun()
+            with b2:
+                if st.button("Sil", key=f"dp_mus_sil_{m['id']}", use_container_width=True):
+                    musteri_sil(m["id"])
+                    st.rerun()
