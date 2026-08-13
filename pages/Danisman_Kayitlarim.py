@@ -145,7 +145,16 @@ with sekme_talep:
         with st.container(border=True, key=f"dp_kayit_card_talep_{v['id']}"):
             c1, c2 = st.columns([5, 1])
             with c1:
-                st.markdown(f"**Talep:** {v.get('ozet', '')}")
+                kopru_etiket = " · 🔗 Köprü" if str(v.get("iliski_tipi") or "").lower() == "kopru" else ""
+                st.markdown(f"**Talep:** {v.get('ozet', '')}{kopru_etiket}")
+                # YENİ (13.08.2026): Müşteri adı/telefonu SADECE burada
+                # (Kendi Kayıtlarım) görünür — pano_export.py'deki
+                # paylaşılan kart şablonunda hiç yer almıyor.
+                if v.get("musteri_adi") or v.get("musteri_telefon"):
+                    st.caption(
+                        f"👤 {v.get('musteri_adi') or '—'}"
+                        + (f" · 📞 {v.get('musteri_telefon')}" if v.get("musteri_telefon") else "")
+                    )
             with c2:
                 if st.button("Sil", key=f"dp_kayit_sil_talep_{v['id']}", use_container_width=True):
                     kayit_sil("alici_talepleri", v["id"])
@@ -170,7 +179,13 @@ with sekme_portfoy:
         with st.container(border=True, key=f"dp_kayit_card_portfoy_{v['id']}"):
             c1, c2 = st.columns([5, 1])
             with c1:
-                st.markdown(f"**Portföy:** {v.get('ozet', '')}")
+                kopru_etiket = " · 🔗 Köprü" if str(v.get("iliski_tipi") or "").lower() == "kopru" else ""
+                st.markdown(f"**Portföy:** {v.get('ozet', '')}{kopru_etiket}")
+                if v.get("musteri_adi") or v.get("musteri_telefon"):
+                    st.caption(
+                        f"👤 {v.get('musteri_adi') or '—'}"
+                        + (f" · 📞 {v.get('musteri_telefon')}" if v.get("musteri_telefon") else "")
+                    )
             with c2:
                 if st.button("Sil", key=f"dp_kayit_sil_portfoy_{v['id']}", use_container_width=True):
                     kayit_sil("portfoyler", v["id"])

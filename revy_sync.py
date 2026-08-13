@@ -876,7 +876,19 @@ def df_to_supabase(df, kaynak_ofis, supabase_client, log_fn=None, hesap_dogrulan
             # takılı bırakıyordu (canlıda doğrulandı — düzeltme sonrası
             # hâlâ görünmüyordu). format_datetime() ile doğru formatta
             # yazılıyor artık.
-            "kayit_tarihi": format_datetime(datetime.now()),
+            #
+            # DÜZELTME (13.08.2026 — KRİTİK, 3. tur): kayit_tarihi
+            # ÖNCEDEN bu paylaşılan 'veri' sözlüğündeydi, yani hem
+            # insert() hem update() ile yazılıyordu. Sonuç: HER
+            # senkronda, zaten var olan ~110+ kayıt bile "şimdi"
+            # tarihiyle güncelleniyordu — Son 24 saat/Son 7 gün
+            # filtreleri neredeyse TÜM havuzu "yeni" sanıyordu ("112
+            # yeni Zeta ilanı" canlıda gözlemlendi, gerçek değil).
+            # kayit_tarihi artık BURADAN ÇIKARILDI — SADECE insert
+            # dalında (aşağıda, olusturma_tarihi ile birlikte) bir kez
+            # yazılıyor, update'te hiç dokunulmuyor. guncelleme_tarihi
+            # (aşağıda kaldı) hâlâ her senkronda tazeleniyor — "en son
+            # ne zaman doğrulandı" bilgisi için, farklı bir amaç.
             "guncelleme_tarihi": datetime.now().isoformat(),
             "aktif": True,
         }
@@ -889,6 +901,7 @@ def df_to_supabase(df, kaynak_ofis, supabase_client, log_fn=None, hesap_dogrulan
                 guncellenen += 1
             else:
                 veri["olusturma_tarihi"] = datetime.now().isoformat()
+                veri["kayit_tarihi"] = format_datetime(datetime.now())
                 supabase_client.table("portfoyler").insert(veri).execute()
                 eklenen += 1
         except Exception as e:

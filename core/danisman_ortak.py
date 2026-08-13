@@ -207,7 +207,8 @@ def son_N_gun_filtrele(kayitlar, gun):
 
 # ── YENİ KAYIT EKLEME ──────────────────────────────────────────────────
 
-def _yeni_talep_ekle(ilceler, bolge, mulk_tipi, oda, butce, islem_tipi, ek_not, danisman_adi):
+def _yeni_talep_ekle(ilceler, bolge, mulk_tipi, oda, butce, islem_tipi, ek_not, danisman_adi,
+                      iliski_tipi="kendi", musteri_adi="", musteri_telefon=""):
     ozet = _ozet_olustur(ilceler, bolge, oda, islem_tipi, mulk_tipi, "talep")
     detay = ek_not.strip() if ek_not else ozet
     kayit = {
@@ -232,11 +233,19 @@ def _yeni_talep_ekle(ilceler, bolge, mulk_tipi, oda, butce, islem_tipi, ek_not, 
         "kaynak": "zeta",
         "parse_status": "parsed",
         "ai_processed_at": datetime.now(timezone.utc).isoformat(),
+        # YENİ (13.08.2026): iliski_tipi paylaşılan kartta "Köprü" notu
+        # olarak görünür (pano_export.py). musteri_adi/musteri_telefon
+        # ASLA paylaşılan kartta gösterilmiyor — sadece Kendi
+        # Kayıtlarım'da, kaydı girenin kendisine.
+        "iliski_tipi": iliski_tipi,
+        "musteri_adi": musteri_adi or None,
+        "musteri_telefon": musteri_telefon or None,
     }
     supabase.table("alici_talepleri").insert(kayit).execute()
 
 
-def _yeni_portfoy_ekle(ilceler, bolge, mulk_tipi, oda, fiyat, islem_tipi, ek_not, danisman_adi):
+def _yeni_portfoy_ekle(ilceler, bolge, mulk_tipi, oda, fiyat, islem_tipi, ek_not, danisman_adi,
+                        iliski_tipi="kendi", musteri_adi="", musteri_telefon=""):
     ozet = _ozet_olustur(ilceler, bolge, oda, islem_tipi, mulk_tipi, "portfoy")
     detay = ek_not.strip() if ek_not else ozet
     kayit = {
@@ -253,6 +262,9 @@ def _yeni_portfoy_ekle(ilceler, bolge, mulk_tipi, oda, fiyat, islem_tipi, ek_not
         "ilceler": ilceler,
         "kaynak": "zeta",
         "message_id": f"<danisman-panel-{uuid.uuid4().hex}@karma-app>",
+        "iliski_tipi": iliski_tipi,
+        "musteri_adi": musteri_adi or None,
+        "musteri_telefon": musteri_telefon or None,
     }
     supabase.table("portfoyler").insert(kayit).execute()
 
@@ -311,6 +323,32 @@ def ekle_dialog(varsayilan_tip="Talep"):
             key="ds_ozet", height=68,
         )
 
+        # YENİ (13.08.2026): İlan Kaynağı — bu talep/portföy senin kendi
+        # müşterinden mi (varsayılan), yoksa başka bir kaynaktan sana
+        # ulaşıp havuza AKTARDIĞIN ("köprü" olduğun) bir talep/portföy
+        # mü? Köprü seçilirse, havuzdaki kartta bir not olarak görünür
+        # ("Köprü") — kimin doğrudan muhatap olduğu konusunda şeffaflık
+        # için, kişisel bilgi paylaşmadan.
+        f_iliski_tipi = st.radio(
+            "İlan Kaynağı (opsiyonel)", ["Kendi Talebim", "Köprü"],
+            horizontal=True, key="ds_iliski_tipi",
+            help="Köprü: bu talep/portföy senin doğrudan müşterin değil, "
+                 "başka bir kaynaktan sana ulaşıp havuza aktardığın bir kayıt.",
+        )
+
+        # YENİ (13.08.2026): Müşteri Adı/Telefon — TAMAMEN OPSİYONEL ve
+        # GİZLİ. Bu iki alan yalnızca "Kendi Kayıtlarım"da, kaydı girenin
+        # kendisine görünür — pano_export.py'deki paylaşılan kart
+        # şablonuna KASITLI OLARAK hiç eklenmedi, havuzda (Talep/Portföy
+        # Panosu, Zeta Paylaşımları) asla görünmez.
+        with st.expander("Müşteri Bilgisi (opsiyonel, sadece sende görünür)", expanded=False):
+            st.caption("Bu bilgi sadece Kendi Kayıtlarım'da sana görünür — havuzda hiçbir zaman paylaşılmaz.")
+            mc1, mc2 = st.columns(2)
+            with mc1:
+                f_musteri_adi = st.text_input("Müşteri Adı (opsiyonel)", key="ds_musteri_adi")
+            with mc2:
+                f_musteri_telefon = st.text_input("Müşteri Telefonu (opsiyonel)", key="ds_musteri_tel")
+
         gonder = st.form_submit_button("Kaydet", type="primary", use_container_width=True)
 
         if gonder:
@@ -319,11 +357,20 @@ def ekle_dialog(varsayilan_tip="Talep"):
             else:
                 f_bolge = baslik_normalize(f_bolge)
                 danisman_adi = su_anki_danisman()
+                iliski_deger = "kopru" if f_iliski_tipi == "Köprü" else "kendi"
                 try:
                     if kayit_tipi_secim == "Talep":
-                        _yeni_talep_ekle(f_ilceler, f_bolge, f_mulk, f_oda, f_deger, f_islem, f_ek_not, danisman_adi)
+                        _yeni_talep_ekle(
+                            f_ilceler, f_bolge, f_mulk, f_oda, f_deger, f_islem, f_ek_not, danisman_adi,
+                            iliski_tipi=iliski_deger, musteri_adi=f_musteri_adi.strip(),
+                            musteri_telefon=f_musteri_telefon.strip(),
+                        )
                     else:
-                        _yeni_portfoy_ekle(f_ilceler, f_bolge, f_mulk, f_oda, f_deger, f_islem, f_ek_not, danisman_adi)
+                        _yeni_portfoy_ekle(
+                            f_ilceler, f_bolge, f_mulk, f_oda, f_deger, f_islem, f_ek_not, danisman_adi,
+                            iliski_tipi=iliski_deger, musteri_adi=f_musteri_adi.strip(),
+                            musteri_telefon=f_musteri_telefon.strip(),
+                        )
                     st.success("✅ Kaydedildi! Talep/Portföy Merkezi'nde ve panoda görünecek.")
                     talepleri_cek.clear()
                     portfoyleri_cek.clear()

@@ -170,6 +170,14 @@ def _kart_html(v, kayit_tipi, favori_destekli=False, favorili_mi=False):
     islem = _islem_tipi_norm(v)
     bg, fg = _rozet_renk(islem)
     danisman = _esc(_isim_ayikla(v.get("talep_eden_danisan", "")) or "-")
+    # YENİ (13.08.2026): "Köprü" notu — bu kaydı giren danışmanın kendi
+    # müşterisi değil, başka bir kaynaktan gelip havuza AKTARILDIĞI
+    # bilgisi. Kişisel bilgi (müşteri adı/telefonu) ASLA burada değil —
+    # sadece Kendi Kayıtlarım'da, kaydı girenin kendisine görünür.
+    kopru_notu = (
+        ' <span class="kart-kopru-notu">(Köprü)</span>'
+        if str(v.get("iliski_tipi") or "").strip().lower() == "kopru" else ""
+    )
     tarih = _esc(_tarih_kisalt(v.get("kayit_tarihi", "")))
     mulk = _esc(v.get("mulk_tipi") or "Belirsiz")
     oda = _esc(v.get("oda_sayisi_m2") or "-")
@@ -320,7 +328,7 @@ def _kart_html(v, kayit_tipi, favori_destekli=False, favorili_mi=False):
       <div class="kart-alt">{bolge + ' · ' if bolge else ''}{mulk} · {oda}</div>
       <div class="kart-deger">{deger_etiket}: <b>{deger}</b></div>
       <div class="kart-alt-satir">
-        <span class="kart-danisman">👤 {danisman}</span>
+        <span class="kart-danisman">👤 {danisman}{kopru_notu}</span>
         <span class="{kaynak_sinif}">{kaynak_etiketi}</span>
       </div>{detay_blok_html}
     </div>
@@ -543,6 +551,7 @@ function favoriToggle(el) {{
     margin-bottom: 9px;
   }}
   .kart-danisman {{ font-size: 12.5px; color: var(--ink-soft); }}
+  .kart-kopru-notu {{ font-size: 11px; font-style: italic; color: var(--gold); font-weight: 600; }}
   .kart-kaynak {{
     font-size: 10px; font-weight: 700; color: var(--ink-soft);
     background: var(--cream-2); border: 1px solid var(--border);
