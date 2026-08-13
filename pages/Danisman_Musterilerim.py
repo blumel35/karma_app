@@ -32,7 +32,7 @@ hide_sidebar_css()
 render_topbar("Müşterilerim", ikon="📇", geri_hedefi="pages/Danisman_Secim.py")
 st.caption("Kişisel kişi defterin — sadece sana görünür, ofis geneli paylaşılmaz.")
 
-TIP_SECENEKLERI = ["Alıcı", "Satıcı", "Emlakçı", "Tedarikçi", "Diğer"]
+TIP_SECENEKLERI = ["Alıcı", "Satıcı", "İş Ortağı", "Tedarikçi", "Diğer"]
 
 st.markdown("""
 <style>
