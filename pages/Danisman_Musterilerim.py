@@ -70,13 +70,17 @@ st.markdown("""
 .dp-mus-az a:hover { background: rgba(27,37,64,.08); }
 .dp-mus-az span { font-size: 12.5px; color: #cfcabf; padding: 3px 6px; }
 div[class*="st-key-dp_mus_ekle_pop_"] button { white-space: nowrap !important; }
+.dp-mus-bolge {
+    font-size: 11.5px; color: #7a8194; white-space: nowrap;
+    display: flex; align-items: center; gap: 3px; justify-content: flex-end;
+}
 </style>
 """, unsafe_allow_html=True)
 
 su_kullanici = su_anki_danisman()
 tum_musteriler = musterileri_cek(su_kullanici)
 
-# ── FİLTRE SATIRI + "+ Yeni Kişi Ekle" (aynı satırda, sağda kompakt) ────
+# ── FİLTRE SATIRI 1: Tip + "+ Yeni Kişi Ekle" (aynı satırda, sağda) ─────
 col_filtre, col_ekle = st.columns([5, 1.3])
 with col_filtre:
     tip_filtre = st.radio(
@@ -114,10 +118,24 @@ with col_ekle:
                     st.success("✅ Eklendi.")
                     st.rerun()
 
+# ── FİLTRE SATIRI 2: Bölge — YENİ (13.08.2026, 3. tur). "GD rehberinde
+# özellikle çok işe yarar" isteği üzerine gerçekten FİLTRELENEBİLİR
+# yapıldı — seçilen ilçelerden EN AZ BİRİNDE çalışan kişiler gösterilir. ─
+bolge_filtre = st.multiselect(
+    "Bölgeye göre filtrele (opsiyonel)", IZMIR_ILCELERI,
+    key="dp_mus_bolge_filtre", placeholder="örn. Balçova, Narlıdere...",
+)
+
 if tip_filtre != "Tümü":
     gosterilecek = [m for m in tum_musteriler if tip_filtre in _tip_listele(m.get("tip"))]
 else:
     gosterilecek = tum_musteriler
+
+if bolge_filtre:
+    gosterilecek = [
+        m for m in gosterilecek
+        if set(m.get("bolgeler") or []) & set(bolge_filtre)
+    ]
 
 gosterilecek_sirali = sorted(gosterilecek, key=lambda m: (m.get("ad") or "").strip().lower())
 st.caption(f"{len(gosterilecek_sirali)} kişi")
@@ -155,24 +173,33 @@ for m in gosterilecek_sirali:
     # st.popover, expander'ın aksine kapalıyken de açıkken de sayfada
     # yeni bir satır İŞGAL ETMİYOR — küçük bir buton olarak satırın
     # sağında duruyor, tıklanınca üstte kayan bir kutu açılıyor.
-    r1, r2 = st.columns([6, 1])
+    # DÜZELTME (13.08.2026, 3. tur): uzmanlık artık AYRI bir alt satır
+    # değil, tip rozetinin hemen yanında "/" ile aynı satırda ("İş
+    # Ortağı / Mali Müşavir" gibi) — daha az dikey alan, daha hızlı
+    # taranabilir. Bölgeler artık SAĞDA, Uzmanlık Bölgelerim'de
+    # kullanılan AYNI temiz çizgisel SVG pin ikonuyla (emoji 📍 DEĞİL —
+    # "çok AI işi görünüyor" geri bildirimi üzerine).
+    r1, r_bolge, r2 = st.columns([5, 2, 1])
     with r1:
         telefon_metni = f" · 📞 {m['telefon']}" if m.get("telefon") else ""
-        rozetler = "".join(f"<span class='dp-mus-tip'>{t}</span>" for t in (_tip_listele(m.get("tip")) or ["Diğer"]))
-        # YENİ (13.08.2026, 2. tur): uzmanlık + bölgeler satırda, notu
-        # açmaya gerek kalmadan görünür — "Ender Böncü İş Ortağı ·
-        # Gayrimenkul Değerleme Uzmanı · 📍 Bornova, Karşıyaka" gibi.
-        alt_satir_parcalari = []
-        if m.get("uzmanlik"):
-            alt_satir_parcalari.append(m["uzmanlik"])
-        if m.get("bolgeler"):
-            alt_satir_parcalari.append("📍 " + ", ".join(m["bolgeler"]))
-        alt_satir = f"<div style='color:#7a8194;font-size:12px;margin-top:1px;'>{' · '.join(alt_satir_parcalari)}</div>" if alt_satir_parcalari else ""
+        tipler = _tip_listele(m.get("tip")) or ["Diğer"]
+        rozetler = "".join(f"<span class='dp-mus-tip'>{t}</span>" for t in tipler)
+        uzmanlik_ek = f" <span style='color:#7a8194;font-size:12.5px;'>/ {m['uzmanlik']}</span>" if m.get("uzmanlik") else ""
         st.markdown(
-            f"<div class='dp-mus-satir'><b>{ad}</b>{rozetler}"
-            f"<span style='color:#7a8194;font-size:13px;'>{telefon_metni}</span>{alt_satir}</div>",
+            f"<div class='dp-mus-satir'><b>{ad}</b>{rozetler}{uzmanlik_ek}"
+            f"<span style='color:#7a8194;font-size:13px;'>{telefon_metni}</span></div>",
             unsafe_allow_html=True,
         )
+    with r_bolge:
+        if m.get("bolgeler"):
+            st.markdown(
+                "<div class='dp-mus-bolge'>"
+                "<svg width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='#5b6478' "
+                "stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+                "<path d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/><circle cx='12' cy='10' r='3'/></svg>"
+                f"<span>{', '.join(m['bolgeler'])}</span></div>",
+                unsafe_allow_html=True,
+            )
     with r2:
         with st.popover("⋮", use_container_width=True):
             if m.get("kaynak") == "otomatik":

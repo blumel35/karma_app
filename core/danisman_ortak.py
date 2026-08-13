@@ -26,6 +26,7 @@ Mimari (2026-08 revizyonu, 2. güncelleme):
 
 import uuid
 import time
+import json
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
 
@@ -343,16 +344,27 @@ def _tip_listele(tip_degeri):
     eski bir kayıtta) tip alanı hâlâ DÜZ METİN olabilir ('İş Ortağı').
     Bunu doğrudan bir Python listesi gibi kullanmak (for t in tip)
     STRING'i TEK TEK KARAKTERLERİNE ayırır (Python'da string de
-    iterable) — canlıda tam olarak bu hata görüldü (harfler ayrı ayrı
-    rozet olarak çıktı, sonra st.multiselect default'u da geçersiz
-    olduğu için sayfa çöktü). Bu fonksiyon her iki durumu da (düz metin
-    VEYA liste VEYA None) güvenle tek bir listeye çeviriyor."""
+    iterable) — canlıda tam olarak bu hata görüldü.
+    DÜZELTME (13.08.2026 — 2. tur): 'tip' sütunu Supabase'de HÂLÂ TEXT
+    tipindeyse (migration çalışmadıysa/etkisi görülmediyse), Python
+    listesi gönderildiğinde postgrest JSON'a çevirip metin olarak
+    kaydediyor — geri okunduğunda "[\"İş Ortağı\"]" gibi köşeli
+    parantez+tırnaklı DÜZ METİN olarak geliyor. Bu da artık ayrıca
+    yakalanıp gerçek listeye çevriliyor (json.loads denemesi ile)."""
     if not tip_degeri:
         return []
-    if isinstance(tip_degeri, str):
-        return [tip_degeri]
     if isinstance(tip_degeri, list):
         return [t for t in tip_degeri if t]
+    if isinstance(tip_degeri, str):
+        metin = tip_degeri.strip()
+        if metin.startswith("[") and metin.endswith("]"):
+            try:
+                cozulmus = json.loads(metin)
+                if isinstance(cozulmus, list):
+                    return [t for t in cozulmus if t]
+            except (ValueError, TypeError):
+                pass
+        return [metin] if metin else []
     return []
 
 
