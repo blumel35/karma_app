@@ -142,7 +142,17 @@ zeta_ilan_havuzu = _araliga_gore_sirala(zeta_ilan_havuzu, "ilan_suresi", sure_ar
 zeta_ilan_havuzu = _araliga_gore_sirala(zeta_ilan_havuzu, "m2", m2_araligi)
 zeta_ilan_havuzu = _araliga_gore_sirala(zeta_ilan_havuzu, "fiyat", fiyat_araligi)
 
+# YENİ (13.08.2026): Ana ekrandaki "Zeta Portföyleri →" linkinden
+# geldiyse (aktivite kutusu, "+N yeni ilan" sinyali) — Talep/Portföy
+# Panosu'nun "+N yeni" rozetlerindeki AYNI desen — varsayılan zaman
+# filtresi "Tümü" yerine "Son 7 gün" açılıyor, kullanıcı son gelenleri
+# görmek için ayrıca filtre değiştirmek zorunda kalmıyor. Tek seferlik:
+# bayrak burada okunup sıfırlanıyor, sayfa normal ziyaret edildiğinde
+# (hamburger menüden) eskisi gibi "Tümü" ile açılıyor.
+zeta_ilan_gelisinden = st.session_state.pop("dp_zeta_ilan_sadece_yeni", False)
+zaman_varsayilan = "Son 7 gün" if zeta_ilan_gelisinden else "Tümü"
+
 render_pano_icerik(
     zeta_ilan_havuzu, "portfoy", "Zeta Portföyleri",
-    key_prefix="zeta_ilan", zaman_varsayilan="Tümü",
+    key_prefix="zeta_ilan", zaman_varsayilan=zaman_varsayilan,
 )

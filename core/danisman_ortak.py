@@ -785,8 +785,25 @@ def render_activity_bar():
         )
         for olay in ozet["son_olaylar"]:
             st.caption(f"• **{olay['danisman']}** {olay['eylem']}")
-        if st.button("Tüm Paylaşımlar →", key="ds_tum_paylasimlar"):
-            st.switch_page("pages/Danisman_Paylasimlar.py")
+        # DÜZELTME (13.08.2026 — pilot öncesi son eksik): "Tüm Paylaşımlar"
+        # sadece Zeta Paylaşımları'na (ofis-içi elle girilen talep/
+        # portföy) gidiyordu — resmi portal ilanları (Zeta Portföyleri)
+        # için ayrı bir hızlı link yoktu, ama yukarıdaki cümlede "N yeni
+        # Zeta ilanı" sayısı zaten gösteriliyordu. İki AYRI, bilinçli
+        # olarak birbirinden bağımsız sistem oldukları için (karışmasın
+        # diye) tek bir butona birleştirilmedi — iki AYRI buton eklendi.
+        pb1, pb2 = st.columns(2)
+        with pb1:
+            if st.button("Tüm Paylaşımlar →", key="ds_tum_paylasimlar", use_container_width=True):
+                st.switch_page("pages/Danisman_Paylasimlar.py")
+        with pb2:
+            if st.button("Zeta Portföyleri →", key="ds_tum_ilanlar", use_container_width=True):
+                # YENİ (13.08.2026): "+N yeni" rozetlerindeki AYNI desen —
+                # buradan geldiğinde Zeta Portföyleri'nde varsayılan
+                # zaman filtresi "Tümü" yerine "Son 7 gün" açılsın,
+                # kullanıcı ayrıca filtre değiştirmek zorunda kalmasın.
+                st.session_state["dp_zeta_ilan_sadece_yeni"] = True
+                st.switch_page("pages/Danisman_ZetaPortfoyleri.py")
 
 
 # ── HAMBURGER MENÜ (sağ üst) ────────────────────────────────────────────
