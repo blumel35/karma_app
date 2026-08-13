@@ -32,7 +32,7 @@ from email.utils import parsedate_to_datetime
 import streamlit as st
 
 from core.supabase_client import get_client
-from core.pano_export import _ilce_normalize, _islem_tipi_norm
+from core.pano_export import _ilce_normalize, _islem_tipi_norm, _TR_BUYUK_HARF
 
 supabase = get_client()
 
@@ -316,6 +316,46 @@ def musterileri_cek(danisman_adi):
     return resp.data or []
 
 
+def _isim_normalize(ad):
+    """'ender böncü' -> 'Ender Böncü'. _ilce_normalize'dan farkı: birden
+    fazla kelimeyi (ad+soyad) AYRI AYRI büyütür, tek kelimeyi değil.
+    Python'un .title()'ı Türkçe İ/ı'yı yanlış çevirdiği için (örn.
+    'ışık'.title() -> 'Işık' değil 'IŞık' gibi hatalar verir) elle,
+    _TR_BUYUK_HARF eşlemesiyle yapılıyor (13.08.2026)."""
+    ad = (ad or "").strip()
+    if not ad:
+        return ad
+    kelimeler = ad.split(" ")
+    duzeltilmis = []
+    for k in kelimeler:
+        if not k:
+            continue
+        ilk = k[0]
+        ilk_buyuk = _TR_BUYUK_HARF.get(ilk, ilk.upper())
+        geri_kalan = k[1:].lower().replace("i̇", "i")
+        duzeltilmis.append(ilk_buyuk + geri_kalan)
+    return " ".join(duzeltilmis)
+
+
+def _tip_listele(tip_degeri):
+    """Rehberim'deki 'tip' alanını HER ZAMAN temiz bir liste olarak
+    döner — DÜZELTME (13.08.2026): migration çalıştırılmadan önce (veya
+    eski bir kayıtta) tip alanı hâlâ DÜZ METİN olabilir ('İş Ortağı').
+    Bunu doğrudan bir Python listesi gibi kullanmak (for t in tip)
+    STRING'i TEK TEK KARAKTERLERİNE ayırır (Python'da string de
+    iterable) — canlıda tam olarak bu hata görüldü (harfler ayrı ayrı
+    rozet olarak çıktı, sonra st.multiselect default'u da geçersiz
+    olduğu için sayfa çöktü). Bu fonksiyon her iki durumu da (düz metin
+    VEYA liste VEYA None) güvenle tek bir listeye çeviriyor."""
+    if not tip_degeri:
+        return []
+    if isinstance(tip_degeri, str):
+        return [tip_degeri]
+    if isinstance(tip_degeri, list):
+        return [t for t in tip_degeri if t]
+    return []
+
+
 def _telefon_normalize(t):
     """Karşılaştırma için telefon numarasını sadece rakamlara indirger,
     son 10 haneyi alır — '0542 288 16 20', '+90 542 288 16 20',
@@ -341,7 +381,7 @@ def _musteri_senkronize(danisman_adi, ad, telefon, tip):
        'Satıcı' olabilir. Var olan kayıt bulunursa yeni tip, mevcut
        diziye EKLENİR (zaten varsa tekrar eklenmez) — üzerine
        YAZILMAZ, önceki rolleri kaybetmez."""
-    ad = (ad or "").strip()
+    ad = _isim_normalize(ad)
     if not ad:
         return
     telefon = (telefon or "").strip() or None
@@ -376,7 +416,9 @@ def _musteri_senkronize(danisman_adi, ad, telefon, tip):
         guncelleme = {"guncelleme_tarihi": datetime.now(timezone.utc).isoformat()}
         if telefon and not eslesen.get("telefon"):
             guncelleme["telefon"] = telefon
-        mevcut_tipler = eslesen.get("tip") or []
+        # DÜZELTME: _tip_listele() ile savunmacı — eslesen kaydın 'tip'i
+        # migration çalıştırılmadan önce yazılmış, hâlâ düz metin olabilir.
+        mevcut_tipler = _tip_listele(eslesen.get("tip"))
         if tip not in mevcut_tipler:
             guncelleme["tip"] = mevcut_tipler + [tip]
         supabase.table("danisman_kisiler").update(guncelleme).eq("id", eslesen["id"]).execute()
@@ -402,7 +444,7 @@ def musteri_ekle(danisman_adi, ad, telefon, tip, notlar, uzmanlik="", bolgeler=N
     ikisi de opsiyonel."""
     supabase.table("danisman_kisiler").insert({
         "danisman": danisman_adi,
-        "ad": (ad or "").strip(),
+        "ad": _isim_normalize(ad),
         "telefon": (telefon or "").strip() or None,
         "tip": tip if isinstance(tip, list) else [tip],
         "notlar": (notlar or "").strip() or None,
@@ -964,7 +1006,7 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                 st.divider()
                 if st.button("📂 Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
                     st.switch_page("pages/Danisman_Kayitlarim.py")
-                if st.button("📇 Müşterilerim", use_container_width=True, key="dp_menu_musteriler"):
+                if st.button("📇 Rehberim", use_container_width=True, key="dp_menu_musteriler"):
                     st.switch_page("pages/Danisman_Musterilerim.py")
                 if st.button("📢 Zeta Portföyleri", use_container_width=True, key="dp_menu_zeta_ilan"):
                     st.switch_page("pages/Danisman_ZetaPortfoyleri.py")
