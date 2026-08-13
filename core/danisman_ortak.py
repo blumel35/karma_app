@@ -1024,8 +1024,8 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                 st.divider()
                 if st.button("📂 Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
                     st.switch_page("pages/Danisman_Kayitlarim.py")
-                if st.button("📇 Rehberim", use_container_width=True, key="dp_menu_musteriler"):
-                    st.switch_page("pages/Danisman_Musterilerim.py")
+                if st.button("📇 Danışman Rehberim", use_container_width=True, key="dp_menu_musteriler"):
+                    st.switch_page("pages/Danisman_Rehberim.py")
                 if st.button("📢 Zeta Portföyleri", use_container_width=True, key="dp_menu_zeta_ilan"):
                     st.switch_page("pages/Danisman_ZetaPortfoyleri.py")
                 if st.button("👥 Zeta Paylaşımları", use_container_width=True, key="dp_menu_paylasimlar"):

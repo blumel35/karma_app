@@ -263,8 +263,8 @@ danisman_zeta_portfoyleri = st.Page(
 # eklerken girilen müşteri adı buraya otomatik senkronize olur, ama
 # talep/portföy silinse de kişi kaydı KALICI kalır (bağımsız tablo).
 danisman_musterilerim = st.Page(
-    "pages/Danisman_Musterilerim.py",
-    title="Rehberim",
+    "pages/Danisman_Rehberim.py",
+    title="Danışman Rehberim",
     icon=":material/contacts:",
 )
 

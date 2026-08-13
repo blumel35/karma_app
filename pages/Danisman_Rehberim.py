@@ -1,5 +1,5 @@
 """
-pages/Danisman_Musterilerim.py
+pages/Danisman_Rehberim.py
 
 Rehberim — kişisel kişi defteri (13.08.2026). Hamburger menüden
 erişilir. Talep/Portföy tablolarından TAMAMEN BAĞIMSIZ — "Yeni Talep/
@@ -38,7 +38,7 @@ if not oturum_kontrol():
     st.switch_page("pages/Danisman_Giris.py")
 
 hide_sidebar_css()
-render_topbar("Rehberim", ikon="📇", geri_hedefi="pages/Danisman_Secim.py")
+render_topbar("Danışman Rehberim", ikon="📇", geri_hedefi="pages/Danisman_Secim.py")
 st.caption("Kişisel kişi defterin — sadece sana görünür, ofis geneli paylaşılmaz.")
 
 TIP_SECENEKLERI = ["Alıcı", "Satıcı", "İş Ortağı", "Tedarikçi", "Diğer"]
