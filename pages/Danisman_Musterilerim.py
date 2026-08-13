@@ -58,7 +58,7 @@ def _telefon_html(telefon):
     son10 = rakamlar[-10:] if len(rakamlar) >= 10 else rakamlar
     e164 = "90" + son10
     return (
-        f" · <a class='dp-mus-tel' href='tel:+{e164}' title='Ara'>{telefon}</a>"
+        f"<span class='dp-mus-tel-satir'> · <a class='dp-mus-tel' href='tel:+{e164}' title='Ara'>{telefon}</a>"
         f"<a class='dp-mus-tel-ikon' href='https://wa.me/{e164}' target='_blank' title='WhatsApp'>"
         "<svg width='13' height='13' viewBox='0 0 24 24' fill='#25D366'>"
         "<path d='M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.85.5 3.58 1.36 5.06L2 22l5.2-1.37a9.87 9.87 0 0 0 4.84 1.24h.01"
@@ -66,7 +66,7 @@ def _telefon_html(telefon):
         "-2.84-1.13-4.63-3.98-4.77-4.16-.14-.19-1.14-1.52-1.14-2.9 0-1.38.72-2.05.98-2.33.26-.28.56-.35.75-.35h.54"
         "c.17 0 .4-.03.62.48.24.55.8 1.9.87 2.04.07.14.12.3.02.49-.09.19-.14.3-.28.46-.14.16-.29.36-.42.48-.14.14"
         "-.28.29-.12.57.16.28.71 1.17 1.52 1.9 1.05.94 1.93 1.23 2.2 1.37.28.14.44.12.6-.07.16-.19.68-.79.86-1.06"
-        ".18-.28.36-.23.6-.14.25.09 1.6.75 1.87.89.28.14.46.21.53.32.07.12.07.68-.17 1.36z'/></svg></a>"
+        ".18-.28.36-.23.6-.14.25.09 1.6.75 1.87.89.28.14.46.21.53.32.07.12.07.68-.17 1.36z'/></svg></a></span>"
     )
 
 st.markdown("""
@@ -125,6 +125,10 @@ st.markdown("""
     .dp-mus-tel-ikon svg {
         width: 19px !important; height: 19px !important;
     }
+    /* YENİ (13.08.2026, 6. tur): telefon artık HER ZAMAN kendi satırında
+       — önceden isim/tip/uzmanlık satırının sonuna sığmayınca tutarsız
+       şekilde bazen aynı satırda bazen alt satırda kalıyordu. */
+    .dp-mus-tel-satir { display: block !important; margin-top: 4px; }
 }
 /* DÜZELTME (13.08.2026, 4. tur): "+ Yeni Kişi" ve "⋮" popover
    butonları, Streamlit'in mobildeki varsayılan sütun-yığma davranışı
