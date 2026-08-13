@@ -316,54 +316,98 @@ def musterileri_cek(danisman_adi):
     return resp.data or []
 
 
+def _telefon_normalize(t):
+    """Karşılaştırma için telefon numarasını sadece rakamlara indirger,
+    son 10 haneyi alır — '0542 288 16 20', '+90 542 288 16 20',
+    '5422881620' gibi farklı yazımların AYNI kişi olarak eşleşmesi
+    için (13.08.2026 düzeltmesi — öncesinde birebir string eşleşmesi
+    arandığı için format farkı mükerrer kayıt yaratıyordu)."""
+    rakamlar = "".join(ch for ch in (t or "") if ch.isdigit())
+    return rakamlar[-10:] if len(rakamlar) >= 10 else rakamlar
+
+
 def _musteri_senkronize(danisman_adi, ad, telefon, tip):
     """Bir talep/portföy eklenirken müşteri adı girilmişse, bu kişiyi
     Müşterilerim'e de otomatik ekler/günceller — AYRI bir işlem yapmana
-    gerek kalmasın diye. Telefon varsa (danisman, telefon) ikilisine göre
-    eşleşme aranır (aynı kişiyi iki kez eklememek için); telefon yoksa
-    (danisman, ad) ile aranır — isim eşleşmesi telefon kadar güvenilir
-    değil ama telefonsuz girişte elimizdeki tek anahtar bu.
-    Var olan kayıt bulunursa SADECE güncelleme_tarihi tazelenir (+ telefon
-    o zaman boşsa şimdi doluysa eklenir) — var olan bir notu ASLA
-    silmez/üzerine yazmaz."""
+    gerek kalmasın diye.
+
+    DÜZELTME (13.08.2026 — 2. tur, iki gerçek boşluk kapatıldı):
+    1) Eşleştirme artık NORMALİZE EDİLMİŞ telefona göre (format farkı
+       artık mükerrer kayıt yaratmıyor) VE isim büyük/küçük harf +
+       boşluk farkına duyarsız şekilde yapılıyor — ikisi de fallback
+       olarak denenir (önce telefon, sonra isim), TEK bir kayıt
+       bulunana kadar.
+    2) tip artık TEK DEĞER değil, DİZİ — aynı kişi hem 'Alıcı' hem
+       'Satıcı' olabilir. Var olan kayıt bulunursa yeni tip, mevcut
+       diziye EKLENİR (zaten varsa tekrar eklenmez) — üzerine
+       YAZILMAZ, önceki rolleri kaybetmez."""
     ad = (ad or "").strip()
     if not ad:
         return
     telefon = (telefon or "").strip() or None
+    telefon_norm = _telefon_normalize(telefon)
 
-    sorgu = supabase.table("danisman_kisiler").select("id, telefon").eq("danisman", danisman_adi)
-    if telefon:
-        sorgu = sorgu.eq("telefon", telefon)
-    else:
-        sorgu = sorgu.eq("ad", ad).is_("telefon", "null")
-    mevcut = sorgu.limit(1).execute()
+    # Kişisel bir adres defteri için makul boyutta bir liste — tek
+    # sorguda çekip Python'da normalize ederek karşılaştırmak, Supabase
+    # tarafında format-duyarsız bir SQL sorgusu yazmaktan daha basit ve
+    # güvenilir.
+    adaylar = (
+        supabase.table("danisman_kisiler")
+        .select("id, ad, telefon, tip")
+        .eq("danisman", danisman_adi)
+        .execute()
+        .data or []
+    )
 
-    if mevcut.data:
-        kid = mevcut.data[0]["id"]
+    eslesen = None
+    if telefon_norm:
+        for a in adaylar:
+            if _telefon_normalize(a.get("telefon")) == telefon_norm:
+                eslesen = a
+                break
+    if not eslesen:
+        ad_norm = ad.lower()
+        for a in adaylar:
+            if (a.get("ad") or "").strip().lower() == ad_norm:
+                eslesen = a
+                break
+
+    if eslesen:
         guncelleme = {"guncelleme_tarihi": datetime.now(timezone.utc).isoformat()}
-        if telefon and not mevcut.data[0].get("telefon"):
+        if telefon and not eslesen.get("telefon"):
             guncelleme["telefon"] = telefon
-        supabase.table("danisman_kisiler").update(guncelleme).eq("id", kid).execute()
+        mevcut_tipler = eslesen.get("tip") or []
+        if tip not in mevcut_tipler:
+            guncelleme["tip"] = mevcut_tipler + [tip]
+        supabase.table("danisman_kisiler").update(guncelleme).eq("id", eslesen["id"]).execute()
     else:
         supabase.table("danisman_kisiler").insert({
             "danisman": danisman_adi,
             "ad": ad,
             "telefon": telefon,
-            "tip": tip,
+            "tip": [tip],
             "kaynak": "otomatik",
         }).execute()
     musterileri_cek.clear()
 
 
-def musteri_ekle(danisman_adi, ad, telefon, tip, notlar):
-    """Müşterilerim sayfasından elle yeni kişi ekleme (emlakçı, tedarikçi
-    vb. — bir talep/portföye bağlı olması ŞART değil)."""
+def musteri_ekle(danisman_adi, ad, telefon, tip, notlar, uzmanlik="", bolgeler=None):
+    """Müşterilerim sayfasından elle yeni kişi ekleme (iş ortağı,
+    tedarikçi vb. — bir talep/portföye bağlı olması ŞART değil).
+    tip artık bir LİSTE (13.08.2026) — bir kişi birden fazla rol
+    taşıyabilir (örn. hem Alıcı hem Satıcı).
+    uzmanlik/bolgeler (13.08.2026, 2. tur): İş Ortağı/Tedarikçi gibi
+    tiplerde 'kim ne iş yapıyor, nerede çalışıyor' bilgisini notlara
+    gömmeden, satırda görünür/ileride filtrelenebilir tutmak için —
+    ikisi de opsiyonel."""
     supabase.table("danisman_kisiler").insert({
         "danisman": danisman_adi,
         "ad": (ad or "").strip(),
         "telefon": (telefon or "").strip() or None,
-        "tip": tip,
+        "tip": tip if isinstance(tip, list) else [tip],
         "notlar": (notlar or "").strip() or None,
+        "uzmanlik": (uzmanlik or "").strip() or None,
+        "bolgeler": bolgeler or [],
         "kaynak": "manuel",
     }).execute()
     musterileri_cek.clear()
