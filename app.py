@@ -191,6 +191,7 @@ hesap_aktivasyon = st.Page(
     "pages/Hesap_Aktivasyon.py",
     title="Hesap Aktivasyonu",
     icon=":material/key:",
+    url_path="hesap-aktivasyon"
 )
 
 # ── Danışman Panosu — Karma App'ten BAĞIMSIZ görünen, sade mini-arayüz ──
