@@ -259,12 +259,12 @@ danisman_zeta_portfoyleri = st.Page(
     icon=":material/campaign:",
 )
 
-# ── Müşterilerim — kişisel kişi defteri (13.08.2026). Talep/Portföy
+# ── Rehberim — kişisel kişi defteri (13.08.2026). Talep/Portföy
 # eklerken girilen müşteri adı buraya otomatik senkronize olur, ama
 # talep/portföy silinse de kişi kaydı KALICI kalır (bağımsız tablo).
 danisman_musterilerim = st.Page(
     "pages/Danisman_Musterilerim.py",
-    title="Müşterilerim",
+    title="Rehberim",
     icon=":material/contacts:",
 )
 

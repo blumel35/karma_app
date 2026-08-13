@@ -1,7 +1,7 @@
 """
 pages/Danisman_Musterilerim.py
 
-Müşterilerim — kişisel kişi defteri (13.08.2026). Hamburger menüden
+Rehberim — kişisel kişi defteri (13.08.2026). Hamburger menüden
 erişilir. Talep/Portföy tablolarından TAMAMEN BAĞIMSIZ — "Yeni Talep/
 Portföy Ekle" formunda müşteri adı girildiğinde buraya OTOMATİK
 senkronize edilir (core.danisman_ortak._musteri_senkronize), ama bu
@@ -30,14 +30,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import oturum_kontrol
 from core.danisman_ortak import (
     su_anki_danisman, musterileri_cek, musteri_ekle, musteri_guncelle,
-    musteri_sil, render_topbar, hide_sidebar_css, IZMIR_ILCELERI,
+    musteri_sil, render_topbar, hide_sidebar_css, IZMIR_ILCELERI, _tip_listele,
 )
 
 if not oturum_kontrol():
     st.switch_page("pages/Danisman_Giris.py")
 
 hide_sidebar_css()
-render_topbar("Müşterilerim", ikon="📇", geri_hedefi="pages/Danisman_Secim.py")
+render_topbar("Rehberim", ikon="📇", geri_hedefi="pages/Danisman_Secim.py")
 st.caption("Kişisel kişi defterin — sadece sana görünür, ofis geneli paylaşılmaz.")
 
 TIP_SECENEKLERI = ["Alıcı", "Satıcı", "İş Ortağı", "Tedarikçi", "Diğer"]
@@ -115,7 +115,7 @@ with col_ekle:
                     st.rerun()
 
 if tip_filtre != "Tümü":
-    gosterilecek = [m for m in tum_musteriler if tip_filtre in (m.get("tip") or [])]
+    gosterilecek = [m for m in tum_musteriler if tip_filtre in _tip_listele(m.get("tip"))]
 else:
     gosterilecek = tum_musteriler
 
@@ -158,7 +158,7 @@ for m in gosterilecek_sirali:
     r1, r2 = st.columns([6, 1])
     with r1:
         telefon_metni = f" · 📞 {m['telefon']}" if m.get("telefon") else ""
-        rozetler = "".join(f"<span class='dp-mus-tip'>{t}</span>" for t in (m.get("tip") or ["Diğer"]))
+        rozetler = "".join(f"<span class='dp-mus-tip'>{t}</span>" for t in (_tip_listele(m.get("tip")) or ["Diğer"]))
         # YENİ (13.08.2026, 2. tur): uzmanlık + bölgeler satırda, notu
         # açmaya gerek kalmadan görünür — "Ender Böncü İş Ortağı ·
         # Gayrimenkul Değerleme Uzmanı · 📍 Bornova, Karşıyaka" gibi.
@@ -178,7 +178,8 @@ for m in gosterilecek_sirali:
             if m.get("kaynak") == "otomatik":
                 st.caption("↻ Talep/Portföy eklerken otomatik senkronize edildi")
             yeni_tipler = st.multiselect(
-                "Tip", TIP_SECENEKLERI, default=m.get("tip") or [],
+                "Tip", TIP_SECENEKLERI,
+                default=[t for t in _tip_listele(m.get("tip")) if t in TIP_SECENEKLERI],
                 key=f"dp_mus_tip_duzenle_{m['id']}",
             )
             yeni_uzmanlik = st.text_input(
