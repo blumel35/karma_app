@@ -264,7 +264,7 @@ danisman_zeta_portfoyleri = st.Page(
 # talep/portföy silinse de kişi kaydı KALICI kalır (bağımsız tablo).
 danisman_musterilerim = st.Page(
     "pages/Danisman_Rehberim.py",
-    title="Danışman Rehberim",
+    title="Rehberim",
     icon=":material/contacts:",
 )
 
