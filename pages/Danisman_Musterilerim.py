@@ -101,8 +101,31 @@ st.markdown("""
 }
 .dp-mus-tel {
     color: #3d4457; font-weight: 600; text-decoration: none;
+    padding: 4px 2px;
 }
-.dp-mus-tel-ikon { text-decoration: none; margin-left: 4px; vertical-align: middle; }
+.dp-mus-tel-ikon {
+    text-decoration: none; margin-left: 8px; vertical-align: middle;
+    display: inline-flex; padding: 4px;
+}
+/* DÜZELTME (13.08.2026, 5. tur): Mobilde telefon numarası ve WhatsApp
+   ikonu birbirine çok yakın, küçük duruyordu — parmakla dokunmak zordu.
+   Yazı boyutu büyütüldü, aralarındaki boşluk artırıldı, ikonun kendisi
+   büyütüldü ve etrafına daha geniş bir dokunma alanı (padding) eklendi
+   — gerçek dokunma hedefi artık görünenden daha büyük. */
+@media (max-width: 480px) {
+    .dp-mus-tel {
+        font-size: 15px !important;
+        padding: 8px 4px !important;
+        display: inline-block;
+    }
+    .dp-mus-tel-ikon {
+        margin-left: 14px !important;
+        padding: 8px !important;
+    }
+    .dp-mus-tel-ikon svg {
+        width: 19px !important; height: 19px !important;
+    }
+}
 /* DÜZELTME (13.08.2026, 4. tur): "+ Yeni Kişi" ve "⋮" popover
    butonları, Streamlit'in mobildeki varsayılan sütun-yığma davranışı
    yüzünden TAM EKRAN GENİŞLİĞİNDE devasa butonlar gibi görünüyordu.
