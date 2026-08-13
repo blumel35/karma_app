@@ -179,6 +179,89 @@ def sifremi_sifirla(email: str) -> bool:
         return False
 
 
+def davet_token_dogrula(token_hash: str) -> dict | None:
+    """
+    Supabase Invite User e-postasındaki TokenHash'i doğrula.
+
+    Başarılı doğrulamada yalnız bu ilk-şifre akışında geçici olarak
+    kullanılacak oturum tokenlarını döndürür. Bu fonksiyon:
+      - service/secret key KULLANMAZ,
+      - normal Karma App session_state kimliğini KURMAZ,
+      - tarayıcı cookie'si YAZMAZ,
+      - auth_user/view_as_user akışına DOKUNMAZ.
+
+    Token değeri hiçbir şekilde loglanmaz.
+    """
+    token_hash = str(token_hash or "").strip()
+    if not token_hash:
+        return None
+
+    supa = _get_supa()
+    if not supa:
+        return None
+
+    try:
+        res = supa.auth.verify_otp({
+            "token_hash": token_hash,
+            "type": "invite",
+        })
+        if (
+            not getattr(res, "user", None)
+            or not getattr(res, "session", None)
+            or not getattr(res.session, "access_token", None)
+            or not getattr(res.session, "refresh_token", None)
+        ):
+            return None
+
+        return {
+            "access_token": res.session.access_token,
+            "refresh_token": res.session.refresh_token,
+            "email": getattr(res.user, "email", "") or "",
+        }
+    except Exception:
+        # Davet tokenı veya ham Supabase hata detayı kullanıcıya/log'a yazılmaz.
+        return None
+
+
+def davet_sifresi_guncelle(
+    access_token: str,
+    refresh_token: str,
+    yeni_sifre: str,
+) -> bool:
+    """
+    Doğrulanmış davet oturumundaki kullanıcının KENDİ şifresini belirle.
+
+    Başka kullanıcı ID'si kabul etmez; service/secret key kullanmaz.
+    Geçici Supabase client üzerinde set_session + update_user çalışır.
+    Normal Karma App/Danışman Panosu oturumu veya cookie oluşturmaz.
+    """
+    access_token = str(access_token or "").strip()
+    refresh_token = str(refresh_token or "").strip()
+    yeni_sifre = str(yeni_sifre or "")
+
+    if not access_token or not refresh_token or not yeni_sifre:
+        return False
+
+    supa = _get_supa()
+    if not supa:
+        return False
+
+    try:
+        supa.auth.set_session(access_token, refresh_token)
+
+        # update_user yalnız giriş yapmış kullanıcıda çalışır; ayrıca mevcut
+        # oturumun gerçekten Supabase tarafından doğrulandığını teyit et.
+        mevcut = supa.auth.get_user()
+        if not getattr(mevcut, "user", None):
+            return False
+
+        res = supa.auth.update_user({"password": yeni_sifre})
+        return bool(getattr(res, "user", None))
+    except Exception:
+        # Şifre veya ham Supabase hata detayı asla kullanıcıya/log'a yazılmaz.
+        return False
+
+
 def _profil_cek(supa, user_id: str) -> dict | None:
     try:
         res = (supa.table("kullanicilar")

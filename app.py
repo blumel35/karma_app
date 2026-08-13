@@ -186,6 +186,13 @@ pano_goruntule = st.Page(
     icon=":material/dashboard:",
 )
 
+# ── Hesap Aktivasyonu — yalnız Supabase davetinden ilk şifre belirleme ──
+hesap_aktivasyon = st.Page(
+    "pages/Hesap_Aktivasyon.py",
+    title="Hesap Aktivasyonu",
+    icon=":material/key:",
+)
+
 # ── Danışman Panosu — Karma App'ten BAĞIMSIZ görünen, sade mini-arayüz ──
 # NOT: Kendi giriş ekranı (Danisman_Giris) ve kendi sade görünümü
 # (Danisman_Pano, render_navbar yok) var — aynı Supabase hesaplarını
@@ -278,6 +285,7 @@ pg = st.navigation(
             ana,
             profil,
             pano_goruntule,
+            hesap_aktivasyon,
             danisman_giris,
             danisman_pano,
             danisman_secim,
