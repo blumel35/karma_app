@@ -485,6 +485,60 @@ def musteri_sil(musteri_id):
     musterileri_cek.clear()
 
 
+# ── SENARYO HESAPLAYICI (kişiye özel link) — YENİ (14.08.2026) ─────────
+# "Üç Olası Yol" satış senaryoları aracı için: danışman burada müşteriye
+# özel rakamları kaydeder, benzersiz bir 'kod' üretilir, bu kod
+# pages/Senaryo_Hesaplayici.py'de (?kod=... ile, GİRİŞSİZ) o kaydı
+# bulup HTML'in içine enjekte eder. Rehberim ile AYNI kişisel-kapsam
+# deseni: sadece kaydeden danışman kendi listesini görür.
+
+@st.cache_data(ttl=30, show_spinner=False)
+def senaryolari_cek(danisman_adi):
+    resp = (
+        supabase.table("danisman_senaryolari")
+        .select("*")
+        .eq("danisman", danisman_adi)
+        .order("olusturma_tarihi", desc=True)
+        .execute()
+    )
+    return resp.data or []
+
+
+def senaryo_kod_uret():
+    """8 haneli, URL'de kısa ve okunur bir kod. uuid4 tabanlı — çakışma
+    riski pratikte ihmal edilebilir düzeyde, ekstra bir 'zaten var mı'
+    kontrolüne gerek duyulmadı (aynı desen: message_id üretimi)."""
+    return uuid.uuid4().hex[:8]
+
+
+def senaryo_kaydet(danisman_adi, alanlar):
+    """alanlar: {konum, oda_sayisi, bina_yasi, m2, ozellikler, deger_kisa,
+    deger_orta, deger_uzun, hedef_fiyat, piyasa_satis_suresi,
+    ort_m2_fiyati, piyasa_faiz_orani, musteri_adi} — HEPSİ musteri_adi
+    HARİÇ opsiyonel; boş bırakılan alan HTML'in kendi varsayılan
+    değerini korur (Senaryo_Hesaplayici.py'de sadece dolu alanlar enjekte
+    edilir)."""
+    kod = senaryo_kod_uret()
+    kayit = {"danisman": danisman_adi, "kod": kod}
+    for k, v in alanlar.items():
+        kayit[k] = (str(v).strip() or None) if v not in (None, "") else None
+    supabase.table("danisman_senaryolari").insert(kayit).execute()
+    senaryolari_cek.clear()
+    return kod
+
+
+def senaryo_guncelle(senaryo_id, alanlar):
+    alanlar = dict(alanlar)
+    alanlar["guncelleme_tarihi"] = datetime.now(timezone.utc).isoformat()
+    supabase.table("danisman_senaryolari").update(alanlar).eq("id", senaryo_id).execute()
+    senaryolari_cek.clear()
+
+
+def senaryo_sil(senaryo_id):
+    supabase.table("danisman_senaryolari").delete().eq("id", senaryo_id).execute()
+    senaryolari_cek.clear()
+
+
 @st.dialog("Yeni Talep / Portföy Ekle")
 def ekle_dialog(varsayilan_tip="Talep"):
     """Ana ekrandaki tek '+ Ekle' butonundan açılan ortak dialog.
@@ -1047,6 +1101,8 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                     st.switch_page("pages/Danisman_ZetaPortfoyleri.py")
                 if st.button("👥 Zeta Paylaşımları", use_container_width=True, key="dp_menu_paylasimlar"):
                     st.switch_page("pages/Danisman_Paylasimlar.py")
+                if st.button("🧮 Senaryo Hesaplayıcı", use_container_width=True, key="dp_menu_senaryo"):
+                    st.switch_page("pages/Danisman_SenaryoOlustur.py")
                 st.divider()
                 if st.button("🚪 Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
                     cikis_yap()

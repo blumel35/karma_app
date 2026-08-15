@@ -186,12 +186,22 @@ pano_goruntule = st.Page(
     icon=":material/dashboard:",
 )
 
-# ── Hesap Aktivasyonu — yalnız Supabase davetinden ilk şifre belirleme ──
-hesap_aktivasyon = st.Page(
-    "pages/Hesap_Aktivasyon.py",
-    title="Hesap Aktivasyonu",
-    icon=":material/key:",
-    url_path="hesap-aktivasyon"
+# ── Senaryo Hesaplayıcı — müşteriye gönderilmek üzere, girişsiz/bağımsız
+# link (14.08.2026). Pano Görüntüle ile AYNI desen: oturum_kontrol() yok.
+senaryo_hesaplayici = st.Page(
+    "pages/Senaryo_Hesaplayici.py",
+    title="Senaryo Hesaplayıcı",
+    icon=":material/calculate:",
+)
+
+# ── Senaryo Hesaplayıcı OLUŞTURMA ekranı — danışman GİRİŞ yapmış olarak
+# burada müşteriye özel veri girer, link üretir. Yukarıdaki
+# senaryo_hesaplayici (görüntüleme) sayfasından AYRI — biri girişli
+# (oluşturma), biri girişsiz (görüntüleme/müşteri linki).
+danisman_senaryo_olustur = st.Page(
+    "pages/Danisman_SenaryoOlustur.py",
+    title="Senaryo Oluştur",
+    icon=":material/edit_calendar:",
 )
 
 # ── Danışman Panosu — Karma App'ten BAĞIMSIZ görünen, sade mini-arayüz ──
@@ -286,7 +296,8 @@ pg = st.navigation(
             ana,
             profil,
             pano_goruntule,
-            hesap_aktivasyon,
+            senaryo_hesaplayici,
+            danisman_senaryo_olustur,
             danisman_giris,
             danisman_pano,
             danisman_secim,
