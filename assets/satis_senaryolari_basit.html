@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="tr" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Üç Olası Yol — Eviniz İçin Basit Bir Bakış</title>
+<style>
+  :root{
+    --surface-1:#ffffff; --page:#f7f6f3; --ink:#171614; --ink-soft:#53514c; --muted:#8b8880;
+    --border:rgba(23,22,20,0.11); --accent:#2a5db0; --accent-tint:#eaf1fb;
+    --shadow: 0 1px 2px rgba(23,22,20,0.05), 0 8px 24px rgba(23,22,20,0.06);
+  }
+  html[data-theme="dark"]{
+    --surface-1:#1c1b19; --page:#0e0e0d; --ink:#f5f4f1; --ink-soft:#c7c4bc; --muted:#8b8880;
+    --border:rgba(255,255,255,0.11); --accent:#5b93de; --accent-tint:#1c2b40;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 28px rgba(0,0,0,0.35);
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--page); color:var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding:0 0 60px; transition: background .25s ease, color .25s ease;
+  }
+  .wrap{ max-width:900px; margin:0 auto; padding:0 18px; }
+  h1,h2{ font-family: Georgia, 'Times New Roman', serif; font-weight:700; margin:0; }
+
+  header.top{ background:var(--surface-1); border-bottom:1px solid var(--border); padding:32px 18px 28px; }
+  header.top .wrap{ display:flex; justify-content:space-between; align-items:flex-start; gap:20px; flex-wrap:wrap; }
+  header.top h1{ font-size:clamp(24px,3.6vw,32px); line-height:1.3; max-width:600px; }
+  header.top p{ color:var(--ink-soft); font-size:15px; max-width:560px; margin-top:12px; line-height:1.65; }
+  .theme-toggle{
+    border:1px solid var(--border); background:var(--page); color:var(--ink-soft); border-radius:999px;
+    padding:7px 14px; font-size:12px; cursor:pointer; font-weight:600; white-space:nowrap;
+  }
+
+  section{ padding:34px 18px; }
+  .panel{
+    background:var(--surface-1); border:1px solid var(--border); border-radius:18px; padding:26px 28px;
+    box-shadow: var(--shadow);
+  }
+
+  /* ---- basic inputs ---- */
+  .basic-grid{ display:grid; grid-template-columns:1fr 1fr; gap:22px 28px; }
+  @media (max-width:640px){ .basic-grid{ grid-template-columns:1fr; } }
+  .field{ display:flex; flex-direction:column; gap:8px; }
+  .field label{ font-size:15px; font-weight:700; color:var(--ink); }
+  .field .help{ font-size:12.5px; color:var(--muted); margin-top:-3px; }
+  .field input[type="number"]{
+    border:1px solid var(--border); border-radius:10px; padding:11px 13px; font-size:17px; font-weight:700;
+    background:var(--page); color:var(--ink); font-variant-numeric: tabular-nums; width:100%;
+  }
+  .field .range-row{ display:flex; align-items:center; gap:12px; }
+  .field input[type="range"]{ flex:1; accent-color:var(--accent); }
+  .field .range-val{ font-size:15px; font-weight:800; color:var(--accent); min-width:52px; text-align:right; }
+  .info-note{
+    margin-top:2px; padding:10px 12px; border-radius:10px; background:var(--accent-tint);
+    font-size:12.5px; color:var(--ink-soft); line-height:1.5; display:none;
+  }
+  .info-note b{ color:var(--ink); }
+
+  .property-panel{ padding:20px 24px; }
+  .property-header{ display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+  .property-icon{
+    width:40px; height:40px; border-radius:12px; background:var(--accent-tint);
+    display:flex; align-items:center; justify-content:center; font-size:19px; flex:0 0 auto;
+  }
+  .property-title{ font-size:15px; font-weight:700; font-family:Georgia,serif; }
+  .property-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  @media (max-width:640px){ .property-grid{ grid-template-columns:1fr 1fr; } }
+  .property-grid .field label{ font-size:12.5px; font-weight:700; color:var(--ink-soft); }
+  .property-grid .field input{
+    border:1px solid var(--border); border-radius:9px; padding:8px 10px; font-size:14px; font-weight:600;
+    background:var(--page); color:var(--ink); width:100%;
+  }
+
+  .mini-compare{ display:flex; gap:8px; flex-wrap:wrap; }
+  .mini-box{
+    flex:1; min-width:230px; background:var(--page); border:1px solid var(--border); border-radius:10px;
+    padding:8px 12px;
+  }
+  .mini-box.highlight{ background:var(--accent-tint); border-color:var(--accent); display:flex; flex-direction:column; justify-content:center; }
+  .mini-row{ display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--ink-soft); padding:3px 0; }
+  .mini-row span:first-child{ flex:1; }
+  .mini-row input[type="number"]{
+    width:66px; border:1px solid var(--border); border-radius:6px; padding:3px 6px; font-size:11.5px; font-weight:700;
+    background:var(--surface-1); color:var(--ink); text-align:right; font-variant-numeric: tabular-nums;
+  }
+  .mini-row .unit{ font-size:10px; color:var(--muted); min-width:30px; }
+  .mini-row .mini-strong{ font-size:13px; font-weight:800; color:var(--ink); font-variant-numeric: tabular-nums; }
+  .mini-sub{ font-size:11px; color:var(--ink-soft); margin-top:2px; line-height:1.4; }
+
+  .tier-row{ display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; margin-top:6px; }
+  .tier-item{ display:flex; flex-direction:column; gap:5px; }
+  .tier-item .tlabel{ font-size:11.5px; font-weight:700; color:var(--muted); white-space:nowrap; }
+  .tier-item .tlabel .rec{ color:var(--accent); font-weight:700; }
+  .tier-item input[type="number"]{
+    border:1px solid var(--border); border-radius:9px; background:var(--page); color:var(--ink-soft);
+    font-variant-numeric: tabular-nums; font-weight:600;
+  }
+  .tier-item.minor{ flex:0 0 auto; }
+  .tier-item.minor input[type="number"]{ padding:7px 9px; font-size:13.5px; width:130px; }
+  .tier-item.major{ flex:0 0 auto; }
+  .tier-item.major .tlabel{ color:var(--accent); font-size:12.5px; }
+  .tier-item.major input[type="number"]{
+    padding:11px 13px; font-size:18px; font-weight:800; color:var(--ink); border-color:var(--accent);
+    border-width:1.5px; width:180px;
+  }
+  @media (max-width:640px){ .tier-row{ gap:12px; } .tier-item.minor input, .tier-item.major input{ width:100%; } }
+
+  /* ---- story intro line ---- */
+  .story-lead{ text-align:center; font-size:16px; color:var(--ink-soft); margin:0 0 24px; line-height:1.6; }
+  .story-lead b{ color:var(--ink); }
+
+  /* ---- scenario cards ---- */
+  .scenario-list{ display:flex; flex-direction:column; gap:16px; }
+  .scenario-card{
+    background:var(--surface-1); border:1px solid var(--border); border-radius:18px; padding:22px 24px;
+    box-shadow: var(--shadow); display:flex; align-items:center; gap:20px;
+  }
+  @media (max-width:600px){ .scenario-card{ flex-direction:column; align-items:flex-start; } }
+  .scenario-card.has-extra{ flex-direction:column; align-items:stretch; }
+  .scenario-row{ display:flex; align-items:center; gap:20px; }
+  @media (max-width:600px){ .scenario-row{ flex-direction:column; align-items:flex-start; } }
+  .scenario-extra{
+    margin-top:16px; padding-top:14px; border-top:1px dashed var(--border);
+    font-size:13px; color:var(--ink-soft); line-height:1.55; display:flex; gap:8px; align-items:flex-start;
+  }
+  .scenario-extra b{ color:var(--ink); }
+  .scenario-extra .bulb{ flex:0 0 auto; }
+  .scenario-icon{
+    flex:0 0 56px; width:56px; height:56px; border-radius:16px; background:var(--accent-tint);
+    display:flex; align-items:center; justify-content:center; font-size:26px;
+  }
+  .scenario-body{ flex:1; }
+  .scenario-body .tag{ font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--accent); margin-bottom:4px; }
+  .scenario-body h3{ font-size:18px; font-family:Georgia,serif; margin:0 0 6px; }
+  .scenario-body p{ font-size:14px; color:var(--ink-soft); line-height:1.55; margin:0; }
+  .scenario-num{ flex:0 0 auto; text-align:right; }
+  .scenario-num .amt{ font-size:26px; font-weight:800; font-variant-numeric: tabular-nums; color:var(--ink); font-family:Georgia,serif; }
+  .scenario-num .cap{ font-size:11.5px; color:var(--muted); margin-top:2px; }
+  @media (max-width:600px){ .scenario-num{ text-align:left; } }
+
+  /* ---- simple bar compare ---- */
+  .bar-compare{ margin-top:22px; }
+  .bar-row{ display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+  .bar-row .bar-label{ flex:0 0 150px; font-size:13px; color:var(--ink-soft); font-weight:600; }
+  .bar-row .bar-track{ flex:1; background:var(--accent-tint); border-radius:999px; height:26px; overflow:hidden; }
+  .bar-row .bar-fill{ height:100%; background:var(--accent); border-radius:999px; transition:width .6s cubic-bezier(.2,.8,.2,1); display:flex; align-items:center; }
+  .bar-row .bar-val{ font-size:12px; font-weight:800; color:#fff; padding:0 10px; white-space:nowrap; }
+
+  /* ---- detail toggle ---- */
+  .detail-toggle-row{ text-align:center; margin-top:26px; }
+  #detailToggle{
+    border:1px solid var(--border); background:var(--surface-1); color:var(--ink); border-radius:999px;
+    padding:11px 22px; font-size:14px; font-weight:700; cursor:pointer; box-shadow:var(--shadow);
+  }
+  #detailToggle:hover{ border-color:var(--accent); }
+  #detailToggle .chevron{ display:inline-block; margin-left:6px; transition:transform .25s ease; }
+  #detailToggle.open .chevron{ transform:rotate(180deg); }
+
+  #detailPanel{
+    max-height:0; overflow:hidden; transition:max-height .5s ease;
+  }
+  #detailPanel.open{ max-height:2400px; }
+  .detail-inner{ padding-top:26px; }
+
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:20px 26px; }
+  @media (max-width:640px){ .grid2{ grid-template-columns:1fr; } }
+
+  .breakeven-line{
+    margin-top:20px; padding:16px 18px; border-radius:14px; background:var(--accent-tint); font-size:14px;
+    color:var(--ink-soft); line-height:1.6;
+  }
+  .breakeven-line b{ color:var(--ink); }
+  .breakeven-line.alt{ background:var(--page); border:1px solid var(--border); }
+
+  .rate-mode-row{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .rate-mode-btn{
+    border:1px solid var(--border); background:var(--page); color:var(--ink-soft);
+    border-radius:999px; padding:6px 13px; font-size:12.5px; font-weight:700; cursor:pointer;
+  }
+  .rate-mode-btn.active{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .rate-mode-btn:hover{ border-color:var(--accent); }
+  #rateDeltaField{ margin-top:14px; }
+
+  .reflect-list{ display:flex; flex-direction:column; gap:10px; margin-top:20px; }
+  .reflect-item{
+    background:var(--page); border:1px solid var(--border); border-radius:12px; padding:12px 16px;
+    font-size:13.5px; color:var(--ink-soft); display:flex; gap:10px; align-items:flex-start;
+  }
+  .reflect-item .q-mark{
+    flex:0 0 22px; height:22px; border-radius:50%; background:var(--accent-tint); color:var(--accent);
+    display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:800;
+  }
+
+  .byline{ margin-top:18px; }
+  .byline input{
+    border:none; border-bottom:1px dashed var(--border); background:transparent; color:var(--muted);
+    font-size:12.5px; padding:3px 2px; width:280px;
+  }
+  .byline input:focus{ outline:none; border-color:var(--accent); color:var(--ink); }
+
+  footer{ text-align:center; padding:30px 18px 10px; font-size:11.5px; color:var(--muted); line-height:1.7; }
+
+  .fade-in{ opacity:0; transform:translateY(12px); transition:opacity .5s ease, transform .5s ease; }
+  .fade-in.visible{ opacity:1; transform:translateY(0); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div>
+      <h1>Eviniz İçin Üç Olası Yol</h1>
+      <p>Aşağıya birkaç rakam girin, üç olası sonucu basitçe görün. İsterseniz daha fazla ayrıntıya da bakabilirsiniz — ama zorunlu değil.</p>
+    </div>
+    <button class="theme-toggle" id="themeToggle">🌙 Karanlık mod</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section style="padding-bottom:0;">
+    <div class="panel property-panel">
+      <div class="property-header">
+        <span class="property-icon">🏠</span>
+        <span class="property-title">Evinize Ait Bilgiler</span>
+      </div>
+      <div class="property-grid">
+        <div class="field">
+          <label>Konum</label>
+          <input type="text" id="inLocation" placeholder="Örn. Kadıköy, İstanbul">
+        </div>
+        <div class="field">
+          <label>Oda Sayısı</label>
+          <input type="text" id="inRooms" placeholder="Örn. 3+1">
+        </div>
+        <div class="field">
+          <label>Bina Yaşı</label>
+          <input type="number" id="inAge" placeholder="Örn. 8" min="0">
+        </div>
+        <div class="field">
+          <label>m²</label>
+          <input type="number" id="inM2" value="120" min="1">
+        </div>
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label>Diğer Özellikler</label>
+        <input type="text" id="inFeatures" placeholder="Örn. Asansör, Otopark, Balkon, Eşyalı">
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="panel">
+      <div class="basic-grid">
+        <div class="field" style="grid-column:1 / -1;">
+          <label>Mülkünüze Ait Değerleme Raporu Sonuçları</label>
+          <div class="tier-row">
+            <div class="tier-item minor">
+              <span class="tlabel">Kısa Vade</span>
+              <input type="number" id="inShort" value="16000000" step="100000">
+            </div>
+            <div class="tier-item major">
+              <span class="tlabel">Önerilen Fiyat <span class="rec">(Orta Vade)</span></span>
+              <input type="number" id="inMid" value="17500000" step="100000">
+            </div>
+            <div class="tier-item minor">
+              <span class="tlabel">Uzun Vade</span>
+              <input type="number" id="inLong" value="19000000" step="100000">
+            </div>
+          </div>
+        </div>
+
+        <div class="field" style="grid-column:1 / -1;">
+          <label>Eviniz İçin Belirlediğiniz Satış Fiyatı Nedir?</label>
+          <input type="number" id="inP1" value="20000000" step="100000">
+          <div class="help">Ulaşmayı umduğunuz fiyat.</div>
+          <div class="info-note" id="tierNote" style="display:block;"></div>
+        </div>
+
+        <div class="field" style="grid-column:1 / -1;">
+          <div class="mini-compare">
+            <div class="mini-box">
+              <div class="mini-row"><span>Piyasada satış süresi</span><input type="number" id="inMarketAvg" value="5" step="0.5" min="0"><span class="unit">ay</span></div>
+              <div class="mini-row"><span>Ort. m² fiyatı</span><input type="number" id="inMarketM2" value="145000" step="1000" min="0"><span class="unit">TL/m²</span></div>
+            </div>
+            <div class="mini-box highlight">
+              <div class="mini-row"><span>Sizin hedef m² fiyatınız</span><span class="mini-strong" id="m2ResultVal">—</span></div>
+              <div class="mini-sub" id="m2ResultNote"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Ne kadar bekleyebilirsiniz?</label>
+          <div class="range-row">
+            <input type="range" id="inT" min="1" max="12" value="6">
+            <span class="range-val" id="lblT">6 ay</span>
+          </div>
+          <div class="info-note" id="marketNote"></div>
+        </div>
+        <div class="field">
+          <label>En fazla ne kadar indirim yapabilirsiniz?</label>
+          <input type="number" id="inDiscount" value="100000" step="10000" min="0">
+          <div class="help">Alıcı pazarlık isterse, razı olacağınız en yüksek indirim.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top:6px;">
+    <p class="story-lead">İşte önünüzdeki <b>üç olası yol</b> — hangisi size daha uygun görünüyor?</p>
+
+    <div class="scenario-list fade-in">
+      <div class="scenario-card has-extra">
+        <div class="scenario-row">
+          <div class="scenario-icon">🏠</div>
+          <div class="scenario-body">
+            <div class="tag">Yol 1</div>
+            <h3>Bugün Satarsanız</h3>
+            <p id="descA">Evinizi bugün satar, parayı değerlendirirseniz, birkaç ay içinde elinizde bu tutar olur.</p>
+          </div>
+          <div class="scenario-num"><div class="amt" id="numA">21.202.035 TL</div><div class="cap">mevduat getirisi elde ettiğimiz senaryo</div></div>
+        </div>
+        <div class="scenario-extra" id="extraA" style="display:none;"><span class="bulb">💡</span><span id="extraAText"></span></div>
+      </div>
+
+      <div class="scenario-card">
+        <div class="scenario-icon">🚩</div>
+        <div class="scenario-body">
+          <div class="tag">Yol 2</div>
+          <h3>Bekler ve Hedefinize Ulaşırsanız</h3>
+          <p id="descB">Beklediğiniz süre sonunda istediğiniz fiyata satarsanız, elinizde bu tutar olur.</p>
+        </div>
+        <div class="scenario-num"><div class="amt" id="numB">20.000.000 TL</div><div class="cap">hedef fiyatı beklediğimiz senaryo</div></div>
+      </div>
+
+      <div class="scenario-card">
+        <div class="scenario-icon">🤝</div>
+        <div class="scenario-body">
+          <div class="tag">Yol 3</div>
+          <h3>Bekler ama Pazarlık Yaparsanız</h3>
+          <p id="descC">Alıcı pazarlık isteyebilir. Belirttiğiniz en yüksek indirimle satarsanız, elinizde bu tutar olur.</p>
+        </div>
+        <div class="scenario-num"><div class="amt" id="numC">19.900.000 TL</div><div class="cap">pazarlıklı senaryo</div></div>
+      </div>
+    </div>
+
+    <div class="bar-compare fade-in">
+      <div class="bar-row">
+        <div class="bar-label">Bugün satarsanız</div>
+        <div class="bar-track"><div class="bar-fill" id="barA" style="width:0%"><span class="bar-val" id="barAVal"></span></div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Hedefe ulaşırsanız</div>
+        <div class="bar-track"><div class="bar-fill" id="barB" style="width:0%"><span class="bar-val" id="barBVal"></span></div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Pazarlık yaparsanız</div>
+        <div class="bar-track"><div class="bar-fill" id="barC" style="width:0%"><span class="bar-val" id="barCVal"></span></div></div>
+      </div>
+    </div>
+
+    <div class="detail-toggle-row">
+      <button id="detailToggle">Detaylı İncele <span class="chevron">▾</span></button>
+    </div>
+
+    <div id="detailPanel">
+      <div class="detail-inner panel">
+        <div class="grid2">
+          <div class="field">
+            <label style="font-size:13.5px; color:var(--ink-soft);">Değerlendireceğiniz yıllık mevduat getirisi <span class="range-val" id="lblRate" style="margin-left:6px;">%45</span></label>
+            <input type="range" id="inRate" min="10" max="70" step="0.5" value="45">
+            <div class="help">Bugün satarsanız, elde ettiğiniz tutarı bu oranla büyütebileceğinizi varsayıyoruz.</div>
+            <div class="rate-mode-row" id="rateModeRow">
+              <button type="button" class="rate-mode-btn active" data-mode="flat">Sabit Kalır</button>
+              <button type="button" class="rate-mode-btn" data-mode="down">📉 Faizler Düşer</button>
+              <button type="button" class="rate-mode-btn" data-mode="up">📈 Faizler Yükselir</button>
+            </div>
+            <div class="field" id="rateDeltaField" style="display:none;">
+              <label style="font-size:13px; color:var(--ink-soft); font-weight:600;">
+                <span id="deltaMonthsLabel">6</span> ay içinde toplam kaç puan <span id="deltaDirLabel">düşer</span>?
+                <span class="range-val" id="lblDelta" style="margin-left:6px;">10 puan</span>
+              </label>
+              <input type="range" id="inDelta" min="0" max="30" step="1" value="10">
+              <div class="help">Örneğin şu an %45 ise ve 10 puan düşerse, süre sonunda yaklaşık %35'e ineceğini varsayarız — aradaki aylar da kademeli geçer.</div>
+            </div>
+          </div>
+          <div class="field">
+            <label style="font-size:13.5px; color:var(--ink-soft);">Hiç satamazsanız, aklınızdaki alternatif fiyat</label>
+            <input type="number" id="inFallback" value="17000000" step="100000">
+            <div class="help">Beklediğiniz süre içinde ne hedefe ne de pazarlık fiyatına satamazsanız, düşünebileceğiniz bir rakam.</div>
+          </div>
+        </div>
+
+        <div class="breakeven-line alt" id="fallbackLine"></div>
+
+        <div class="reflect-list">
+          <div class="reflect-item"><span class="q-mark">?</span><span>Bu paraya yakın bir tarihte ihtiyacınız olabilir mi?</span></div>
+          <div class="reflect-item"><span class="q-mark">?</span><span>Belirsizlik içinde beklemek sizi ne kadar rahatsız eder?</span></div>
+          <div class="reflect-item"><span class="q-mark">?</span><span id="reflectGap"></span></div>
+        </div>
+
+        <div class="byline">
+          <input type="text" id="bylineInput" value="Hazırlayan: Danışmanınızın adı · İletişim bilgisi">
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  Bu ekran, girdiğiniz varsayımlara (fiyat, süre, indirim, getiri oranı) dayanan basit bir hesaplamadır; bir tahmin, garanti ya da yatırım/finansal danışmanlık tavsiyesi değildir.<br>
+  Alternatif fiyat ve indirim girdileri tamamen sizin öngörünüzdür. Gerçek piyasa koşulları ve mevduat getirileri zamanla değişebilir.
+</footer>
+
+<script>
+(function(){
+  const trMoney = n => Math.round(n).toLocaleString('tr-TR') + ' TL';
+  const trNum = (n,d=1) => n.toLocaleString('tr-TR', {minimumFractionDigits:d, maximumFractionDigits:d});
+
+  const inShort = document.getElementById('inShort');
+  const inMid = document.getElementById('inMid');
+  const inLong = document.getElementById('inLong');
+  const inP1 = document.getElementById('inP1');
+  const inT = document.getElementById('inT');
+  const inMarketAvg = document.getElementById('inMarketAvg');
+  const inM2 = document.getElementById('inM2');
+  const inMarketM2 = document.getElementById('inMarketM2');
+  const inDiscount = document.getElementById('inDiscount');
+  const inRate = document.getElementById('inRate');
+  const inFallback = document.getElementById('inFallback');
+  const inDelta = document.getElementById('inDelta');
+  const rateModeBtns = document.querySelectorAll('.rate-mode-btn');
+  const rateDeltaField = document.getElementById('rateDeltaField');
+  const lblDelta = document.getElementById('lblDelta');
+  const deltaDirLabel = document.getElementById('deltaDirLabel');
+  const deltaMonthsLabel = document.getElementById('deltaMonthsLabel');
+
+  let rateMode = 'flat'; // 'flat' | 'down' | 'up'
+
+  function buildRatePath(T, startRate, mode, delta){
+    const path = [];
+    for(let m=0; m<T; m++){
+      const t = T>1 ? m/(T-1) : 0;
+      let r = startRate;
+      if(mode==='down') r = startRate - delta*t;
+      else if(mode==='up') r = startRate + delta*t;
+      r = Math.max(5, Math.min(90, r));
+      path.push(r);
+    }
+    return path;
+  }
+
+  function computeFV(P0, T, rate, mode, delta){
+    if(mode === 'flat'){
+      const monthlyRate = (rate/100)/12;
+      return P0 * Math.pow(1+monthlyRate, T);
+    }
+    const path = buildRatePath(T, rate, mode, delta);
+    let val = P0;
+    path.forEach(r => { val *= (1 + (r/100)/12); });
+    return val;
+  }
+
+  // month-by-month series (index 0 = P0) for the same rate assumption used in computeFV
+  function monthlySeries(P0, T, rate, mode, delta){
+    const arr = [P0];
+    if(mode === 'flat'){
+      const monthlyRate = (rate/100)/12;
+      for(let m=1; m<=T; m++) arr.push(arr[m-1] * (1+monthlyRate));
+    } else {
+      const path = buildRatePath(T, rate, mode, delta);
+      for(let m=1; m<=T; m++) arr.push(arr[m-1] * (1 + (path[m-1]/100)/12));
+    }
+    return arr;
+  }
+
+  // first (fractional) month at which the series reaches target, within the series' own horizon
+  function findCrossingMonth(series, target){
+    if(target <= series[0]) return 0;
+    for(let m=1; m<series.length; m++){
+      if(series[m] >= target){
+        const prev = series[m-1], cur = series[m];
+        if(cur === prev) return m;
+        const frac = (Math.log(target)-Math.log(prev)) / (Math.log(cur)-Math.log(prev));
+        return (m-1)+frac;
+      }
+    }
+    return null;
+  }
+
+  const counters = {};
+  function animateNumber(id, to){
+    const el = document.getElementById(id);
+    if(!el) return;
+    const from = counters[id] !== undefined ? counters[id] : to;
+    counters[id] = to;
+    const start = performance.now(); const duration = 650;
+    function step(now){
+      const t = Math.min(1, (now-start)/duration);
+      const eased = 1 - Math.pow(1-t,3);
+      el.textContent = trMoney(from + (to-from)*eased);
+      if(t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function render(){
+    const short = Math.max(1, parseFloat(inShort.value)||0);
+    const mid = Math.max(1, parseFloat(inMid.value)||0);
+    const long = Math.max(1, parseFloat(inLong.value)||0);
+    const P0 = short; // "bugün satarsanız" = hızlı satış = kısa vade fiyatı
+    const P1 = Math.max(1, parseFloat(inP1.value)||0);
+    const T = parseInt(inT.value,10);
+    const discount = Math.max(0, parseFloat(inDiscount.value)||0);
+    const rate = parseFloat(inRate.value);
+    const fallback = Math.max(0, parseFloat(inFallback.value)||0);
+
+    // değerleme raporu ile hedef fiyat kıyaslaması — yeni kalem
+    const tierNote = document.getElementById('tierNote');
+    const diffMid = P1 - mid;
+    const pctMid = mid > 0 ? (diffMid/mid*100) : 0;
+    const diffLong = P1 - long;
+    const pctLong = long > 0 ? (diffLong/long*100) : 0;
+    const dir = (v) => v > 0 ? 'üzerinde' : (v < 0 ? 'altında' : 'ile aynı seviyede');
+
+    let tierTxt = '📋 Hedef fiyatınızı (<b>' + trMoney(P1) + '</b>), size önerilen orta vade değerlemesinin (' + trMoney(mid) + ') ';
+    if(diffMid !== 0){
+      tierTxt += '<b>%' + trNum(Math.abs(pctMid),1) + ' ' + dir(diffMid) + '</b> (' + trMoney(Math.abs(diffMid)) + ' fark), ';
+    } else {
+      tierTxt += '<b>ile aynı seviyede</b>, ';
+    }
+    if(diffLong !== 0){
+      tierTxt += 'uzun vade değerlemesinin (' + trMoney(long) + ') <b>%' + trNum(Math.abs(pctLong),1) + ' ' + dir(diffLong) + '</b> belirlediniz.';
+    } else {
+      tierTxt += 'uzun vade değerlemesiyle (' + trMoney(long) + ') <b>aynı seviyede</b> belirlediniz.';
+    }
+    tierNote.innerHTML = tierTxt;
+
+    // hedef fiyatın m² karşılığı — piyasa ortalama m² fiyatıyla kıyaslama
+    const m2 = Math.max(1, parseFloat(inM2.value)||1);
+    const marketM2Price = Math.max(0, parseFloat(inMarketM2.value)||0);
+    const targetM2Price = P1 / m2;
+    document.getElementById('m2ResultVal').textContent = trMoney(targetM2Price) + '/m²';
+    const m2Note = document.getElementById('m2ResultNote');
+    if(marketM2Price > 0){
+      const diffM2 = targetM2Price - marketM2Price;
+      const pctM2 = (diffM2/marketM2Price)*100;
+      let noteM2 = '';
+      if(diffM2 > 0) noteM2 = 'piyasanın <b>%' + trNum(Math.abs(pctM2),1) + ' üzerinde</b>';
+      else if(diffM2 < 0) noteM2 = 'piyasanın <b>%' + trNum(Math.abs(pctM2),1) + ' altında</b>';
+      else noteM2 = 'piyasayla <b>aynı seviyede</b>';
+      m2Note.innerHTML = noteM2;
+    } else {
+      m2Note.textContent = '';
+    }
+
+    document.getElementById('lblT').textContent = T + ' ay';
+    document.getElementById('lblRate').textContent = '%' + trNum(rate,1);
+    deltaMonthsLabel.textContent = T;
+
+    // piyasa ortalama satış süresi — beklenti çapası
+    const marketAvg = Math.max(0, parseFloat(inMarketAvg.value)||0);
+    const marketNote = document.getElementById('marketNote');
+    if(marketAvg > 0){
+      let noteTxt = '📊 Bu bölgede benzer evler ortalama <b>' + trNum(marketAvg,1) + ' ay</b>da satılıyor.';
+      if(T < marketAvg * 0.8){
+        noteTxt += ' Seçtiğiniz ' + T + ' ay, bu ortalamanın altında bir süre.';
+      } else if(T > marketAvg * 1.3){
+        noteTxt += ' Seçtiğiniz ' + T + ' ay, bu ortalamanın oldukça üzerinde.';
+      }
+      marketNote.innerHTML = noteTxt;
+      marketNote.style.display = 'block';
+    } else {
+      marketNote.style.display = 'none';
+    }
+
+    const delta = Math.max(0, parseFloat(inDelta.value)||0);
+    const FV_T = computeFV(P0, T, rate, rateMode, delta);
+    const pazarlikFiyati = Math.max(0, P1 - discount);
+
+    animateNumber('numA', FV_T);
+    animateNumber('numB', P1);
+    animateNumber('numC', pazarlikFiyati);
+
+    if(rateMode === 'flat'){
+      document.getElementById('descA').textContent =
+        'Evinizi bugün ' + trMoney(P0) + ' karşılığında satar, parayı %' + trNum(rate,1) + ' yıllık getiriyle değerlendirirseniz, ' + T + ' ay sonra elinizde yaklaşık bu tutar olur.';
+    } else {
+      const endRate = Math.max(5, Math.min(90, rateMode==='down' ? rate-delta : rate+delta));
+      document.getElementById('descA').textContent =
+        'Evinizi bugün ' + trMoney(P0) + ' karşılığında satar, parayı değerlendirirseniz — faizlerin %' + trNum(rate,1) + '\'ten %' + trNum(endRate,1) + '\'e ' + (rateMode==='down'?'düştüğü':'yükseldiği') + ' bir senaryoda — ' + T + ' ay sonra elinizde yaklaşık bu tutar olur.';
+    }
+    document.getElementById('descB').textContent =
+      T + ' ay bekler ve istediğiniz ' + trMoney(P1) + ' fiyata satarsanız, elinizde bu tutar olur.';
+
+    // Yol 1 ek not: bugün satıp değerlendirseydik, hedef fiyata kaçıncı ayda ulaşırdık?
+    const extraA = document.getElementById('extraA');
+    const extraAText = document.getElementById('extraAText');
+    if(P1 > P0){
+      const series = monthlySeries(P0, T, rate, rateMode, delta);
+      const crossMonth = findCrossingMonth(series, P1);
+      if(crossMonth !== null && crossMonth > 0){
+        const roundedMonth = Math.max(1, Math.round(crossMonth));
+        extraA.style.display = '';
+        extraAText.innerHTML =
+          'Bu hesaba göre, parayı bugün değerlendirseydiniz yaklaşık <b>' + roundedMonth + '. ayda</b> zaten ' + trMoney(P1) + '\'ye ulaşırdınız. ' +
+          'O noktadan sonra, sabit ' + trMoney(P1) + ' beklemek, aslında bu getiri karşısında geride kalmak anlamına gelir.';
+      } else {
+        extraA.style.display = 'none';
+      }
+    } else {
+      extraA.style.display = 'none';
+    }
+    document.getElementById('descC').textContent =
+      'Alıcı pazarlık isteyebilir. En fazla ' + trMoney(discount) + ' indirim yaparsanız, elinizde bu tutar olur.';
+
+    // bar compare
+    const maxVal = Math.max(FV_T, P1, pazarlikFiyati, 1);
+    const setBar = (fillId, valId, val) => {
+      const pct = Math.max(4, (val/maxVal)*100);
+      document.getElementById(fillId).style.width = pct + '%';
+      document.getElementById(valId).textContent = trMoney(val);
+    };
+    setBar('barA','barAVal', FV_T);
+    setBar('barB','barBVal', P1);
+    setBar('barC','barCVal', pazarlikFiyati);
+
+    document.getElementById('reflectGap').textContent =
+      'Yol 2 ile Yol 3 arasındaki fark ' + trMoney(Math.abs(P1-pazarlikFiyati)) + ' — bu fark, ' + T + ' ay boyunca pazarlık riskini göze almaya değer mi? Bu sorunun cevabı sayılarda değil, sizin önceliklerinizde.';
+
+    // "hiç satamazsanız" sonucu — bugün satıp değerlendirmenizle doğrudan kıyaslama
+    const fallbackLine = document.getElementById('fallbackLine');
+    if(fallback <= 0){
+      fallbackLine.style.display = 'none';
+    } else {
+      fallbackLine.style.display = '';
+      const fallbackDiff = FV_T - fallback;
+      if(fallbackDiff > 0){
+        fallbackLine.innerHTML =
+          '<b>Hiç satamazsanız:</b> ' + T + ' ay sonra hâlâ satamayıp <b>' + trMoney(fallback) + '</b>\'ye satarsanız, <b>Yol 1</b>\'deki sonucunuza kıyasla <b>' + trMoney(fallbackDiff) + '</b> daha az kazanmış olursunuz.';
+      } else if(fallbackDiff < 0){
+        fallbackLine.innerHTML =
+          '<b>Hiç satamazsanız:</b> ' + T + ' ay sonra <b>' + trMoney(fallback) + '</b>\'ye satarsanız, <b>Yol 1</b>\'deki sonucunuza kıyasla <b>' + trMoney(Math.abs(fallbackDiff)) + '</b> daha fazla kazanmış olursunuz.';
+      } else {
+        fallbackLine.innerHTML =
+          '<b>Hiç satamazsanız:</b> ' + T + ' ay sonra <b>' + trMoney(fallback) + '</b>\'ye satarsanız, <b>Yol 1</b>\'deki sonucunuzla aşağı yukarı aynı noktada olursunuz.';
+      }
+    }
+  }
+
+  [inShort, inMid, inLong, inP1, inT, inMarketAvg, inM2, inMarketM2, inDiscount, inRate, inFallback, inDelta].forEach(el=>{
+    el.addEventListener('input', ()=>{
+      if(el === inDelta){ lblDelta.textContent = inDelta.value + ' puan'; }
+      render();
+    });
+  });
+
+  rateModeBtns.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      rateMode = btn.dataset.mode;
+      rateModeBtns.forEach(b=>b.classList.toggle('active', b===btn));
+      rateDeltaField.style.display = rateMode==='flat' ? 'none' : '';
+      deltaDirLabel.textContent = rateMode==='down' ? 'düşer' : 'yükselir';
+      render();
+    });
+  });
+
+  const detailToggle = document.getElementById('detailToggle');
+  const detailPanel = document.getElementById('detailPanel');
+  detailToggle.addEventListener('click', ()=>{
+    const isOpen = detailPanel.classList.toggle('open');
+    detailToggle.classList.toggle('open', isOpen);
+    detailToggle.innerHTML = isOpen ? 'Detayı Gizle <span class="chevron">▾</span>' : 'Detaylı İncele <span class="chevron">▾</span>';
+  });
+
+  const themeToggle = document.getElementById('themeToggle');
+  themeToggle.addEventListener('click', ()=>{
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    themeToggle.textContent = isDark ? '🌙 Karanlık mod' : '☀️ Aydınlık mod';
+  });
+
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(entry=>{ if(entry.isIntersecting){ entry.target.classList.add('visible'); io.unobserve(entry.target);} });
+  }, {threshold:0.1});
+  document.querySelectorAll('.fade-in').forEach(el => io.observe(el));
+
+  render();
+})();
+</script>
+</body>
+</html>
