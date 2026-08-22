@@ -88,7 +88,7 @@ try:
     # çekilemese bile (Supabase erişim sorunu vb.) en azından isimle
     # karşılama yapılabilsin diye ayrı, öncelikli bir kaynak. Aşağıda,
     # kod başarıyla çözülürse DB'deki musteri_adi bunu güncel tutar.
-    _musteri_adi = st.query_params.get("musteri", "")
+    _musteri_adi = st.query_params.get("musteri", "").replace("-", " ")
 
     if kod:
         try:
@@ -107,6 +107,24 @@ try:
                     _musteri_adi = _kayit.get("musteri_adi") or ""
                 for _alan, _html_id in _ALAN_ESLEME.items():
                     _html_icerik = _deger_enjekte(_html_icerik, _html_id, _kayit.get(_alan))
+
+                # DÜZELTME (22.08.2026): "Hedef Satış Fiyatı" (inP1)
+                # boş bırakılırsa, HTML'in kendi eski/sabit varsayılanı
+                # (20.000.000 — geliştirme sırasında kalan bir test
+                # rakamı) sessizce kullanılıyordu; müşteriye anlamsız/
+                # yanıltıcı bir rakam olarak görünüyordu. Artık hedef
+                # fiyat girilmemişse, mülkün GERÇEK verisinden (aynı
+                # önceliğe göre: teklif > öneri > kısa vade) mantıklı
+                # bir başlangıç değeri türetiliyor — hiçbiri de yoksa
+                # HTML'in varsayılanında kalır (son çare).
+                if _kayit.get("hedef_fiyat") in (None, ""):
+                    _p1_kaynagi = (
+                        _kayit.get("teklif_tutari")
+                        or _kayit.get("oneri_fiyat")
+                        or _kayit.get("deger_kisa")
+                    )
+                    if _p1_kaynagi:
+                        _html_icerik = _deger_enjekte(_html_icerik, "inP1", _p1_kaynagi)
 
                 # "Piyasada satış süresi" (inMarketAvg) hem bilgi kutusuna
                 # hem de "Ne kadar bekleyebilirsiniz?" kaydırıcısının
