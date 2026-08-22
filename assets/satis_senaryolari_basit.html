@@ -440,6 +440,36 @@
 <script>
 (function(){
   const trMoney = n => Math.round(n).toLocaleString('tr-TR') + ' TL';
+
+  // YENİ (22.08.2026): büyük rakamlar kutuya yazılırken takip etmek zor
+  // olduğu için — kutunun İÇİNDE, yazarken canlı binlik ayraç (17.500.000
+  // gibi) gösteren bir maskeleme. type="number" yerine type="text" +
+  // inputmode="numeric" kullanılıyor (tarayıcı yine sayısal klavye açar).
+  // İmleç, yeni ayraç eklenip silinirken sıçramasın diye konumu kendisi
+  // hesaplayıp düzeltiyor. Hesaplama tarafı (render() içindeki
+  // parseFloat çağrıları) ayraçları temizleyen parseTL() ile okunuyor.
+  function parseTL(input){
+    const rakamlar = (input.value || '').replace(/[^\d]/g, '');
+    return rakamlar ? parseInt(rakamlar, 10) : 0;
+  }
+  function tlMaskeBagla(input){
+    input.setAttribute('inputmode', 'numeric');
+    input.setAttribute('type', 'text');
+    function bicimlendir(){
+      const cursorSondanUzaklik = input.value.length - input.selectionStart;
+      const rakamlar = input.value.replace(/[^\d]/g, '');
+      const yeni = rakamlar ? parseInt(rakamlar, 10).toLocaleString('tr-TR') : '';
+      input.value = yeni;
+      const yeniCursor = Math.max(0, yeni.length - cursorSondanUzaklik);
+      input.setSelectionRange(yeniCursor, yeniCursor);
+    }
+    input.addEventListener('input', bicimlendir);
+    // Sayfa yüklenirken (varsayılan veya enjekte edilen değer) de biçimlendir
+    if(input.value){
+      const rakamlar = input.value.replace(/[^\d]/g, '');
+      input.value = rakamlar ? parseInt(rakamlar, 10).toLocaleString('tr-TR') : '';
+    }
+  }
   const trNum = (n,d=1) => n.toLocaleString('tr-TR', {minimumFractionDigits:d, maximumFractionDigits:d});
 
   const inShort = document.getElementById('inShort');
@@ -459,6 +489,10 @@
   const inTax = document.getElementById('inTax');
   const lblTax = document.getElementById('lblTax');
   const inMonthlyCost = document.getElementById('inMonthlyCost');
+
+  [inShort, inMid, inLong, inOneri, inTeklif, inP1, inMarketM2, inDiscount, inFallback, inMonthlyCost]
+    .forEach(tlMaskeBagla);
+
   const rateModeBtns = document.querySelectorAll('.rate-mode-btn');
   const rateDeltaField = document.getElementById('rateDeltaField');
   const lblDelta = document.getElementById('lblDelta');
@@ -537,12 +571,12 @@
   }
 
   function render(){
-    const short = Math.max(1, parseFloat(inShort.value)||0);
-    const mid = Math.max(1, parseFloat(inMid.value)||0);
-    const long = Math.max(1, parseFloat(inLong.value)||0);
+    const short = Math.max(1, parseTL(inShort)||0);
+    const mid = Math.max(1, parseTL(inMid)||0);
+    const long = Math.max(1, parseTL(inLong)||0);
     // "bugün satarsanız" hesaplaması için baz fiyat: öncelik gelen teklif > önerilen fiyat > kısa vade
-    const oneriVal = Math.max(0, parseFloat(inOneri.value)||0);
-    const teklifVal = Math.max(0, parseFloat(inTeklif.value)||0);
+    const oneriVal = Math.max(0, parseTL(inOneri)||0);
+    const teklifVal = Math.max(0, parseTL(inTeklif)||0);
     let P0 = short;
     if(teklifVal > 0){ P0 = teklifVal; }
     else if(oneriVal > 0){ P0 = oneriVal; }
@@ -556,11 +590,11 @@
       p0SourceNote.innerHTML = 'Bu alanlar boş bırakılırsa, "Bugün Satarsanız" hesaplaması kısa vade fiyatınız (' + trMoney(short) + ') üzerinden yapılır.';
     }
 
-    const P1 = Math.max(1, parseFloat(inP1.value)||0);
+    const P1 = Math.max(1, parseTL(inP1)||0);
     const T = parseInt(inT.value,10);
-    const discount = Math.max(0, parseFloat(inDiscount.value)||0);
+    const discount = Math.max(0, parseTL(inDiscount)||0);
     const rate = parseFloat(inRate.value);
-    const fallback = Math.max(0, parseFloat(inFallback.value)||0);
+    const fallback = Math.max(0, parseTL(inFallback)||0);
 
     // değerleme raporu ile hedef fiyat kıyaslaması — yeni kalem
     const tierNote = document.getElementById('tierNote');
@@ -585,7 +619,7 @@
 
     // hedef fiyatın m² karşılığı — piyasa ortalama m² fiyatıyla kıyaslama
     const m2 = Math.max(1, parseFloat(inM2.value)||1);
-    const marketM2Price = Math.max(0, parseFloat(inMarketM2.value)||0);
+    const marketM2Price = Math.max(0, parseTL(inMarketM2)||0);
     const targetM2Price = P1 / m2;
     document.getElementById('m2ResultVal').textContent = trMoney(targetM2Price) + '/m²';
     const m2Note = document.getElementById('m2ResultNote');
@@ -628,7 +662,7 @@
     const pazarlikFiyati = Math.max(0, P1 - discount);
 
     // bekleme süresince aylık maliyet (aidat, abonelik vb.) — sadece bekleyen senaryoları etkiler
-    const monthlyCost = Math.max(0, parseFloat(inMonthlyCost.value)||0);
+    const monthlyCost = Math.max(0, parseTL(inMonthlyCost)||0);
     const totalCost = monthlyCost * T;
     const netB = Math.max(0, P1 - totalCost);
     const netC = Math.max(0, pazarlikFiyati - totalCost);
