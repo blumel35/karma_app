@@ -45,6 +45,30 @@ st.caption(
 
 su_kullanici = su_anki_danisman()
 
+# DÜZELTME (22.08.2026): Streamlit, bir widget key'ine o widget BU
+# ÇALIŞMADA zaten oluşturulduktan SONRA doğrudan değer atanmasına izin
+# vermiyor (StreamlitAPIException). Bu yüzden alanları temizleme işlemi
+# artık widget'lar oluşturulmadan ÖNCE, bir bayrak üzerinden yapılıyor —
+# "Link Oluştur" butonu bayrağı set edip rerun ediyor, bir SONRAKİ
+# çalıştırmada (widget'lar henüz oluşmadan) bu blok bayrağı görüp
+# alanları temizliyor.
+if st.session_state.pop("_dp_sn_temizle", False):
+    for _k in ["dp_sn_musteri", "dp_sn_konum", "dp_sn_oda", "dp_sn_yas", "dp_sn_m2",
+               "dp_sn_ozellik", "dp_sn_kisa", "dp_sn_orta", "dp_sn_uzun", "dp_sn_oneri",
+               "dp_sn_teklif", "dp_sn_hedef", "dp_sn_m2fiyat", "dp_sn_aylik",
+               "dp_sn_sure", "dp_sn_faiz"]:
+        st.session_state[_k] = ""
+
+# DÜZELTME (22.08.2026): st.rerun() hemen çalıştığı için, "Link Oluştur"
+# butonunun ANINDA gösterdiği başarı mesajı/link, rerun ile birlikte
+# gözden kaybolurdu (kullanıcı hiç göremezdi). Şimdi link session_state'te
+# saklanıp BİR SONRAKİ çalıştırmada burada, en üstte gösteriliyor —
+# gösterildikten sonra kendini temizliyor (bir daha tekrar etmesin diye).
+if st.session_state.get("_dp_sn_son_link"):
+    st.success(f"✅ Link hazır: {st.session_state['_dp_sn_son_link']}")
+    st.code(st.session_state["_dp_sn_son_link"], language=None)
+    del st.session_state["_dp_sn_son_link"]
+
 _TEMEL_URL = "https://startkey-zeta.streamlit.app/Senaryo_Hesaplayici"
 
 # Para birimi (TL) alanlarının key'leri — otomatik binlik ayraç bu
@@ -186,12 +210,8 @@ with st.expander("+ Yeni Senaryo Oluştur", expanded=True):
                 "ort_m2_fiyati": _tl_temizle(f_m2fiyat), "piyasa_faiz_orani": f_faiz,
                 "aylik_maliyet": _tl_temizle(f_aylik),
             })
-            st.success(f"✅ Link hazır: {_link_olustur(kod, f_musteri)}")
-            st.code(_link_olustur(kod, f_musteri), language=None)
-            # st.form'un clear_on_submit'i artık yok — alanları elle temizliyoruz.
-            for _k in ["dp_sn_musteri", "dp_sn_konum", "dp_sn_oda", "dp_sn_yas", "dp_sn_m2",
-                       "dp_sn_ozellik", *_TL_ALANLARI, "dp_sn_sure", "dp_sn_faiz"]:
-                st.session_state[_k] = ""
+            st.session_state["_dp_sn_son_link"] = _link_olustur(kod, f_musteri)
+            st.session_state["_dp_sn_temizle"] = True
             st.rerun()
 
 st.write("")
