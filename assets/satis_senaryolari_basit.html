@@ -289,7 +289,7 @@
 
         <div class="field" style="grid-column:1 / -1;">
           <label>Eviniz İçin Belirlediğiniz Satış Fiyatı Nedir?</label>
-          <input type="number" id="inP1" value="20000000" step="100000">
+          <input type="number" id="inP1" step="100000" placeholder="Hedef fiyatınızı girin">
           <div class="help">Ulaşmayı umduğunuz fiyat.</div>
           <div class="info-note" id="tierNote" style="display:block;"></div>
         </div>
@@ -598,6 +598,14 @@
 
     // değerleme raporu ile hedef fiyat kıyaslaması — yeni kalem
     const tierNote = document.getElementById('tierNote');
+    // YENİ (22.08.2026): Hedef fiyat alanı BOŞSA (müşteri henüz kendi
+    // rakamını girmediyse), "Hedef fiyatınızı (1 TL)..." gibi anlamsız
+    // bir metin göstermek yerine, müşteriyi kendi rakamını girmeye
+    // yönlendiren bir mesaj gösteriliyor — hesaplama müşteri dolduruncaya
+    // kadar "başlamıyor" hissi verir.
+    if(!inP1.value || inP1.value.trim() === ''){
+      tierNote.innerHTML = '👆 Hedef satış fiyatınızı yukarıya girerek karşılaştırmayı başlatabilirsiniz.';
+    } else {
     const diffMid = P1 - mid;
     const pctMid = mid > 0 ? (diffMid/mid*100) : 0;
     const diffLong = P1 - long;
@@ -616,6 +624,7 @@
       tierTxt += 'uzun vade değerlemesiyle (' + trMoney(long) + ') <b>aynı seviyede</b> belirlediniz.';
     }
     tierNote.innerHTML = tierTxt;
+    }
 
     // hedef fiyatın m² karşılığı — piyasa ortalama m² fiyatıyla kıyaslama
     const m2 = Math.max(1, parseFloat(inM2.value)||1);
