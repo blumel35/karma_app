@@ -50,9 +50,11 @@ _ALAN_ESLEME = {
     "konum": "inLocation", "oda_sayisi": "inRooms", "bina_yasi": "inAge",
     "m2": "inM2", "ozellikler": "inFeatures",
     "deger_kisa": "inShort", "deger_orta": "inMid", "deger_uzun": "inLong",
+    "oneri_fiyat": "inOneri", "teklif_tutari": "inTeklif",
     "hedef_fiyat": "inP1",
     "ort_m2_fiyati": "inMarketM2",
     "piyasa_faiz_orani": "inRate",
+    "aylik_maliyet": "inMonthlyCost",
 }
 
 

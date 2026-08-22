@@ -262,7 +262,7 @@
               <input type="number" id="inShort" value="16000000" step="100000">
             </div>
             <div class="tier-item major">
-              <span class="tlabel">Önerilen Fiyat <span class="rec">(Orta Vade)</span></span>
+              <span class="tlabel">Orta Vade</span>
               <input type="number" id="inMid" value="17500000" step="100000">
             </div>
             <div class="tier-item minor">
@@ -270,6 +270,21 @@
               <input type="number" id="inLong" value="19000000" step="100000">
             </div>
           </div>
+        </div>
+
+        <div class="field" style="grid-column:1 / -1;">
+          <label>Önerilen Fiyat veya Gelen Teklif Var mı?</label>
+          <div class="tier-row">
+            <div class="tier-item minor">
+              <span class="tlabel">Önerilen Fiyat</span>
+              <input type="number" id="inOneri" step="100000" min="0" placeholder="—">
+            </div>
+            <div class="tier-item minor">
+              <span class="tlabel">Gelen Teklif</span>
+              <input type="number" id="inTeklif" step="100000" min="0" placeholder="—">
+            </div>
+          </div>
+          <div class="help" id="p0SourceNote"></div>
         </div>
 
         <div class="field" style="grid-column:1 / -1;">
@@ -304,6 +319,13 @@
           <label>En fazla ne kadar indirim yapabilirsiniz?</label>
           <input type="number" id="inDiscount" value="100000" step="10000" min="0">
           <div class="help">Alıcı pazarlık isterse, razı olacağınız en yüksek indirim.</div>
+        </div>
+
+        <div class="field" style="grid-column:1 / -1;">
+          <label>Bekleme Süresince Aylık Maliyetiniz (opsiyonel)</label>
+          <input type="number" id="inMonthlyCost" value="0" step="500" min="0">
+          <div class="help">Aidat, abonelik, sigorta vb. — ev elinizde kaldığı sürece her ay ödemeye devam ettiğiniz giderler.</div>
+          <div class="info-note" id="costNote"></div>
         </div>
       </div>
     </div>
@@ -386,6 +408,11 @@
               <input type="range" id="inDelta" min="0" max="30" step="1" value="10">
               <div class="help">Örneğin şu an %45 ise ve 10 puan düşerse, süre sonunda yaklaşık %35'e ineceğini varsayarız — aradaki aylar da kademeli geçer.</div>
             </div>
+            <div class="field" style="margin-top:10px;">
+              <label style="font-size:13px; color:var(--ink-soft); font-weight:600;">Vergi Oranı (Stopaj) <span class="range-val" id="lblTax" style="margin-left:6px;">%17,5</span></label>
+              <input type="range" id="inTax" min="0" max="30" step="0.5" value="17.5">
+              <div class="help">Mevduat faiz getirisinden kesilen stopaj oranı, aylık getiri üzerinden hesaplamaya dahil edilir. Vade süresine göre değişebilir; güncel oranı bankanızdan teyit edin.</div>
+            </div>
           </div>
           <div class="field">
             <label style="font-size:13.5px; color:var(--ink-soft);">Hiç satamazsanız, aklınızdaki alternatif fiyat</label>
@@ -395,12 +422,6 @@
         </div>
 
         <div class="breakeven-line alt" id="fallbackLine"></div>
-
-        <div class="reflect-list">
-          <div class="reflect-item"><span class="q-mark">?</span><span>Bu paraya yakın bir tarihte ihtiyacınız olabilir mi?</span></div>
-          <div class="reflect-item"><span class="q-mark">?</span><span>Belirsizlik içinde beklemek sizi ne kadar rahatsız eder?</span></div>
-          <div class="reflect-item"><span class="q-mark">?</span><span id="reflectGap"></span></div>
-        </div>
 
         <div class="byline">
           <input type="text" id="bylineInput" value="Hazırlayan: Danışmanınızın adı · İletişim bilgisi">
@@ -424,6 +445,8 @@
   const inShort = document.getElementById('inShort');
   const inMid = document.getElementById('inMid');
   const inLong = document.getElementById('inLong');
+  const inOneri = document.getElementById('inOneri');
+  const inTeklif = document.getElementById('inTeklif');
   const inP1 = document.getElementById('inP1');
   const inT = document.getElementById('inT');
   const inMarketAvg = document.getElementById('inMarketAvg');
@@ -433,6 +456,9 @@
   const inRate = document.getElementById('inRate');
   const inFallback = document.getElementById('inFallback');
   const inDelta = document.getElementById('inDelta');
+  const inTax = document.getElementById('inTax');
+  const lblTax = document.getElementById('lblTax');
+  const inMonthlyCost = document.getElementById('inMonthlyCost');
   const rateModeBtns = document.querySelectorAll('.rate-mode-btn');
   const rateDeltaField = document.getElementById('rateDeltaField');
   const lblDelta = document.getElementById('lblDelta');
@@ -454,26 +480,28 @@
     return path;
   }
 
-  function computeFV(P0, T, rate, mode, delta){
+  function computeFV(P0, T, rate, mode, delta, tax){
+    const taxFactor = 1 - (tax||0)/100;
     if(mode === 'flat'){
-      const monthlyRate = (rate/100)/12;
+      const monthlyRate = ((rate/100)/12) * taxFactor;
       return P0 * Math.pow(1+monthlyRate, T);
     }
     const path = buildRatePath(T, rate, mode, delta);
     let val = P0;
-    path.forEach(r => { val *= (1 + (r/100)/12); });
+    path.forEach(r => { val *= (1 + ((r/100)/12) * taxFactor); });
     return val;
   }
 
   // month-by-month series (index 0 = P0) for the same rate assumption used in computeFV
-  function monthlySeries(P0, T, rate, mode, delta){
+  function monthlySeries(P0, T, rate, mode, delta, tax){
+    const taxFactor = 1 - (tax||0)/100;
     const arr = [P0];
     if(mode === 'flat'){
-      const monthlyRate = (rate/100)/12;
+      const monthlyRate = ((rate/100)/12) * taxFactor;
       for(let m=1; m<=T; m++) arr.push(arr[m-1] * (1+monthlyRate));
     } else {
       const path = buildRatePath(T, rate, mode, delta);
-      for(let m=1; m<=T; m++) arr.push(arr[m-1] * (1 + (path[m-1]/100)/12));
+      for(let m=1; m<=T; m++) arr.push(arr[m-1] * (1 + ((path[m-1]/100)/12) * taxFactor));
     }
     return arr;
   }
@@ -512,7 +540,22 @@
     const short = Math.max(1, parseFloat(inShort.value)||0);
     const mid = Math.max(1, parseFloat(inMid.value)||0);
     const long = Math.max(1, parseFloat(inLong.value)||0);
-    const P0 = short; // "bugün satarsanız" = hızlı satış = kısa vade fiyatı
+    // "bugün satarsanız" hesaplaması için baz fiyat: öncelik gelen teklif > önerilen fiyat > kısa vade
+    const oneriVal = Math.max(0, parseFloat(inOneri.value)||0);
+    const teklifVal = Math.max(0, parseFloat(inTeklif.value)||0);
+    let P0 = short;
+    if(teklifVal > 0){ P0 = teklifVal; }
+    else if(oneriVal > 0){ P0 = oneriVal; }
+
+    const p0SourceNote = document.getElementById('p0SourceNote');
+    if(teklifVal > 0){
+      p0SourceNote.innerHTML = '"Bugün Satarsanız" hesaplaması artık <b>gelen teklif</b> (' + trMoney(teklifVal) + ') üzerinden yapılıyor.';
+    } else if(oneriVal > 0){
+      p0SourceNote.innerHTML = '"Bugün Satarsanız" hesaplaması artık <b>önerilen fiyat</b> (' + trMoney(oneriVal) + ') üzerinden yapılıyor.';
+    } else {
+      p0SourceNote.innerHTML = 'Bu alanlar boş bırakılırsa, "Bugün Satarsanız" hesaplaması kısa vade fiyatınız (' + trMoney(short) + ') üzerinden yapılır.';
+    }
+
     const P1 = Math.max(1, parseFloat(inP1.value)||0);
     const T = parseInt(inT.value,10);
     const discount = Math.max(0, parseFloat(inDiscount.value)||0);
@@ -527,9 +570,9 @@
     const pctLong = long > 0 ? (diffLong/long*100) : 0;
     const dir = (v) => v > 0 ? 'üzerinde' : (v < 0 ? 'altında' : 'ile aynı seviyede');
 
-    let tierTxt = '📋 Hedef fiyatınızı (<b>' + trMoney(P1) + '</b>), size önerilen orta vade değerlemesinin (' + trMoney(mid) + ') ';
+    let tierTxt = '📋 Hedef fiyatınızı (<b>' + trMoney(P1) + '</b>), orta vade değerlemesinin (' + trMoney(mid) + ') ';
     if(diffMid !== 0){
-      tierTxt += '<b>%' + trNum(Math.abs(pctMid),1) + ' ' + dir(diffMid) + '</b> (' + trMoney(Math.abs(diffMid)) + ' fark), ';
+      tierTxt += '<b>%' + trNum(Math.abs(pctMid),1) + ' ' + dir(diffMid) + '</b>, ';
     } else {
       tierTxt += '<b>ile aynı seviyede</b>, ';
     }
@@ -579,29 +622,47 @@
     }
 
     const delta = Math.max(0, parseFloat(inDelta.value)||0);
-    const FV_T = computeFV(P0, T, rate, rateMode, delta);
+    const tax = Math.max(0, parseFloat(inTax.value)||0);
+    lblTax.textContent = '%' + trNum(tax,1);
+    const FV_T = computeFV(P0, T, rate, rateMode, delta, tax);
     const pazarlikFiyati = Math.max(0, P1 - discount);
 
-    animateNumber('numA', FV_T);
-    animateNumber('numB', P1);
-    animateNumber('numC', pazarlikFiyati);
+    // bekleme süresince aylık maliyet (aidat, abonelik vb.) — sadece bekleyen senaryoları etkiler
+    const monthlyCost = Math.max(0, parseFloat(inMonthlyCost.value)||0);
+    const totalCost = monthlyCost * T;
+    const netB = Math.max(0, P1 - totalCost);
+    const netC = Math.max(0, pazarlikFiyati - totalCost);
 
+    const costNote = document.getElementById('costNote');
+    if(totalCost > 0){
+      costNote.innerHTML = '💶 ' + T + ' ay boyunca toplam maliyetiniz <b>' + trMoney(totalCost) + '</b> — bu tutar Yol 2, Yol 3 ve "hiç satamazsanız" sonuçlarından düşülmüştür.';
+      costNote.style.display = 'block';
+    } else {
+      costNote.style.display = 'none';
+    }
+
+    animateNumber('numA', FV_T);
+    animateNumber('numB', netB);
+    animateNumber('numC', netC);
+
+    const taxNote = tax > 0 ? ' (stopaj sonrası net getiri)' : '';
     if(rateMode === 'flat'){
       document.getElementById('descA').textContent =
-        'Evinizi bugün ' + trMoney(P0) + ' karşılığında satar, parayı %' + trNum(rate,1) + ' yıllık getiriyle değerlendirirseniz, ' + T + ' ay sonra elinizde yaklaşık bu tutar olur.';
+        'Evinizi bugün ' + trMoney(P0) + ' karşılığında satar, parayı %' + trNum(rate,1) + ' yıllık getiriyle değerlendirirseniz' + taxNote + ', ' + T + ' ay sonra elinizde yaklaşık bu tutar olur.';
     } else {
       const endRate = Math.max(5, Math.min(90, rateMode==='down' ? rate-delta : rate+delta));
       document.getElementById('descA').textContent =
-        'Evinizi bugün ' + trMoney(P0) + ' karşılığında satar, parayı değerlendirirseniz — faizlerin %' + trNum(rate,1) + '\'ten %' + trNum(endRate,1) + '\'e ' + (rateMode==='down'?'düştüğü':'yükseldiği') + ' bir senaryoda — ' + T + ' ay sonra elinizde yaklaşık bu tutar olur.';
+        'Evinizi bugün ' + trMoney(P0) + ' karşılığında satar, parayı değerlendirirseniz' + taxNote + ' — faizlerin %' + trNum(rate,1) + '\'ten %' + trNum(endRate,1) + '\'e ' + (rateMode==='down'?'düştüğü':'yükseldiği') + ' bir senaryoda — ' + T + ' ay sonra elinizde yaklaşık bu tutar olur.';
     }
     document.getElementById('descB').textContent =
-      T + ' ay bekler ve istediğiniz ' + trMoney(P1) + ' fiyata satarsanız, elinizde bu tutar olur.';
+      T + ' ay bekler ve istediğiniz ' + trMoney(P1) + ' fiyata satarsanız, elinizde bu tutar olur.' +
+      (totalCost > 0 ? ' (Bekleme süresince ' + trMoney(totalCost) + ' maliyet düşülmüştür.)' : '');
 
     // Yol 1 ek not: bugün satıp değerlendirseydik, hedef fiyata kaçıncı ayda ulaşırdık?
     const extraA = document.getElementById('extraA');
     const extraAText = document.getElementById('extraAText');
     if(P1 > P0){
-      const series = monthlySeries(P0, T, rate, rateMode, delta);
+      const series = monthlySeries(P0, T, rate, rateMode, delta, tax);
       const crossMonth = findCrossingMonth(series, P1);
       if(crossMonth !== null && crossMonth > 0){
         const roundedMonth = Math.max(1, Math.round(crossMonth));
@@ -616,21 +677,19 @@
       extraA.style.display = 'none';
     }
     document.getElementById('descC').textContent =
-      'Alıcı pazarlık isteyebilir. En fazla ' + trMoney(discount) + ' indirim yaparsanız, elinizde bu tutar olur.';
+      'Alıcı pazarlık isteyebilir. En fazla ' + trMoney(discount) + ' indirim yaparsanız, elinizde bu tutar olur.' +
+      (totalCost > 0 ? ' (Bekleme süresince ' + trMoney(totalCost) + ' maliyet düşülmüştür.)' : '');
 
     // bar compare
-    const maxVal = Math.max(FV_T, P1, pazarlikFiyati, 1);
+    const maxVal = Math.max(FV_T, netB, netC, 1);
     const setBar = (fillId, valId, val) => {
       const pct = Math.max(4, (val/maxVal)*100);
       document.getElementById(fillId).style.width = pct + '%';
       document.getElementById(valId).textContent = trMoney(val);
     };
     setBar('barA','barAVal', FV_T);
-    setBar('barB','barBVal', P1);
-    setBar('barC','barCVal', pazarlikFiyati);
-
-    document.getElementById('reflectGap').textContent =
-      'Yol 2 ile Yol 3 arasındaki fark ' + trMoney(Math.abs(P1-pazarlikFiyati)) + ' — bu fark, ' + T + ' ay boyunca pazarlık riskini göze almaya değer mi? Bu sorunun cevabı sayılarda değil, sizin önceliklerinizde.';
+    setBar('barB','barBVal', netB);
+    setBar('barC','barCVal', netC);
 
     // "hiç satamazsanız" sonucu — bugün satıp değerlendirmenizle doğrudan kıyaslama
     const fallbackLine = document.getElementById('fallbackLine');
@@ -638,21 +697,23 @@
       fallbackLine.style.display = 'none';
     } else {
       fallbackLine.style.display = '';
-      const fallbackDiff = FV_T - fallback;
+      const fallbackNet = Math.max(0, fallback - totalCost);
+      const fallbackDiff = FV_T - fallbackNet;
+      const costNoteTxt = totalCost > 0 ? ' (' + trMoney(totalCost) + ' bekleme maliyeti düşülmüştür.)' : '';
       if(fallbackDiff > 0){
         fallbackLine.innerHTML =
-          '<b>Hiç satamazsanız:</b> ' + T + ' ay sonra hâlâ satamayıp <b>' + trMoney(fallback) + '</b>\'ye satarsanız, <b>Yol 1</b>\'deki sonucunuza kıyasla <b>' + trMoney(fallbackDiff) + '</b> daha az kazanmış olursunuz.';
+          '<b>Hiç satamazsanız:</b> ' + T + ' ay sonra hâlâ satamayıp <b>' + trMoney(fallback) + '</b>\'ye satarsanız, <b>Yol 1</b>\'deki sonucunuza kıyasla <b>' + trMoney(fallbackDiff) + '</b> daha az kazanmış olursunuz.' + costNoteTxt;
       } else if(fallbackDiff < 0){
         fallbackLine.innerHTML =
-          '<b>Hiç satamazsanız:</b> ' + T + ' ay sonra <b>' + trMoney(fallback) + '</b>\'ye satarsanız, <b>Yol 1</b>\'deki sonucunuza kıyasla <b>' + trMoney(Math.abs(fallbackDiff)) + '</b> daha fazla kazanmış olursunuz.';
+          '<b>Hiç satamazsanız:</b> ' + T + ' ay sonra <b>' + trMoney(fallback) + '</b>\'ye satarsanız, <b>Yol 1</b>\'deki sonucunuza kıyasla <b>' + trMoney(Math.abs(fallbackDiff)) + '</b> daha fazla kazanmış olursunuz.' + costNoteTxt;
       } else {
         fallbackLine.innerHTML =
-          '<b>Hiç satamazsanız:</b> ' + T + ' ay sonra <b>' + trMoney(fallback) + '</b>\'ye satarsanız, <b>Yol 1</b>\'deki sonucunuzla aşağı yukarı aynı noktada olursunuz.';
+          '<b>Hiç satamazsanız:</b> ' + T + ' ay sonra <b>' + trMoney(fallback) + '</b>\'ye satarsanız, <b>Yol 1</b>\'deki sonucunuzla aşağı yukarı aynı noktada olursunuz.' + costNoteTxt;
       }
     }
   }
 
-  [inShort, inMid, inLong, inP1, inT, inMarketAvg, inM2, inMarketM2, inDiscount, inRate, inFallback, inDelta].forEach(el=>{
+  [inShort, inMid, inLong, inOneri, inTeklif, inP1, inT, inMarketAvg, inM2, inMarketM2, inDiscount, inRate, inFallback, inDelta, inTax, inMonthlyCost].forEach(el=>{
     el.addEventListener('input', ()=>{
       if(el === inDelta){ lblDelta.textContent = inDelta.value + ' puan'; }
       render();
