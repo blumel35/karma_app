@@ -119,14 +119,14 @@ with st.expander("+ Yeni Senaryo Oluştur", expanded=True):
     f_musteri = st.text_input("Müşteri Adı *", key="dp_sn_musteri")
 
     # YENİ (23.08.2026): iki farklı arayüz şablonu — Klasik (tek sayfa,
-    # tüm alanlar bir arada) ve Sihirbaz (8 adımlı, "İleri/Geri" ile
+    # tüm alanlar bir arada) ve Bölümlü (3 sayfa, "İleri/Geri" ile
     # ilerlenen, hikaye akışı gibi hissettiren versiyon). İkisi de AYNI
     # alan ID'lerini kullanıyor, bu yüzden veri girişi/kaydetme tarafı
     # değişmiyor — sadece müşteriye hangi görselin gideceği değişiyor.
     f_surum = st.radio(
-        "Arayüz Şablonu", ["Klasik (Tek Sayfa)", "Sihirbaz (Adım Adım)"],
+        "Arayüz Şablonu", ["Klasik (Tek Sayfa)", "Bölümlü (3 Sayfa)"],
         key="dp_sn_surum", horizontal=True,
-        help="Sihirbaz, bilgileri 8 adıma bölüp tek tek gösterir — mobilde daha az kalabalık görünür.",
+        help="Bölümlü, bilgileri 3 sayfaya ayırır (Veri Girişi / Üç Olası Yol / Detaylı İnceleme) — mobilde daha az kalabalık görünür.",
     )
 
     st.markdown("**Evine Ait Bilgiler** (opsiyonel)")
@@ -220,7 +220,7 @@ with st.expander("+ Yeni Senaryo Oluştur", expanded=True):
                 "hedef_fiyat": _tl_temizle(f_hedef), "piyasa_satis_suresi": f_sure,
                 "ort_m2_fiyati": _tl_temizle(f_m2fiyat), "piyasa_faiz_orani": f_faiz,
                 "aylik_maliyet": _tl_temizle(f_aylik),
-                "surum": "sihirbaz" if f_surum.startswith("Sihirbaz") else "klasik",
+                "surum": "sihirbaz" if f_surum.startswith("Bölümlü") else "klasik",
             })
             st.session_state["_dp_sn_son_link"] = _link_olustur(kod, f_musteri)
             st.session_state["_dp_sn_temizle"] = True
@@ -237,7 +237,7 @@ for s in senaryolar:
     with st.container(border=True, key=f"dp_sn_kart_{s['id']}"):
         c1, c2 = st.columns([4, 1])
         with c1:
-            _surum_etiket = "🧙 Sihirbaz" if s.get("surum") == "sihirbaz" else "📄 Klasik"
+            _surum_etiket = "📑 Bölümlü" if s.get("surum") == "sihirbaz" else "📄 Klasik"
             st.markdown(f"**{s.get('musteri_adi', '')}**  ·  `{_surum_etiket}`")
             link = _link_olustur(s["kod"], s.get("musteri_adi", ""))
             st.code(link, language=None)

@@ -52,7 +52,13 @@ header[data-testid="stHeader"], #MainMenu, footer,
 _VARSAYILAN_DOSYA = "satis_senaryolari_basit.html"
 _SURUM_DOSYALARI = {
     "klasik": "satis_senaryolari_basit.html",
-    "sihirbaz": "satis_senaryolari_sihirbaz.html",
+    # DÜZELTME (23.08.2026): "sihirbaz" anahtarı artık 8 adımlı gerçek
+    # sihirbaz dosyasına değil, ondan türetilen 3 sayfalık HİBRİT
+    # dosyaya işaret ediyor — "tek tek adım adım" değil, 3 büyük sayfa
+    # (Veri Girişi / Üç Olası Yol / Detaylı İnceleme), İleri-Geri ile
+    # ilerleniyor. Anahtar adı (kod/veritabanı tarafında) değişmedi,
+    # sadece hangi dosyaya baktığı değişti — mevcut kayıtlar bozulmaz.
+    "sihirbaz": "satis_senaryolari_hibrit.html",
 }
 
 # YENİ (14.08.2026): ?kod=... ile kişiye özel veri enjeksiyonu. kod
