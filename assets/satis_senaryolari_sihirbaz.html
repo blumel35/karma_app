@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="tr" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eviniz İçin Üç Olası Yol — StartKey Zeta Gayrimenkul</title>
+<style>
+  :root{
+    --surface-1:#ffffff; --page:#f6f6f8; --ink:#17181f; --ink-soft:#54566b; --muted:#8b8c9e;
+    --border:rgba(23,22,20,0.11);
+    --accent:#2e317d; --accent-tint:#eef0f8; --accent-2:#cc2027; --accent-2-tint:#fbebec;
+    --shadow: 0 1px 2px rgba(23,22,20,0.05), 0 8px 24px rgba(23,22,20,0.06);
+  }
+  html[data-theme="dark"]{
+    --surface-1:#1a1b26; --page:#0f1017; --ink:#f2f2f6; --ink-soft:#c3c4d4; --muted:#8b8c9e;
+    --border:rgba(255,255,255,0.11);
+    --accent:#8b93e0; --accent-tint:#22254a; --accent-2:#ff7a7e; --accent-2-tint:#3a2226;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 28px rgba(0,0,0,0.35);
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--page); color:var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding:0 0 60px; transition: background .25s ease, color .25s ease;
+  }
+  .wrap{ max-width:900px; margin:0 auto; padding:0 18px; }
+  h1,h2,h3{ font-family: inherit; font-weight:800; margin:0; }
+
+  /* ---- header / branding ---- */
+  header.top{ background:var(--surface-1); border-bottom:1px solid var(--border); padding:22px 18px 24px; }
+  header.top .header-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+  .brand-row{ display:flex; align-items:center; gap:12px; }
+  .brand-row img{ height:38px; width:auto; display:block; }
+  .theme-toggle{
+    border:1px solid var(--border); background:var(--page); color:var(--ink-soft); border-radius:999px;
+    padding:7px 14px; font-size:12px; cursor:pointer; font-weight:600; white-space:nowrap; flex:0 0 auto;
+  }
+  .greeting-line{
+    border:none; background:transparent; color:var(--ink-soft); font-size:14px; font-weight:600;
+    padding:2px 0; width:100%; margin-top:16px; border-bottom:1px dashed transparent;
+  }
+  .greeting-line:focus{ outline:none; border-bottom-color:var(--accent); color:var(--ink); }
+  header.top h1{ font-size:clamp(22px,3.2vw,29px); line-height:1.3; margin-top:4px; }
+  .spot-text{
+    border:none; background:transparent; color:var(--ink-soft); font-size:14.5px; line-height:1.6;
+    padding:2px 0; width:100%; resize:none; font-family:inherit; margin-top:8px; border-bottom:1px dashed transparent;
+  }
+  .spot-text:focus{ outline:none; border-bottom-color:var(--accent); color:var(--ink); }
+  .byline-row{ margin-top:14px; }
+  .byline-row input{
+    border:none; border-bottom:1px dashed var(--border); background:transparent; color:var(--muted);
+    font-size:12.5px; padding:3px 2px; width:300px;
+  }
+  .byline-row input:focus{ outline:none; border-color:var(--accent); color:var(--ink); }
+
+  /* ---- step bar ---- */
+  .stepbar-wrap{ background:var(--surface-1); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:5; }
+  .stepbar{ display:flex; gap:6px; overflow-x:auto; padding:12px 18px; max-width:900px; margin:0 auto; scrollbar-width:thin; }
+  .step-pill{
+    flex:0 0 auto; display:flex; align-items:center; gap:8px; border:1px solid var(--border); background:var(--page);
+    color:var(--ink-soft); border-radius:999px; padding:7px 14px 7px 8px; font-size:12.5px; font-weight:700;
+    cursor:pointer; white-space:nowrap; transition:border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  .step-pill:hover{ border-color:var(--accent); }
+  .step-pill .step-num{
+    width:20px; height:20px; border-radius:50%; background:var(--surface-1); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center; font-size:11px; flex:0 0 auto; color:var(--ink-soft);
+  }
+  .step-pill.active{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .step-pill.active .step-num{ background:#fff; color:var(--accent); border-color:#fff; }
+  .step-pill.done .step-num{ background:var(--accent-tint); color:var(--accent); border-color:var(--accent); }
+
+  /* ---- mini live summary ---- */
+  .mini-summary{
+    display:flex; gap:10px; flex-wrap:wrap; background:var(--accent-tint); border:1px solid var(--border);
+    border-radius:14px; padding:12px 16px; margin:20px 0; align-items:center;
+  }
+  .mini-summary .msi{ flex:1; min-width:140px; text-align:center; }
+  .mini-summary .msi span{ display:block; font-size:10.5px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:.03em; margin-bottom:3px; }
+  .mini-summary .msi b{ font-size:16px; font-variant-numeric:tabular-nums; color:var(--ink); }
+
+  section{ padding:26px 0 0; }
+  .panel{
+    background:var(--surface-1); border:1px solid var(--border); border-radius:18px; padding:26px 28px;
+    box-shadow: var(--shadow);
+  }
+  .step-eyebrow{ font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--accent); margin-bottom:6px; }
+  .step-heading{ font-size:20px; margin-bottom:4px; }
+  .step-sub{ font-size:13.5px; color:var(--ink-soft); margin-bottom:22px; line-height:1.55; }
+
+  /* ---- basic inputs ---- */
+  .basic-grid{ display:grid; grid-template-columns:1fr 1fr; gap:22px 28px; }
+  @media (max-width:640px){ .basic-grid{ grid-template-columns:1fr; } }
+  .field{ display:flex; flex-direction:column; gap:8px; }
+  .field label{ font-size:15px; font-weight:700; color:var(--ink); }
+  .field .help{ font-size:12.5px; color:var(--muted); margin-top:-3px; }
+  .field input[type="number"], .field input[type="text"]{
+    border:1px solid var(--border); border-radius:10px; padding:11px 13px; font-size:17px; font-weight:700;
+    background:var(--page); color:var(--ink); font-variant-numeric: tabular-nums; width:100%;
+  }
+  .field .range-row{ display:flex; align-items:center; gap:12px; }
+  .field input[type="range"]{ flex:1; accent-color:var(--accent); }
+  .field .range-val{ font-size:15px; font-weight:800; color:var(--accent); min-width:52px; text-align:right; }
+  .info-note{
+    margin-top:2px; padding:10px 12px; border-radius:10px; background:var(--accent-tint);
+    font-size:12.5px; color:var(--ink-soft); line-height:1.5; display:none;
+  }
+  .info-note b{ color:var(--ink); }
+
+  .property-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  @media (max-width:640px){ .property-grid{ grid-template-columns:1fr 1fr; } }
+  .property-grid .field label{ font-size:12.5px; font-weight:700; color:var(--ink-soft); }
+  .property-grid .field input{
+    border:1px solid var(--border); border-radius:9px; padding:8px 10px; font-size:14px; font-weight:600;
+    background:var(--page); color:var(--ink); width:100%;
+  }
+
+  .mini-compare{ display:flex; gap:8px; flex-wrap:wrap; }
+  .mini-box{
+    flex:1; min-width:230px; background:var(--page); border:1px solid var(--border); border-radius:10px;
+    padding:8px 12px;
+  }
+  .mini-box.highlight{ background:var(--accent-tint); border-color:var(--accent); display:flex; flex-direction:column; justify-content:center; }
+  .mini-row{ display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--ink-soft); padding:3px 0; }
+  .mini-row span:first-child{ flex:1; }
+  .mini-row input[type="number"]{
+    width:66px; border:1px solid var(--border); border-radius:6px; padding:3px 6px; font-size:11.5px; font-weight:700;
+    background:var(--surface-1); color:var(--ink); text-align:right; font-variant-numeric: tabular-nums;
+  }
+  .mini-row .unit{ font-size:10px; color:var(--muted); min-width:30px; }
+  .mini-row .mini-strong{ font-size:13px; font-weight:800; color:var(--ink); font-variant-numeric: tabular-nums; }
+  .mini-sub{ font-size:11px; color:var(--ink-soft); margin-top:2px; line-height:1.4; }
+
+  .tier-row{ display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; margin-top:6px; }
+  .tier-item{ display:flex; flex-direction:column; gap:5px; }
+  .tier-item .tlabel{ font-size:11.5px; font-weight:700; color:var(--muted); white-space:nowrap; }
+  .tier-item input[type="number"]{
+    border:1px solid var(--border); border-radius:9px; background:var(--page); color:var(--ink-soft);
+    font-variant-numeric: tabular-nums; font-weight:600;
+  }
+  .tier-item.minor{ flex:0 0 auto; }
+  .tier-item.minor input[type="number"]{ padding:7px 9px; font-size:13.5px; width:130px; }
+  .tier-item.major{ flex:0 0 auto; }
+  .tier-item.major .tlabel{ color:var(--accent); font-size:12.5px; }
+  .tier-item.major input[type="number"]{
+    padding:11px 13px; font-size:18px; font-weight:800; color:var(--ink); border-color:var(--accent);
+    border-width:1.5px; width:180px;
+  }
+  @media (max-width:640px){ .tier-row{ gap:12px; } .tier-item.minor input, .tier-item.major input{ width:100%; } }
+
+  /* ---- scenario cards ---- */
+  .scenario-list{ display:flex; flex-direction:column; gap:16px; }
+  .scenario-card{
+    background:var(--surface-1); border:1px solid var(--border); border-radius:18px; padding:22px 24px;
+    box-shadow: var(--shadow); display:flex; align-items:center; gap:20px;
+  }
+  @media (max-width:600px){ .scenario-card{ flex-direction:column; align-items:flex-start; } }
+  .scenario-card.has-extra{ flex-direction:column; align-items:stretch; }
+  .scenario-row{ display:flex; align-items:center; gap:20px; }
+  @media (max-width:600px){ .scenario-row{ flex-direction:column; align-items:flex-start; } }
+  .scenario-extra{
+    margin-top:16px; padding-top:14px; border-top:1px dashed var(--border);
+    font-size:13px; color:var(--ink-soft); line-height:1.55; display:flex; gap:8px; align-items:flex-start;
+  }
+  .scenario-extra b{ color:var(--ink); }
+  .scenario-extra .bulb{ flex:0 0 auto; }
+  .scenario-icon{
+    flex:0 0 56px; width:56px; height:56px; border-radius:16px; background:var(--accent-tint);
+    display:flex; align-items:center; justify-content:center; font-size:26px;
+  }
+  .scenario-body{ flex:1; }
+  .scenario-body .tag{ font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--accent); margin-bottom:4px; }
+  .scenario-body h3{ font-size:18px; margin:0 0 6px; }
+  .scenario-body p{ font-size:14px; color:var(--ink-soft); line-height:1.55; margin:0; }
+  .scenario-num{ flex:0 0 auto; text-align:right; }
+  .scenario-num .amt{ font-size:26px; font-weight:800; font-variant-numeric: tabular-nums; color:var(--ink); }
+  .scenario-num .cap{ font-size:11.5px; color:var(--muted); margin-top:2px; }
+  @media (max-width:600px){ .scenario-num{ text-align:left; } }
+
+  /* ---- simple bar compare ---- */
+  .bar-compare{ margin-top:22px; }
+  .bar-row{ display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+  .bar-row .bar-label{ flex:0 0 150px; font-size:13px; color:var(--ink-soft); font-weight:600; }
+  .bar-row .bar-track{ flex:1; background:var(--accent-tint); border-radius:999px; height:26px; overflow:hidden; }
+  .bar-row .bar-fill{ height:100%; background:var(--accent); border-radius:999px; transition:width .6s cubic-bezier(.2,.8,.2,1); display:flex; align-items:center; }
+  .bar-row .bar-val{ font-size:12px; font-weight:800; color:#fff; padding:0 10px; white-space:nowrap; }
+
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:20px 26px; }
+  @media (max-width:640px){ .grid2{ grid-template-columns:1fr; } }
+
+  .breakeven-line{
+    margin-top:20px; padding:16px 18px; border-radius:14px; background:var(--accent-tint); font-size:14px;
+    color:var(--ink-soft); line-height:1.6;
+  }
+  .breakeven-line b{ color:var(--ink); }
+  .breakeven-line.alt{ background:var(--page); border:1px solid var(--border); }
+
+  .rate-mode-row{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .rate-mode-btn{
+    border:1px solid var(--border); background:var(--page); color:var(--ink-soft);
+    border-radius:999px; padding:6px 13px; font-size:12.5px; font-weight:700; cursor:pointer;
+  }
+  .rate-mode-btn.active{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .rate-mode-btn:hover{ border-color:var(--accent); }
+  #rateDeltaField{ margin-top:14px; }
+
+  .advanced-toggle-row{ margin-top:22px; }
+  #advToggle{
+    border:1px dashed var(--border); background:var(--page); color:var(--ink-soft); border-radius:12px;
+    padding:10px 16px; font-size:13px; font-weight:700; cursor:pointer; width:100%; text-align:left;
+  }
+  #advToggle:hover{ border-color:var(--accent); color:var(--ink); }
+  #advToggle .chevron{ float:right; transition:transform .25s ease; }
+  #advToggle.open .chevron{ transform:rotate(180deg); }
+  #advPanel{ max-height:0; overflow:hidden; transition:max-height .5s ease; }
+  #advPanel.open{ max-height:1400px; margin-top:16px; }
+
+  /* ---- wizard nav ---- */
+  .wizard-nav{ display:flex; justify-content:space-between; align-items:center; margin-top:26px; gap:12px; }
+  .nav-btn{
+    border:1px solid var(--border); background:var(--surface-1); color:var(--ink); border-radius:999px;
+    padding:12px 22px; font-size:14px; font-weight:700; cursor:pointer; box-shadow:var(--shadow);
+  }
+  .nav-btn.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .nav-btn:disabled{ opacity:.35; cursor:default; box-shadow:none; }
+  .nav-btn.secondary{ background:transparent; box-shadow:none; }
+
+  footer{ text-align:center; padding:30px 18px 10px; font-size:11.5px; color:var(--muted); line-height:1.7; }
+
+  .fade-in{ opacity:0; transform:translateY(12px); transition:opacity .5s ease, transform .5s ease; }
+  .fade-in.visible{ opacity:1; transform:translateY(0); }
+
+  .wizard-step{ display:none; }
+  .wizard-step.active{ display:block; animation: stepFadeIn .38s ease; }
+  @keyframes stepFadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="header-row">
+      <div class="brand-row">
+        <img src="data:image/png;base64,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" alt="StartKey Zeta Gayrimenkul">
+      </div>
+      <button class="theme-toggle" id="themeToggle">🌙 Karanlık mod</button>
+    </div>
+    <input type="text" class="greeting-line" id="greetingInput" value="Sayın Müşterimiz,">
+    <h1>Eviniz İçin Üç Olası Yol</h1>
+    <textarea class="spot-text" id="spotText" rows="2">Mülkünüzle ilgili temel bilgileri girin, üç farklı satış senaryosunu keşfedin.
+Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
+    <div class="byline-row">
+      <input type="text" id="bylineInput" value="Hazırlayan: Danışmanınızın adı · İletişim bilgisi">
+    </div>
+  </div>
+</header>
+
+<div class="stepbar-wrap">
+  <div class="stepbar" id="stepbar">
+    <button class="step-pill" data-step="1"><span class="step-num">1</span>Mülk Bilgileri</button>
+    <button class="step-pill" data-step="2"><span class="step-num">2</span>Önerilen Satış Fiyatları</button>
+    <button class="step-pill" data-step="3"><span class="step-num">3</span>Hedef Fiyat</button>
+    <button class="step-pill" data-step="4"><span class="step-num">4</span>Maliyetler</button>
+    <button class="step-pill" data-step="5"><span class="step-num">5</span>Piyasa Bilgileri</button>
+    <button class="step-pill" data-step="6"><span class="step-num">6</span>Bekleme Süresi</button>
+    <button class="step-pill" data-step="7"><span class="step-num">7</span>Senaryolar</button>
+    <button class="step-pill" data-step="8"><span class="step-num">8</span>Yeni Teklif</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="mini-summary fade-in" id="miniSummary">
+    <div class="msi"><span>Bugün Satarsanız</span><b id="miniA">—</b></div>
+    <div class="msi"><span>Hedefe Ulaşırsanız</span><b id="miniB">—</b></div>
+    <div class="msi"><span>Pazarlık Yaparsanız</span><b id="miniC">—</b></div>
+  </div>
+
+  <!-- STEP 1 -->
+  <section class="wizard-step active" data-step="1">
+    <div class="panel">
+      <div class="step-eyebrow">Adım 1 / 8</div>
+      <div class="step-heading">Evinize Ait Bilgiler</div>
+      <div class="step-sub">Önce mülkünüzü kısaca tanıyalım.</div>
+      <div class="property-grid">
+        <div class="field">
+          <label>Konum</label>
+          <input type="text" id="inLocation" placeholder="Örn. Kadıköy, İstanbul">
+        </div>
+        <div class="field">
+          <label>Oda Sayısı</label>
+          <input type="text" id="inRooms" placeholder="Örn. 3+1">
+        </div>
+        <div class="field">
+          <label>Bina Yaşı</label>
+          <input type="number" id="inAge" placeholder="Örn. 8" min="0">
+        </div>
+        <div class="field">
+          <label>m²</label>
+          <input type="number" id="inM2" value="120" min="1">
+        </div>
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label>Diğer Özellikler</label>
+        <input type="text" id="inFeatures" placeholder="Örn. Asansör, Otopark, Balkon, Eşyalı">
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="wizard-step" data-step="2">
+    <div class="panel">
+      <div class="step-eyebrow">Adım 2 / 8</div>
+      <div class="step-heading">Mülkünüze Ait Değerleme Raporu Sonuçları</div>
+      <div class="step-sub">Danışmanınızın hazırladığı kısa/orta/uzun vade değerleme rakamları.</div>
+      <div class="tier-row">
+        <div class="tier-item minor">
+          <span class="tlabel">Kısa Vade</span>
+          <input type="number" id="inShort" value="16000000" step="100000">
+        </div>
+        <div class="tier-item major">
+          <span class="tlabel">Orta Vade</span>
+          <input type="number" id="inMid" value="17500000" step="100000">
+        </div>
+        <div class="tier-item minor">
+          <span class="tlabel">Uzun Vade</span>
+          <input type="number" id="inLong" value="19000000" step="100000">
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:22px;">
+        <label>Ayrıca Önerilen Bir Fiyat Var mı? (opsiyonel)</label>
+        <div class="tier-row">
+          <div class="tier-item minor">
+            <span class="tlabel">Önerilen Fiyat</span>
+            <input type="number" id="inOneri" step="100000" min="0" placeholder="—">
+          </div>
+        </div>
+        <div class="help" id="p0SourceNote"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 3 -->
+  <section class="wizard-step" data-step="3">
+    <div class="panel">
+      <div class="step-eyebrow">Adım 3 / 8</div>
+      <div class="step-heading">Eviniz İçin Belirlediğiniz Satış Fiyatı Nedir?</div>
+      <div class="step-sub">Ulaşmayı umduğunuz fiyat.</div>
+      <div class="field">
+        <input type="number" id="inP1" step="100000" placeholder="Hedef fiyatınızı girin">
+        <div class="info-note" id="tierNote" style="display:block;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 4 -->
+  <section class="wizard-step" data-step="4">
+    <div class="panel">
+      <div class="step-eyebrow">Adım 4 / 8</div>
+      <div class="step-heading">Bekleme Süresince Maliyetleriniz Var mı?</div>
+      <div class="step-sub">Aidat, abonelik, sigorta vb. — ev elinizde kaldığı sürece her ay ödemeye devam ettiğiniz giderler. Yoksa boş bırakabilirsiniz.</div>
+      <div class="field">
+        <label>Aylık Maliyetiniz (opsiyonel)</label>
+        <input type="number" id="inMonthlyCost" value="0" step="500" min="0">
+        <div class="info-note" id="costNote"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 5 -->
+  <section class="wizard-step" data-step="5">
+    <div class="panel">
+      <div class="step-eyebrow">Adım 5 / 8</div>
+      <div class="step-heading">Piyasa / Sektör Bilgileri</div>
+      <div class="step-sub">Bölgenizdeki benzer satışlarla kısa bir kıyaslama.</div>
+      <div class="mini-compare">
+        <div class="mini-box">
+          <div class="mini-row"><span>Piyasada satış süresi</span><input type="number" id="inMarketAvg" value="5" step="0.5" min="0"><span class="unit">ay</span></div>
+          <div class="mini-row"><span>Ort. m² fiyatı</span><input type="number" id="inMarketM2" value="145000" step="1000" min="0"><span class="unit">TL/m²</span></div>
+        </div>
+        <div class="mini-box highlight">
+          <div class="mini-row"><span>Sizin hedef m² fiyatınız</span><span class="mini-strong" id="m2ResultVal">—</span></div>
+          <div class="mini-sub" id="m2ResultNote"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 6 -->
+  <section class="wizard-step" data-step="6">
+    <div class="panel">
+      <div class="step-eyebrow">Adım 6 / 8</div>
+      <div class="step-heading">Ne Kadar Bekleyebilirsiniz?</div>
+      <div class="step-sub">Bekleme ve pazarlık toleransınızı belirleyin.</div>
+      <div class="grid2">
+        <div class="field">
+          <label>Bekleyebileceğiniz süre</label>
+          <div class="range-row">
+            <input type="range" id="inT" min="1" max="12" value="6">
+            <span class="range-val" id="lblT">6 ay</span>
+          </div>
+          <div class="info-note" id="marketNote"></div>
+        </div>
+        <div class="field">
+          <label>En fazla ne kadar indirim yapabilirsiniz?</label>
+          <input type="number" id="inDiscount" value="100000" step="10000" min="0">
+          <div class="help">Alıcı pazarlık isterse, razı olacağınız en yüksek indirim.</div>
+        </div>
+      </div>
+
+      <div class="advanced-toggle-row">
+        <button id="advToggle" type="button">İleri Düzey Varsayımlar (getiri, vergi, alternatif fiyat) <span class="chevron">▾</span></button>
+      </div>
+      <div id="advPanel">
+        <div class="grid2">
+          <div class="field">
+            <label style="font-size:13.5px; color:var(--ink-soft);">Değerlendireceğiniz yıllık mevduat getirisi <span class="range-val" id="lblRate" style="margin-left:6px;">%45</span></label>
+            <input type="range" id="inRate" min="10" max="70" step="0.5" value="45">
+            <div class="help">Bugün satarsanız, elde ettiğiniz tutarı bu oranla büyütebileceğinizi varsayıyoruz.</div>
+            <div class="rate-mode-row" id="rateModeRow">
+              <button type="button" class="rate-mode-btn active" data-mode="flat">Sabit Kalır</button>
+              <button type="button" class="rate-mode-btn" data-mode="down">📉 Faizler Düşer</button>
+              <button type="button" class="rate-mode-btn" data-mode="up">📈 Faizler Yükselir</button>
+            </div>
+            <div class="field" id="rateDeltaField" style="display:none;">
+              <label style="font-size:13px; color:var(--ink-soft); font-weight:600;">
+                <span id="deltaMonthsLabel">6</span> ay içinde toplam kaç puan <span id="deltaDirLabel">düşer</span>?
+                <span class="range-val" id="lblDelta" style="margin-left:6px;">10 puan</span>
+              </label>
+              <input type="range" id="inDelta" min="0" max="30" step="1" value="10">
+              <div class="help">Örneğin şu an %45 ise ve 10 puan düşerse, süre sonunda yaklaşık %35'e ineceğini varsayarız — aradaki aylar da kademeli geçer.</div>
+            </div>
+            <div class="field" style="margin-top:10px;">
+              <label style="font-size:13px; color:var(--ink-soft); font-weight:600;">Vergi Oranı (Stopaj) <span class="range-val" id="lblTax" style="margin-left:6px;">%17,5</span></label>
+              <input type="range" id="inTax" min="0" max="30" step="0.5" value="17.5">
+              <div class="help">Mevduat faiz getirisinden kesilen stopaj oranı. Vade süresine göre değişebilir; güncel oranı bankanızdan teyit edin.</div>
+            </div>
+          </div>
+          <div class="field">
+            <label style="font-size:13.5px; color:var(--ink-soft);">Hiç satamazsanız, aklınızdaki alternatif fiyat</label>
+            <input type="number" id="inFallback" value="17000000" step="100000">
+            <div class="help">Beklediğiniz süre içinde ne hedefe ne de pazarlık fiyatına satamazsanız, düşünebileceğiniz bir rakam.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 7 -->
+  <section class="wizard-step" data-step="7">
+    <p class="story-lead" style="text-align:center; font-size:16px; color:var(--ink-soft); margin:0 0 22px; line-height:1.6;">İşte önünüzdeki <b style="color:var(--ink);">üç olası yol</b> — hangisi size daha uygun görünüyor?</p>
+
+    <div class="scenario-list fade-in">
+      <div class="scenario-card has-extra">
+        <div class="scenario-row">
+          <div class="scenario-icon">🏠</div>
+          <div class="scenario-body">
+            <div class="tag">Yol 1</div>
+            <h3>Bugün Satarsanız</h3>
+            <p id="descA">Evinizi bugün satar, parayı değerlendirirseniz, birkaç ay içinde elinizde bu tutar olur.</p>
+          </div>
+          <div class="scenario-num"><div class="amt" id="numA">—</div><div class="cap">mevduat getirisi elde ettiğimiz senaryo</div></div>
+        </div>
+        <div class="scenario-extra" id="extraA" style="display:none;"><span class="bulb">💡</span><span id="extraAText"></span></div>
+      </div>
+
+      <div class="scenario-card">
+        <div class="scenario-icon">🚩</div>
+        <div class="scenario-body">
+          <div class="tag">Yol 2</div>
+          <h3>Bekler ve Hedefinize Ulaşırsanız</h3>
+          <p id="descB">Beklediğiniz süre sonunda istediğiniz fiyata satarsanız, elinizde bu tutar olur.</p>
+        </div>
+        <div class="scenario-num"><div class="amt" id="numB">—</div><div class="cap">hedef fiyatı beklediğimiz senaryo</div></div>
+      </div>
+
+      <div class="scenario-card">
+        <div class="scenario-icon">🤝</div>
+        <div class="scenario-body">
+          <div class="tag">Yol 3</div>
+          <h3>Bekler ama Pazarlık Yaparsanız</h3>
+          <p id="descC">Alıcı pazarlık isteyebilir. Belirttiğiniz en yüksek indirimle satarsanız, elinizde bu tutar olur.</p>
+        </div>
+        <div class="scenario-num"><div class="amt" id="numC">—</div><div class="cap">pazarlıklı senaryo</div></div>
+      </div>
+    </div>
+
+    <div class="bar-compare fade-in">
+      <div class="bar-row">
+        <div class="bar-label">Bugün satarsanız</div>
+        <div class="bar-track"><div class="bar-fill" id="barA" style="width:0%"><span class="bar-val" id="barAVal"></span></div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Hedefe ulaşırsanız</div>
+        <div class="bar-track"><div class="bar-fill" id="barB" style="width:0%"><span class="bar-val" id="barBVal"></span></div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Pazarlık yaparsanız</div>
+        <div class="bar-track"><div class="bar-fill" id="barC" style="width:0%"><span class="bar-val" id="barCVal"></span></div></div>
+      </div>
+    </div>
+
+    <div class="breakeven-line alt" id="fallbackLine" style="margin-top:22px;"></div>
+  </section>
+
+  <!-- STEP 8 -->
+  <section class="wizard-step" data-step="8">
+    <div class="panel">
+      <div class="step-eyebrow">Adım 8 / 8</div>
+      <div class="step-heading">Yeni Bir Teklif Aldığınızda</div>
+      <div class="step-sub">Gerçek bir alıcıdan somut bir teklif geldiğinde buraya girin — "Bugün Satarsanız" hesaplaması otomatik olarak bu rakama göre güncellenir. Henüz teklif yoksa boş bırakabilirsiniz; ihtiyaç olduğunda bu adıma doğrudan üstteki adım çubuğundan dönebilirsiniz.</div>
+      <div class="field">
+        <label>Gelen Teklif</label>
+        <input type="number" id="inTeklif" step="100000" min="0" placeholder="—">
+      </div>
+    </div>
+  </section>
+
+  <div class="wizard-nav">
+    <button class="nav-btn secondary" id="prevBtn">‹ Geri</button>
+    <button class="nav-btn primary" id="nextBtn">İleri ›</button>
+  </div>
+
+</div>
+
+<footer>
+  Bu ekran, girdiğiniz varsayımlara (fiyat, süre, indirim, getiri oranı) dayanan basit bir hesaplamadır; bir tahmin, garanti ya da yatırım/finansal danışmanlık tavsiyesi değildir.<br>
+  Alternatif fiyat ve indirim girdileri tamamen sizin öngörünüzdür. Gerçek piyasa koşulları ve mevduat getirileri zamanla değişebilir.
+</footer>
+
+<script>
+(function(){
+  const trMoney = n => Math.round(n).toLocaleString('tr-TR') + ' TL';
+
+  // Büyük rakamlar kutuya yazılırken takip etmek zor olduğu için — kutunun
+  // İÇİNDE, yazarken canlı binlik ayraç (17.500.000 gibi) gösteren bir
+  // maskeleme. type="number" yerine type="text" + inputmode="numeric"
+  // kullanılıyor (tarayıcı yine sayısal klavye açar). İmleç, yeni ayraç
+  // eklenip silinirken sıçramasın diye konumu kendisi hesaplayıp düzeltiyor.
+  // Hesaplama tarafı (render() içindeki parseFloat çağrıları) ayraçları
+  // temizleyen parseTL() ile okunuyor.
+  function parseTL(input){
+    const rakamlar = (input.value || '').replace(/[^\d]/g, '');
+    return rakamlar ? parseInt(rakamlar, 10) : 0;
+  }
+  function tlMaskeBagla(input){
+    input.setAttribute('inputmode', 'numeric');
+    input.setAttribute('type', 'text');
+    function bicimlendir(){
+      const cursorSondanUzaklik = input.value.length - input.selectionStart;
+      const rakamlar = input.value.replace(/[^\d]/g, '');
+      const yeni = rakamlar ? parseInt(rakamlar, 10).toLocaleString('tr-TR') : '';
+      input.value = yeni;
+      const yeniCursor = Math.max(0, yeni.length - cursorSondanUzaklik);
+      input.setSelectionRange(yeniCursor, yeniCursor);
+    }
+    input.addEventListener('input', bicimlendir);
+    if(input.value){
+      const rakamlar = input.value.replace(/[^\d]/g, '');
+      input.value = rakamlar ? parseInt(rakamlar, 10).toLocaleString('tr-TR') : '';
+    }
+  }
+  const trNum = (n,d=1) => n.toLocaleString('tr-TR', {minimumFractionDigits:d, maximumFractionDigits:d});
+
+  const inShort = document.getElementById('inShort');
+  const inMid = document.getElementById('inMid');
+  const inLong = document.getElementById('inLong');
+  const inOneri = document.getElementById('inOneri');
+  const inTeklif = document.getElementById('inTeklif');
+  const inP1 = document.getElementById('inP1');
+  const inT = document.getElementById('inT');
+  const inMarketAvg = document.getElementById('inMarketAvg');
+  const inM2 = document.getElementById('inM2');
+  const inMarketM2 = document.getElementById('inMarketM2');
+  const inDiscount = document.getElementById('inDiscount');
+  const inRate = document.getElementById('inRate');
+  const inFallback = document.getElementById('inFallback');
+  const inDelta = document.getElementById('inDelta');
+  const inTax = document.getElementById('inTax');
+  const lblTax = document.getElementById('lblTax');
+  const inMonthlyCost = document.getElementById('inMonthlyCost');
+
+  [inShort, inMid, inLong, inOneri, inTeklif, inP1, inMarketM2, inDiscount, inFallback, inMonthlyCost]
+    .forEach(tlMaskeBagla);
+
+  const rateModeBtns = document.querySelectorAll('.rate-mode-btn');
+  const rateDeltaField = document.getElementById('rateDeltaField');
+  const lblDelta = document.getElementById('lblDelta');
+  const deltaDirLabel = document.getElementById('deltaDirLabel');
+  const deltaMonthsLabel = document.getElementById('deltaMonthsLabel');
+
+  let rateMode = 'flat'; // 'flat' | 'down' | 'up'
+
+  function buildRatePath(T, startRate, mode, delta){
+    const path = [];
+    for(let m=0; m<T; m++){
+      const t = T>1 ? m/(T-1) : 0;
+      let r = startRate;
+      if(mode==='down') r = startRate - delta*t;
+      else if(mode==='up') r = startRate + delta*t;
+      r = Math.max(5, Math.min(90, r));
+      path.push(r);
+    }
+    return path;
+  }
+
+  function computeFV(P0, T, rate, mode, delta, tax){
+    const taxFactor = 1 - (tax||0)/100;
+    if(mode === 'flat'){
+      const monthlyRate = ((rate/100)/12) * taxFactor;
+      return P0 * Math.pow(1+monthlyRate, T);
+    }
+    const path = buildRatePath(T, rate, mode, delta);
+    let val = P0;
+    path.forEach(r => { val *= (1 + ((r/100)/12) * taxFactor); });
+    return val;
+  }
+
+  // month-by-month series (index 0 = P0) for the same rate assumption used in computeFV
+  function monthlySeries(P0, T, rate, mode, delta, tax){
+    const taxFactor = 1 - (tax||0)/100;
+    const arr = [P0];
+    if(mode === 'flat'){
+      const monthlyRate = ((rate/100)/12) * taxFactor;
+      for(let m=1; m<=T; m++) arr.push(arr[m-1] * (1+monthlyRate));
+    } else {
+      const path = buildRatePath(T, rate, mode, delta);
+      for(let m=1; m<=T; m++) arr.push(arr[m-1] * (1 + ((path[m-1]/100)/12) * taxFactor));
+    }
+    return arr;
+  }
+
+  // first (fractional) month at which the series reaches target, within the series' own horizon
+  function findCrossingMonth(series, target){
+    if(target <= series[0]) return 0;
+    for(let m=1; m<series.length; m++){
+      if(series[m] >= target){
+        const prev = series[m-1], cur = series[m];
+        if(cur === prev) return m;
+        const frac = (Math.log(target)-Math.log(prev)) / (Math.log(cur)-Math.log(prev));
+        return (m-1)+frac;
+      }
+    }
+    return null;
+  }
+
+  const counters = {};
+  function animateNumber(id, to){
+    const el = document.getElementById(id);
+    if(!el) return;
+    const from = counters[id] !== undefined ? counters[id] : to;
+    counters[id] = to;
+    const start = performance.now(); const duration = 650;
+    function step(now){
+      const t = Math.min(1, (now-start)/duration);
+      const eased = 1 - Math.pow(1-t,3);
+      el.textContent = trMoney(from + (to-from)*eased);
+      if(t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function render(){
+    const short = Math.max(1, parseTL(inShort)||0);
+    const mid = Math.max(1, parseTL(inMid)||0);
+    const long = Math.max(1, parseTL(inLong)||0);
+    // "bugün satarsanız" hesaplaması için baz fiyat: öncelik gelen teklif > önerilen fiyat > kısa vade
+    const oneriVal = Math.max(0, parseTL(inOneri)||0);
+    const teklifVal = Math.max(0, parseTL(inTeklif)||0);
+    let P0 = short;
+    if(teklifVal > 0){ P0 = teklifVal; }
+    else if(oneriVal > 0){ P0 = oneriVal; }
+
+    const p0SourceNote = document.getElementById('p0SourceNote');
+    if(teklifVal > 0){
+      p0SourceNote.innerHTML = '"Bugün Satarsanız" hesaplaması artık <b>gelen teklif</b> (' + trMoney(teklifVal) + ') üzerinden yapılıyor. (Adım 8\'de girildi.)';
+    } else if(oneriVal > 0){
+      p0SourceNote.innerHTML = '"Bugün Satarsanız" hesaplaması artık <b>önerilen fiyat</b> (' + trMoney(oneriVal) + ') üzerinden yapılıyor.';
+    } else {
+      p0SourceNote.innerHTML = 'Bu alanlar boş bırakılırsa, "Bugün Satarsanız" hesaplaması kısa vade fiyatınız (' + trMoney(short) + ') üzerinden yapılır.';
+    }
+
+    const P1 = Math.max(1, parseTL(inP1)||0);
+    const T = parseInt(inT.value,10);
+    const discount = Math.max(0, parseTL(inDiscount)||0);
+    const rate = parseFloat(inRate.value);
+    const fallback = Math.max(0, parseTL(inFallback)||0);
+
+    const p1Empty = !inP1.value || inP1.value.trim() === '';
+
+    // değerleme raporu ile hedef fiyat kıyaslaması
+    const tierNote = document.getElementById('tierNote');
+    if(p1Empty){
+      tierNote.innerHTML = '👆 Hedef satış fiyatınızı yukarıya girerek karşılaştırmayı başlatabilirsiniz.';
+    } else {
+      const diffMid = P1 - mid;
+      const pctMid = mid > 0 ? (diffMid/mid*100) : 0;
+      const diffLong = P1 - long;
+      const pctLong = long > 0 ? (diffLong/long*100) : 0;
+      const dir = (v) => v > 0 ? 'üzerinde' : (v < 0 ? 'altında' : 'ile aynı seviyede');
+
+      let tierTxt = '📋 Hedef fiyatınızı (<b>' + trMoney(P1) + '</b>), orta vade değerlemesinin (' + trMoney(mid) + ') ';
+      if(diffMid !== 0){
+        tierTxt += '<b>%' + trNum(Math.abs(pctMid),1) + ' ' + dir(diffMid) + '</b>, ';
+      } else {
+        tierTxt += '<b>ile aynı seviyede</b>, ';
+      }
+      if(diffLong !== 0){
+        tierTxt += 'uzun vade değerlemesinin (' + trMoney(long) + ') <b>%' + trNum(Math.abs(pctLong),1) + ' ' + dir(diffLong) + '</b> belirlediniz.';
+      } else {
+        tierTxt += 'uzun vade değerlemesiyle (' + trMoney(long) + ') <b>aynı seviyede</b> belirlediniz.';
+      }
+      tierNote.innerHTML = tierTxt;
+    }
+
+    // hedef fiyatın m² karşılığı — piyasa ortalama m² fiyatıyla kıyaslama
+    const m2 = Math.max(1, parseFloat(inM2.value)||1);
+    const marketM2Price = Math.max(0, parseTL(inMarketM2)||0);
+    const targetM2Price = P1 / m2;
+    document.getElementById('m2ResultVal').textContent = trMoney(targetM2Price) + '/m²';
+    const m2Note = document.getElementById('m2ResultNote');
+    if(marketM2Price > 0){
+      const diffM2 = targetM2Price - marketM2Price;
+      const pctM2 = (diffM2/marketM2Price)*100;
+      let noteM2 = '';
+      if(diffM2 > 0) noteM2 = 'piyasanın <b>%' + trNum(Math.abs(pctM2),1) + ' üzerinde</b>';
+      else if(diffM2 < 0) noteM2 = 'piyasanın <b>%' + trNum(Math.abs(pctM2),1) + ' altında</b>';
+      else noteM2 = 'piyasayla <b>aynı seviyede</b>';
+      m2Note.innerHTML = noteM2;
+    } else {
+      m2Note.textContent = '';
+    }
+
+    document.getElementById('lblT').textContent = T + ' ay';
+    document.getElementById('lblRate').textContent = '%' + trNum(rate,1);
+    deltaMonthsLabel.textContent = T;
+
+    // piyasa ortalama satış süresi — beklenti çapası
+    const marketAvg = Math.max(0, parseFloat(inMarketAvg.value)||0);
+    const marketNote = document.getElementById('marketNote');
+    if(marketAvg > 0){
+      let noteTxt = '📊 Bu bölgede benzer evler ortalama <b>' + trNum(marketAvg,1) + ' ay</b>da satılıyor.';
+      if(T < marketAvg * 0.8){
+        noteTxt += ' Seçtiğiniz ' + T + ' ay, bu ortalamanın altında bir süre.';
+      } else if(T > marketAvg * 1.3){
+        noteTxt += ' Seçtiğiniz ' + T + ' ay, bu ortalamanın oldukça üzerinde.';
+      }
+      marketNote.innerHTML = noteTxt;
+      marketNote.style.display = 'block';
+    } else {
+      marketNote.style.display = 'none';
+    }
+
+    const delta = Math.max(0, parseFloat(inDelta.value)||0);
+    const tax = Math.max(0, parseFloat(inTax.value)||0);
+    lblTax.textContent = '%' + trNum(tax,1);
+    const FV_T = computeFV(P0, T, rate, rateMode, delta, tax);
+    const pazarlikFiyati = Math.max(0, P1 - discount);
+
+    // bekleme süresince aylık maliyet (aidat, abonelik vb.) — sadece bekleyen senaryoları etkiler
+    const monthlyCost = Math.max(0, parseTL(inMonthlyCost)||0);
+    const totalCost = monthlyCost * T;
+    const netB = Math.max(0, P1 - totalCost);
+    const netC = Math.max(0, pazarlikFiyati - totalCost);
+
+    const costNote = document.getElementById('costNote');
+    if(totalCost > 0){
+      costNote.innerHTML = '💶 ' + T + ' ay boyunca toplam maliyetiniz <b>' + trMoney(totalCost) + '</b> — bu tutar Yol 2, Yol 3 ve "hiç satamazsanız" sonuçlarından düşülmüştür.';
+      costNote.style.display = 'block';
+    } else {
+      costNote.style.display = 'none';
+    }
+
+    animateNumber('numA', FV_T);
+    animateNumber('miniA', FV_T);
+    if(p1Empty){
+      ['numB','numC','miniB','miniC'].forEach(id=>{ document.getElementById(id).textContent = '—'; counters[id] = undefined; });
+    } else {
+      animateNumber('numB', netB);
+      animateNumber('numC', netC);
+      animateNumber('miniB', netB);
+      animateNumber('miniC', netC);
+    }
+
+    const taxNote = tax > 0 ? ' (stopaj sonrası net getiri)' : '';
+    if(rateMode === 'flat'){
+      document.getElementById('descA').textContent =
+        'Evinizi bugün ' + trMoney(P0) + ' karşılığında satar, parayı %' + trNum(rate,1) + ' yıllık getiriyle değerlendirirseniz' + taxNote + ', ' + T + ' ay sonra elinizde yaklaşık bu tutar olur.';
+    } else {
+      const endRate = Math.max(5, Math.min(90, rateMode==='down' ? rate-delta : rate+delta));
+      document.getElementById('descA').textContent =
+        'Evinizi bugün ' + trMoney(P0) + ' karşılığında satar, parayı değerlendirirseniz' + taxNote + ' — faizlerin %' + trNum(rate,1) + '\'ten %' + trNum(endRate,1) + '\'e ' + (rateMode==='down'?'düştüğü':'yükseldiği') + ' bir senaryoda — ' + T + ' ay sonra elinizde yaklaşık bu tutar olur.';
+    }
+    document.getElementById('descB').textContent = p1Empty
+      ? 'Hedef fiyatınızı girdiğinizde burada göreceksiniz.'
+      : (T + ' ay bekler ve istediğiniz ' + trMoney(P1) + ' fiyata satarsanız, elinizde bu tutar olur.' +
+        (totalCost > 0 ? ' (Bekleme süresince ' + trMoney(totalCost) + ' maliyet düşülmüştür.)' : ''));
+
+    // Yol 1 ek not: bugün satıp değerlendirseydik, hedef fiyata kaçıncı ayda ulaşırdık?
+    const extraA = document.getElementById('extraA');
+    const extraAText = document.getElementById('extraAText');
+    if(!p1Empty && P1 > P0){
+      const series = monthlySeries(P0, T, rate, rateMode, delta, tax);
+      const crossMonth = findCrossingMonth(series, P1);
+      if(crossMonth !== null && crossMonth > 0){
+        const roundedMonth = Math.max(1, Math.round(crossMonth));
+        extraA.style.display = '';
+        extraAText.innerHTML =
+          'Bu hesaba göre, parayı bugün değerlendirseydiniz yaklaşık <b>' + roundedMonth + '. ayda</b> zaten ' + trMoney(P1) + '\'ye ulaşırdınız. ' +
+          'O noktadan sonra, sabit ' + trMoney(P1) + ' beklemek, aslında bu getiri karşısında geride kalmak anlamına gelir.';
+      } else {
+        extraA.style.display = 'none';
+      }
+    } else {
+      extraA.style.display = 'none';
+    }
+    document.getElementById('descC').textContent = p1Empty
+      ? 'Hedef fiyatınızı girdiğinizde burada göreceksiniz.'
+      : ('Alıcı pazarlık isteyebilir. En fazla ' + trMoney(discount) + ' indirim yaparsanız, elinizde bu tutar olur.' +
+        (totalCost > 0 ? ' (Bekleme süresince ' + trMoney(totalCost) + ' maliyet düşülmüştür.)' : ''));
+
+    // bar compare
+    const maxVal = Math.max(FV_T, netB, netC, 1);
+    const setBar = (fillId, valId, val) => {
+      const pct = Math.max(4, (val/maxVal)*100);
+      document.getElementById(fillId).style.width = pct + '%';
+      document.getElementById(valId).textContent = trMoney(val);
+    };
+    setBar('barA','barAVal', FV_T);
+    if(p1Empty){
+      document.getElementById('barB').style.width = '0%';
+      document.getElementById('barBVal').textContent = '';
+      document.getElementById('barC').style.width = '0%';
+      document.getElementById('barCVal').textContent = '';
+    } else {
+      setBar('barB','barBVal', netB);
+      setBar('barC','barCVal', netC);
+    }
+
+    // "hiç satamazsanız" sonucu — bugün satıp değerlendirmenizle doğrudan kıyaslama
+    const fallbackLine = document.getElementById('fallbackLine');
+    if(fallback <= 0){
+      fallbackLine.style.display = 'none';
+    } else {
+      fallbackLine.style.display = '';
+      const fallbackNet = Math.max(0, fallback - totalCost);
+      const fallbackDiff = FV_T - fallbackNet;
+      const costNoteTxt = totalCost > 0 ? ' (' + trMoney(totalCost) + ' bekleme maliyeti düşülmüştür.)' : '';
+      if(fallbackDiff > 0){
+        fallbackLine.innerHTML =
+          '<b>Hiç satamazsanız:</b> ' + T + ' ay sonra hâlâ satamayıp <b>' + trMoney(fallback) + '</b>\'ye satarsanız, <b>Yol 1</b>\'deki sonucunuza kıyasla <b>' + trMoney(fallbackDiff) + '</b> daha az kazanmış olursunuz.' + costNoteTxt;
+      } else if(fallbackDiff < 0){
+        fallbackLine.innerHTML =
+          '<b>Hiç satamazsanız:</b> ' + T + ' ay sonra <b>' + trMoney(fallback) + '</b>\'ye satarsanız, <b>Yol 1</b>\'deki sonucunuza kıyasla <b>' + trMoney(Math.abs(fallbackDiff)) + '</b> daha fazla kazanmış olursunuz.' + costNoteTxt;
+      } else {
+        fallbackLine.innerHTML =
+          '<b>Hiç satamazsanız:</b> ' + T + ' ay sonra <b>' + trMoney(fallback) + '</b>\'ye satarsanız, <b>Yol 1</b>\'deki sonucunuzla aşağı yukarı aynı noktada olursunuz.' + costNoteTxt;
+      }
+    }
+  }
+
+  [inShort, inMid, inLong, inOneri, inTeklif, inP1, inT, inMarketAvg, inM2, inMarketM2, inDiscount, inRate, inFallback, inDelta, inTax, inMonthlyCost].forEach(el=>{
+    el.addEventListener('input', ()=>{
+      if(el === inDelta){ lblDelta.textContent = inDelta.value + ' puan'; }
+      render();
+    });
+  });
+
+  rateModeBtns.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      rateMode = btn.dataset.mode;
+      rateModeBtns.forEach(b=>b.classList.toggle('active', b===btn));
+      rateDeltaField.style.display = rateMode==='flat' ? 'none' : '';
+      deltaDirLabel.textContent = rateMode==='down' ? 'düşer' : 'yükselir';
+      render();
+    });
+  });
+
+  const advToggle = document.getElementById('advToggle');
+  const advPanel = document.getElementById('advPanel');
+  advToggle.addEventListener('click', ()=>{
+    const isOpen = advPanel.classList.toggle('open');
+    advToggle.classList.toggle('open', isOpen);
+  });
+
+  const themeToggle = document.getElementById('themeToggle');
+  themeToggle.addEventListener('click', ()=>{
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    themeToggle.textContent = isDark ? '🌙 Karanlık mod' : '☀️ Aydınlık mod';
+  });
+
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(entry=>{ if(entry.isIntersecting){ entry.target.classList.add('visible'); io.unobserve(entry.target);} });
+  }, {threshold:0.1});
+  document.querySelectorAll('.fade-in').forEach(el => io.observe(el));
+
+  // ---------------- wizard step navigation ----------------
+  const TOTAL_STEPS = 8;
+  let currentStep = 1;
+  const stepPills = document.querySelectorAll('.step-pill');
+  const stepSections = document.querySelectorAll('.wizard-step');
+  const miniSummary = document.getElementById('miniSummary');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+
+  function goToStep(n){
+    n = Math.max(1, Math.min(TOTAL_STEPS, n));
+    currentStep = n;
+    stepSections.forEach(sec => sec.classList.toggle('active', parseInt(sec.dataset.step,10) === n));
+    stepPills.forEach(pill => {
+      const p = parseInt(pill.dataset.step,10);
+      pill.classList.toggle('active', p === n);
+      pill.classList.toggle('done', p < n);
+    });
+    miniSummary.style.display = (n === 7) ? 'none' : 'flex';
+    prevBtn.disabled = (n === 1);
+    nextBtn.textContent = n === TOTAL_STEPS ? 'Baştan Başla ⟲' : (n === 6 ? 'Sonuçları Gör ›' : 'İleri ›');
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+
+  stepPills.forEach(pill=>{
+    pill.addEventListener('click', ()=> goToStep(parseInt(pill.dataset.step,10)));
+  });
+  prevBtn.addEventListener('click', ()=> goToStep(currentStep-1));
+  nextBtn.addEventListener('click', ()=>{
+    if(currentStep === TOTAL_STEPS){ goToStep(1); }
+    else{ goToStep(currentStep+1); }
+  });
+
+  goToStep(1);
+  render();
+})();
+</script>
+</body>
+</html>
