@@ -603,7 +603,12 @@
     // bir metin göstermek yerine, müşteriyi kendi rakamını girmeye
     // yönlendiren bir mesaj gösteriliyor — hesaplama müşteri dolduruncaya
     // kadar "başlamıyor" hissi verir.
-    if(!inP1.value || inP1.value.trim() === ''){
+    // DÜZELTME (23.08.2026): p1Empty artık paylaşılan tek bir değişken —
+    // aşağıdaki m² kutusu ve Yol 2/Yol 3 sonuçları da AYNI kontrolü
+    // kullanıyor (önceden sadece bu metinde vardı, o ikisinde "1 TL"/
+    // "0 TL" gibi anlamsız sonuçlar gösteriyorlardı).
+    const p1Empty = !inP1.value || inP1.value.trim() === '';
+    if(p1Empty){
       tierNote.innerHTML = '👆 Hedef satış fiyatınızı yukarıya girerek karşılaştırmayı başlatabilirsiniz.';
     } else {
     const diffMid = P1 - mid;
@@ -627,11 +632,15 @@
     }
 
     // hedef fiyatın m² karşılığı — piyasa ortalama m² fiyatıyla kıyaslama
+    const m2Note = document.getElementById('m2ResultNote');
+    if(p1Empty){
+      document.getElementById('m2ResultVal').textContent = '—';
+      m2Note.textContent = '';
+    } else {
     const m2 = Math.max(1, parseFloat(inM2.value)||1);
     const marketM2Price = Math.max(0, parseTL(inMarketM2)||0);
     const targetM2Price = P1 / m2;
     document.getElementById('m2ResultVal').textContent = trMoney(targetM2Price) + '/m²';
-    const m2Note = document.getElementById('m2ResultNote');
     if(marketM2Price > 0){
       const diffM2 = targetM2Price - marketM2Price;
       const pctM2 = (diffM2/marketM2Price)*100;
@@ -642,6 +651,7 @@
       m2Note.innerHTML = noteM2;
     } else {
       m2Note.textContent = '';
+    }
     }
 
     document.getElementById('lblT').textContent = T + ' ay';
@@ -685,8 +695,12 @@
     }
 
     animateNumber('numA', FV_T);
-    animateNumber('numB', netB);
-    animateNumber('numC', netC);
+    if(p1Empty){
+      ['numB','numC'].forEach(id=>{ document.getElementById(id).textContent = '—'; counters[id] = undefined; });
+    } else {
+      animateNumber('numB', netB);
+      animateNumber('numC', netC);
+    }
 
     const taxNote = tax > 0 ? ' (stopaj sonrası net getiri)' : '';
     if(rateMode === 'flat'){

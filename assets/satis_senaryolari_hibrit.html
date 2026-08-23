@@ -54,7 +54,11 @@
   .byline-row input:focus{ outline:none; border-color:var(--accent); color:var(--ink); }
 
   /* ---- step bar ---- */
-  .stepbar-wrap{ background:var(--surface-1); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:5; }
+  /* DÜZELTME (23.08.2026): Üstteki numaralı adım sekmeleri kaldırıldı —
+     sadece alttaki İleri/Geri butonlarıyla sıralı ilerleniyor. HTML/JS
+     yapısı (goToStep, pill click mantığı vb.) BİLEREK dokunulmadı —
+     ileride geri istenirse tek satır CSS ile geri açılabilir. */
+  .stepbar-wrap{ display:none; }
   .stepbar{ display:flex; gap:6px; overflow-x:auto; padding:12px 18px; max-width:900px; margin:0 auto; scrollbar-width:thin; }
   .step-pill{
     flex:0 0 auto; display:flex; align-items:center; gap:8px; border:1px solid var(--border); background:var(--page);
@@ -214,6 +218,10 @@
   #advToggle.open .chevron{ transform:rotate(180deg); }
   #advPanel{ max-height:0; overflow:hidden; transition:max-height .5s ease; }
   #advPanel.open{ max-height:1400px; margin-top:16px; }
+  .subsection{ margin-top:34px; padding-top:26px; border-top:1px solid var(--border); }
+  .subsection:first-child{ margin-top:0; padding-top:0; border-top:none; }
+  .subsection-title{ font-size:17px; font-weight:800; margin-bottom:4px; }
+  .subsection-sub{ font-size:13.5px; color:var(--ink-soft); margin-bottom:16px; }
 
   /* ---- wizard nav ---- */
   .wizard-nav{ display:flex; justify-content:space-between; align-items:center; margin-top:26px; gap:12px; }
@@ -260,14 +268,9 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
 
 <div class="stepbar-wrap">
   <div class="stepbar" id="stepbar">
-    <button class="step-pill" data-step="1"><span class="step-num">1</span>Mülk Bilgileri</button>
-    <button class="step-pill" data-step="2"><span class="step-num">2</span>Önerilen Satış Fiyatları</button>
-    <button class="step-pill" data-step="3"><span class="step-num">3</span>Hedef Fiyat</button>
-    <button class="step-pill" data-step="4"><span class="step-num">4</span>Maliyetler</button>
-    <button class="step-pill" data-step="5"><span class="step-num">5</span>Piyasa Bilgileri</button>
-    <button class="step-pill" data-step="6"><span class="step-num">6</span>Bekleme Süresi</button>
-    <button class="step-pill" data-step="7"><span class="step-num">7</span>Senaryolar</button>
-    <button class="step-pill" data-step="8"><span class="step-num">8</span>Yeni Teklif</button>
+    <button class="step-pill" data-step="1"><span class="step-num">1</span>Mülkünüz ve Hedefiniz</button>
+    <button class="step-pill" data-step="2"><span class="step-num">2</span>Üç Olası Yol</button>
+    <button class="step-pill" data-step="3"><span class="step-num">3</span>Detaylı İnceleme</button>
   </div>
 </div>
 
@@ -282,176 +285,120 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
   <!-- STEP 1 -->
   <section class="wizard-step active" data-step="1">
     <div class="panel">
-      <div class="step-eyebrow">Adım 1 / 8</div>
-      <div class="step-heading">Evinize Ait Bilgiler</div>
-      <div class="step-sub">Önce mülkünüzü kısaca tanıyalım.</div>
-      <div class="property-grid">
-        <div class="field">
-          <label>Konum</label>
-          <input type="text" id="inLocation" placeholder="Örn. Kadıköy, İstanbul">
+      <div class="subsection">
+        <div class="subsection-title">🏠 Evinize Ait Bilgiler</div>
+        <div class="subsection-sub">Önce mülkünüzü kısaca tanıyalım.</div>
+        <div class="property-grid">
+          <div class="field">
+            <label>Konum</label>
+            <input type="text" id="inLocation" placeholder="Örn. Kadıköy, İstanbul">
+          </div>
+          <div class="field">
+            <label>Oda Sayısı</label>
+            <input type="text" id="inRooms" placeholder="Örn. 3+1">
+          </div>
+          <div class="field">
+            <label>Bina Yaşı</label>
+            <input type="number" id="inAge" placeholder="Örn. 8" min="0">
+          </div>
+          <div class="field">
+            <label>m²</label>
+            <input type="number" id="inM2" value="120" min="1">
+          </div>
         </div>
-        <div class="field">
-          <label>Oda Sayısı</label>
-          <input type="text" id="inRooms" placeholder="Örn. 3+1">
-        </div>
-        <div class="field">
-          <label>Bina Yaşı</label>
-          <input type="number" id="inAge" placeholder="Örn. 8" min="0">
-        </div>
-        <div class="field">
-          <label>m²</label>
-          <input type="number" id="inM2" value="120" min="1">
+        <div class="field" style="margin-top:14px;">
+          <label>Diğer Özellikler</label>
+          <input type="text" id="inFeatures" placeholder="Örn. Asansör, Otopark, Balkon, Eşyalı">
         </div>
       </div>
-      <div class="field" style="margin-top:14px;">
-        <label>Diğer Özellikler</label>
-        <input type="text" id="inFeatures" placeholder="Örn. Asansör, Otopark, Balkon, Eşyalı">
+
+      <div class="subsection">
+        <div class="subsection-title">Mülkünüze Ait Değerleme Raporu Sonuçları</div>
+        <div class="subsection-sub">Danışmanınızın hazırladığı kısa/orta/uzun vade değerleme rakamları.</div>
+        <div class="tier-row">
+          <div class="tier-item minor">
+            <span class="tlabel">Kısa Vade</span>
+            <input type="number" id="inShort" value="16000000" step="100000">
+          </div>
+          <div class="tier-item major">
+            <span class="tlabel">Orta Vade</span>
+            <input type="number" id="inMid" value="17500000" step="100000">
+          </div>
+          <div class="tier-item minor">
+            <span class="tlabel">Uzun Vade</span>
+            <input type="number" id="inLong" value="19000000" step="100000">
+          </div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">Önerilen Fiyat veya Gelen Teklif Var mı?</div>
+        <div class="subsection-sub">İkisi de opsiyonel — doluysa "Bugün Satarsanız" hesaplamasını ezer (öncelik: Gelen Teklif &gt; Önerilen Fiyat &gt; Kısa Vade).</div>
+        <div class="tier-row">
+          <div class="tier-item minor">
+            <span class="tlabel">Önerilen Fiyat</span>
+            <input type="number" id="inOneri" step="100000" min="0" placeholder="—">
+          </div>
+          <div class="tier-item minor">
+            <span class="tlabel">Gelen Teklif</span>
+            <input type="number" id="inTeklif" step="100000" min="0" placeholder="—">
+          </div>
+        </div>
+        <div class="help" id="p0SourceNote"></div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">Eviniz İçin Belirlediğiniz Satış Fiyatı Nedir?</div>
+        <div class="subsection-sub">Ulaşmayı umduğunuz fiyat.</div>
+        <div class="field">
+          <input type="number" id="inP1" step="100000" placeholder="Hedef fiyatınızı girin">
+          <div class="info-note" id="tierNote" style="display:block;"></div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">Ne Kadar Bekleyebilirsiniz?</div>
+        <div class="subsection-sub">Bölgenizdeki benzer satışlarla kıyaslayıp, bekleme ve pazarlık toleransınızı belirleyin.</div>
+        <div class="mini-compare">
+          <div class="mini-box">
+            <div class="mini-row"><span>Piyasada satış süresi</span><input type="number" id="inMarketAvg" value="5" step="0.5" min="0"><span class="unit">ay</span></div>
+            <div class="mini-row"><span>Ort. m² fiyatı</span><input type="number" id="inMarketM2" value="145000" step="1000" min="0"><span class="unit">TL/m²</span></div>
+          </div>
+          <div class="mini-box highlight">
+            <div class="mini-row"><span>Sizin hedef m² fiyatınız</span><span class="mini-strong" id="m2ResultVal">—</span></div>
+            <div class="mini-sub" id="m2ResultNote"></div>
+          </div>
+        </div>
+        <div class="grid2" style="margin-top:18px;">
+          <div class="field">
+            <label>Bekleyebileceğiniz süre</label>
+            <div class="range-row">
+              <input type="range" id="inT" min="1" max="12" value="6">
+              <span class="range-val" id="lblT">6 ay</span>
+            </div>
+            <div class="info-note" id="marketNote"></div>
+          </div>
+          <div class="field">
+            <label>En fazla ne kadar indirim yapabilirsiniz?</label>
+            <input type="number" id="inDiscount" value="100000" step="10000" min="0">
+            <div class="help">Alıcı pazarlık isterse, razı olacağınız en yüksek indirim.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">Bekleme Süresince Aylık Maliyetiniz (opsiyonel)</div>
+        <div class="subsection-sub">Aidat, abonelik, sigorta vb. — ev elinizde kaldığı sürece her ay ödemeye devam ettiğiniz giderler. Yoksa boş bırakabilirsiniz.</div>
+        <div class="field">
+          <input type="number" id="inMonthlyCost" value="0" step="500" min="0">
+          <div class="info-note" id="costNote"></div>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- STEP 2 -->
   <section class="wizard-step" data-step="2">
-    <div class="panel">
-      <div class="step-eyebrow">Adım 2 / 8</div>
-      <div class="step-heading">Mülkünüze Ait Değerleme Raporu Sonuçları</div>
-      <div class="step-sub">Danışmanınızın hazırladığı kısa/orta/uzun vade değerleme rakamları.</div>
-      <div class="tier-row">
-        <div class="tier-item minor">
-          <span class="tlabel">Kısa Vade</span>
-          <input type="number" id="inShort" value="16000000" step="100000">
-        </div>
-        <div class="tier-item major">
-          <span class="tlabel">Orta Vade</span>
-          <input type="number" id="inMid" value="17500000" step="100000">
-        </div>
-        <div class="tier-item minor">
-          <span class="tlabel">Uzun Vade</span>
-          <input type="number" id="inLong" value="19000000" step="100000">
-        </div>
-      </div>
-
-      <div class="field" style="margin-top:22px;">
-        <label>Ayrıca Önerilen Bir Fiyat Var mı? (opsiyonel)</label>
-        <div class="tier-row">
-          <div class="tier-item minor">
-            <span class="tlabel">Önerilen Fiyat</span>
-            <input type="number" id="inOneri" step="100000" min="0" placeholder="—">
-          </div>
-        </div>
-        <div class="help" id="p0SourceNote"></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- STEP 3 -->
-  <section class="wizard-step" data-step="3">
-    <div class="panel">
-      <div class="step-eyebrow">Adım 3 / 8</div>
-      <div class="step-heading">Eviniz İçin Belirlediğiniz Satış Fiyatı Nedir?</div>
-      <div class="step-sub">Ulaşmayı umduğunuz fiyat.</div>
-      <div class="field">
-        <input type="number" id="inP1" step="100000" placeholder="Hedef fiyatınızı girin">
-        <div class="info-note" id="tierNote" style="display:block;"></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- STEP 4 -->
-  <section class="wizard-step" data-step="4">
-    <div class="panel">
-      <div class="step-eyebrow">Adım 4 / 8</div>
-      <div class="step-heading">Bekleme Süresince Maliyetleriniz Var mı?</div>
-      <div class="step-sub">Aidat, abonelik, sigorta vb. — ev elinizde kaldığı sürece her ay ödemeye devam ettiğiniz giderler. Yoksa boş bırakabilirsiniz.</div>
-      <div class="field">
-        <label>Aylık Maliyetiniz (opsiyonel)</label>
-        <input type="number" id="inMonthlyCost" value="0" step="500" min="0">
-        <div class="info-note" id="costNote"></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- STEP 5 -->
-  <section class="wizard-step" data-step="5">
-    <div class="panel">
-      <div class="step-eyebrow">Adım 5 / 8</div>
-      <div class="step-heading">Piyasa / Sektör Bilgileri</div>
-      <div class="step-sub">Bölgenizdeki benzer satışlarla kısa bir kıyaslama.</div>
-      <div class="mini-compare">
-        <div class="mini-box">
-          <div class="mini-row"><span>Piyasada satış süresi</span><input type="number" id="inMarketAvg" value="5" step="0.5" min="0"><span class="unit">ay</span></div>
-          <div class="mini-row"><span>Ort. m² fiyatı</span><input type="number" id="inMarketM2" value="145000" step="1000" min="0"><span class="unit">TL/m²</span></div>
-        </div>
-        <div class="mini-box highlight">
-          <div class="mini-row"><span>Sizin hedef m² fiyatınız</span><span class="mini-strong" id="m2ResultVal">—</span></div>
-          <div class="mini-sub" id="m2ResultNote"></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- STEP 6 -->
-  <section class="wizard-step" data-step="6">
-    <div class="panel">
-      <div class="step-eyebrow">Adım 6 / 8</div>
-      <div class="step-heading">Ne Kadar Bekleyebilirsiniz?</div>
-      <div class="step-sub">Bekleme ve pazarlık toleransınızı belirleyin.</div>
-      <div class="grid2">
-        <div class="field">
-          <label>Bekleyebileceğiniz süre</label>
-          <div class="range-row">
-            <input type="range" id="inT" min="1" max="12" value="6">
-            <span class="range-val" id="lblT">6 ay</span>
-          </div>
-          <div class="info-note" id="marketNote"></div>
-        </div>
-        <div class="field">
-          <label>En fazla ne kadar indirim yapabilirsiniz?</label>
-          <input type="number" id="inDiscount" value="100000" step="10000" min="0">
-          <div class="help">Alıcı pazarlık isterse, razı olacağınız en yüksek indirim.</div>
-        </div>
-      </div>
-
-      <div class="advanced-toggle-row">
-        <button id="advToggle" type="button">İleri Düzey Varsayımlar (getiri, vergi, alternatif fiyat) <span class="chevron">▾</span></button>
-      </div>
-      <div id="advPanel">
-        <div class="grid2">
-          <div class="field">
-            <label style="font-size:13.5px; color:var(--ink-soft);">Değerlendireceğiniz yıllık mevduat getirisi <span class="range-val" id="lblRate" style="margin-left:6px;">%45</span></label>
-            <input type="range" id="inRate" min="10" max="70" step="0.5" value="45">
-            <div class="help">Bugün satarsanız, elde ettiğiniz tutarı bu oranla büyütebileceğinizi varsayıyoruz.</div>
-            <div class="rate-mode-row" id="rateModeRow">
-              <button type="button" class="rate-mode-btn active" data-mode="flat">Sabit Kalır</button>
-              <button type="button" class="rate-mode-btn" data-mode="down">📉 Faizler Düşer</button>
-              <button type="button" class="rate-mode-btn" data-mode="up">📈 Faizler Yükselir</button>
-            </div>
-            <div class="field" id="rateDeltaField" style="display:none;">
-              <label style="font-size:13px; color:var(--ink-soft); font-weight:600;">
-                <span id="deltaMonthsLabel">6</span> ay içinde toplam kaç puan <span id="deltaDirLabel">düşer</span>?
-                <span class="range-val" id="lblDelta" style="margin-left:6px;">10 puan</span>
-              </label>
-              <input type="range" id="inDelta" min="0" max="30" step="1" value="10">
-              <div class="help">Örneğin şu an %45 ise ve 10 puan düşerse, süre sonunda yaklaşık %35'e ineceğini varsayarız — aradaki aylar da kademeli geçer.</div>
-            </div>
-            <div class="field" style="margin-top:10px;">
-              <label style="font-size:13px; color:var(--ink-soft); font-weight:600;">Vergi Oranı (Stopaj) <span class="range-val" id="lblTax" style="margin-left:6px;">%17,5</span></label>
-              <input type="range" id="inTax" min="0" max="30" step="0.5" value="17.5">
-              <div class="help">Mevduat faiz getirisinden kesilen stopaj oranı. Vade süresine göre değişebilir; güncel oranı bankanızdan teyit edin.</div>
-            </div>
-          </div>
-          <div class="field">
-            <label style="font-size:13.5px; color:var(--ink-soft);">Hiç satamazsanız, aklınızdaki alternatif fiyat</label>
-            <input type="number" id="inFallback" value="17000000" step="100000">
-            <div class="help">Beklediğiniz süre içinde ne hedefe ne de pazarlık fiyatına satamazsanız, düşünebileceğiniz bir rakam.</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- STEP 7 -->
-  <section class="wizard-step" data-step="7">
     <p class="story-lead" style="text-align:center; font-size:16px; color:var(--ink-soft); margin:0 0 22px; line-height:1.6;">İşte önünüzdeki <b style="color:var(--ink);">üç olası yol</b> — hangisi size daha uygun görünüyor?</p>
 
     <div class="scenario-list fade-in">
@@ -505,17 +452,47 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
     </div>
 
     <div class="breakeven-line alt" id="fallbackLine" style="margin-top:22px;"></div>
+
+    <div class="advanced-toggle-row" style="margin-top:26px;">
+      <button id="advToggle" type="button">Detaylı İnceleme (getiri, vergi, alternatif fiyat) <span class="chevron">›</span></button>
+    </div>
   </section>
 
-  <!-- STEP 8 -->
-  <section class="wizard-step" data-step="8">
+  <!-- STEP 3 -->
+  <section class="wizard-step" data-step="3">
     <div class="panel">
-      <div class="step-eyebrow">Adım 8 / 8</div>
-      <div class="step-heading">Yeni Bir Teklif Aldığınızda</div>
-      <div class="step-sub">Gerçek bir alıcıdan somut bir teklif geldiğinde buraya girin — "Bugün Satarsanız" hesaplaması otomatik olarak bu rakama göre güncellenir. Henüz teklif yoksa boş bırakabilirsiniz; ihtiyaç olduğunda bu adıma doğrudan üstteki adım çubuğundan dönebilirsiniz.</div>
-      <div class="field">
-        <label>Gelen Teklif</label>
-        <input type="number" id="inTeklif" step="100000" min="0" placeholder="—">
+      <div class="step-eyebrow">Detaylı İnceleme</div>
+      <div class="step-heading">İleri Düzey Varsayımlar</div>
+      <div class="step-sub">Getiri oranı, vergi ve "hiç satamazsanız" alternatifi gibi daha ince ayrıntılar.</div>
+      <div class="grid2">
+        <div class="field">
+          <label style="font-size:13.5px; color:var(--ink-soft);">Değerlendireceğiniz yıllık mevduat getirisi <span class="range-val" id="lblRate" style="margin-left:6px;">%45</span></label>
+          <input type="range" id="inRate" min="10" max="70" step="0.5" value="45">
+          <div class="help">Bugün satarsanız, elde ettiğiniz tutarı bu oranla büyütebileceğinizi varsayıyoruz.</div>
+          <div class="rate-mode-row" id="rateModeRow">
+            <button type="button" class="rate-mode-btn active" data-mode="flat">Sabit Kalır</button>
+            <button type="button" class="rate-mode-btn" data-mode="down">📉 Faizler Düşer</button>
+            <button type="button" class="rate-mode-btn" data-mode="up">📈 Faizler Yükselir</button>
+          </div>
+          <div class="field" id="rateDeltaField" style="display:none;">
+            <label style="font-size:13px; color:var(--ink-soft); font-weight:600;">
+              <span id="deltaMonthsLabel">6</span> ay içinde toplam kaç puan <span id="deltaDirLabel">düşer</span>?
+              <span class="range-val" id="lblDelta" style="margin-left:6px;">10 puan</span>
+            </label>
+            <input type="range" id="inDelta" min="0" max="30" step="1" value="10">
+            <div class="help">Örneğin şu an %45 ise ve 10 puan düşerse, süre sonunda yaklaşık %35'e ineceğini varsayarız — aradaki aylar da kademeli geçer.</div>
+          </div>
+          <div class="field" style="margin-top:10px;">
+            <label style="font-size:13px; color:var(--ink-soft); font-weight:600;">Vergi Oranı (Stopaj) <span class="range-val" id="lblTax" style="margin-left:6px;">%17,5</span></label>
+            <input type="range" id="inTax" min="0" max="30" step="0.5" value="17.5">
+            <div class="help">Mevduat faiz getirisinden kesilen stopaj oranı. Vade süresine göre değişebilir; güncel oranı bankanızdan teyit edin.</div>
+          </div>
+        </div>
+        <div class="field">
+          <label style="font-size:13.5px; color:var(--ink-soft);">Hiç satamazsanız, aklınızdaki alternatif fiyat</label>
+          <input type="number" id="inFallback" value="17000000" step="100000">
+          <div class="help">Beklediğiniz süre içinde ne hedefe ne de pazarlık fiyatına satamazsanız, düşünebileceğiniz bir rakam.</div>
+        </div>
       </div>
     </div>
   </section>
@@ -890,12 +867,12 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
     });
   });
 
+  // DÜZELTME (23.08.2026): advPanel artık yok — "Detaylı İnceleme"
+  // içeriği kendi ayrı sayfasına (3. adım) taşındı, eskisi gibi
+  // sayfa içinde açılıp kapanmıyor. Buton artık doğrudan 3. adıma
+  // gidiyor (goToStep aşağıda tanımlı, tıklama anında hazır olacak).
   const advToggle = document.getElementById('advToggle');
-  const advPanel = document.getElementById('advPanel');
-  advToggle.addEventListener('click', ()=>{
-    const isOpen = advPanel.classList.toggle('open');
-    advToggle.classList.toggle('open', isOpen);
-  });
+  advToggle.addEventListener('click', ()=> goToStep(3));
 
   const themeToggle = document.getElementById('themeToggle');
   themeToggle.addEventListener('click', ()=>{
@@ -911,7 +888,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
   document.querySelectorAll('.fade-in').forEach(el => io.observe(el));
 
   // ---------------- wizard step navigation ----------------
-  const TOTAL_STEPS = 8;
+  const TOTAL_STEPS = 3;
   let currentStep = 1;
   const stepPills = document.querySelectorAll('.step-pill');
   const stepSections = document.querySelectorAll('.wizard-step');
@@ -934,9 +911,14 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
     // rakamlarla kafa karıştırıyordu. Artık SADECE sonuç adımlarına
     // (7'den sonra, yani 8. adımda) görünüyor — 7'de zaten kendi
     // detaylı sonuç kartları var (tekrar olmasın diye orada da gizli).
-    miniSummary.style.display = (n <= 7) ? 'none' : 'flex';
+    // DÜZELTME (23.08.2026): 3 sayfalık yeni yapıda özet kutusu 1.
+    // sayfada (veri toplama) anlamsız, 2. sayfada (Üç Olası Yol) zaten
+    // kendi detaylı kartları olduğu için gereksiz tekrar — sadece 3.
+    // sayfada (Detaylı İnceleme, ince ayar yaparken) faydalı bir
+    // hatırlatıcı olarak görünüyor.
+    miniSummary.style.display = (n <= 2) ? 'none' : 'flex';
     prevBtn.disabled = (n === 1);
-    nextBtn.textContent = n === TOTAL_STEPS ? 'Baştan Başla ⟲' : (n === 6 ? 'Sonuçları Gör ›' : 'İleri ›');
+    nextBtn.textContent = n === TOTAL_STEPS ? 'Baştan Başla ⟲' : (n === 1 ? 'Sonuçları Gör ›' : 'İleri ›');
     window.scrollTo({top:0, behavior:'smooth'});
   }
 
