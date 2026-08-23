@@ -99,6 +99,38 @@ def _deger_enjekte(html, alan_id, deger):
     return desen.sub(_degistir, html, count=1)
 
 
+def _link_enjekte(html, alan_id, href, yeni_metin=None):
+    """<a ... id="alanId" href="...">Metin</a> etiketinin href'ini (ve
+    istenirse görünen metnini) değiştirir. _deger_enjekte'nin <input>
+    için yaptığını <a> etiketleri için yapar — bylineContact gibi
+    tıklanabilir iletişim linkleri için (23.08.2026)."""
+    if not href:
+        return html
+    href_str = str(href).replace('"', "&quot;")
+    desen = re.compile(
+        rf'(<a\b[^>]*\bid="{re.escape(alan_id)}"[^>]*?)(>)([^<]*)(</a>)'
+    )
+
+    def _degistir(m):
+        etiket = m.group(1)
+        etiket = re.sub(r'href="[^"]*"', f'href="{href_str}"', etiket)
+        metin = _esc(yeni_metin) if yeni_metin else m.group(3)
+        return etiket + m.group(2) + metin + m.group(4)
+
+    return desen.sub(_degistir, html, count=1)
+
+
+def _telefon_e164(telefon):
+    """Rehberim'de kullanılan AYNI normalize mantığı — hangi formatta
+    girilmiş olursa olsun (boşluklu, '0'lı, '+90'lı) son 10 haneyi alıp
+    başına 90 ekler."""
+    if not telefon:
+        return None
+    rakamlar = "".join(ch for ch in str(telefon) if ch.isdigit())
+    son10 = rakamlar[-10:] if len(rakamlar) >= 10 else rakamlar
+    return "90" + son10 if son10 else None
+
+
 _ASSETS_DIZINI = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
 
 kod = st.query_params.get("kod")
@@ -179,18 +211,43 @@ try:
                 f"<h1>{_esc(_musteri_adi.strip())}, Eviniz İçin Üç Olası Yol</h1>",
             )
 
-    # YENİ (23.08.2026): "Hazırlayan: Danışmanınızın adı · İletişim
-    # bilgisi" satırı önceden HİÇ enjekte edilmiyordu — müşteri gerçek
-    # bir isim yerine literal placeholder metni görüyordu. _kayit'teki
-    # "danisman" alanı (kaydı oluşturan danışmanın adı) buraya
-    # yazılıyor artık. Gerçek bir iletişim bilgisi (telefon vb.) şu an
-    # bu tabloda tutulmadığı için "İletişim bilgisi" kısmı BİLEREK
-    # eklenmedi — sahte/placeholder bir bilgi göstermektense hiç
-    # göstermemek tercih edildi.
+    # DÜZELTME (23.08.2026, 2. tur): "İletişim bilgisi" artık eklenebiliyor
+    # — core/personel_manager.py'nin zaten okuduğu zeta_personel_listesi.xlsx
+    # üzerinden (Supabase'de ayrı bir tablo YOK, sistem zaten bu Excel'i
+    # kullanıyor), kaydı oluşturan danışmanın GERÇEK e-posta/telefonunu
+    # bularak "İletişime Geç" butonuna (bylineContact) yazıyoruz. Telefon
+    # varsa WhatsApp'a, yoksa e-postaya yönlendiriyor. Bulunamazsa
+    # (Excel yoksa, isim eşleşmezse vb.) buton HTML'in kendi jenerik
+    # varsayılan mailto'sunda sessizce kalır — hata göstermiyoruz.
     if _surum == "sihirbaz" and _kayit and _kayit.get("danisman"):
         _html_icerik = _deger_enjekte(
             _html_icerik, "bylineInput", f"Hazırlayan: {_kayit['danisman']}"
         )
+        try:
+            from core.personel_manager import load_personel_listesi
+            _personel_df = load_personel_listesi()
+            _danisman_adi_norm = _kayit["danisman"].strip().lower()
+            _eslesen = _personel_df[
+                _personel_df["ad_soyad"].str.strip().str.lower() == _danisman_adi_norm
+            ]
+            if not _eslesen.empty:
+                _satir = _eslesen.iloc[0]
+                _tel = _telefon_e164(_satir.get("telefon"))
+                _eposta = (_satir.get("email") or "").strip()
+                if _tel:
+                    _html_icerik = _link_enjekte(
+                        _html_icerik, "bylineContact",
+                        f"https://wa.me/{_tel}", "WhatsApp ile İletişime Geç ↗",
+                    )
+                elif _eposta:
+                    _html_icerik = _link_enjekte(
+                        _html_icerik, "bylineContact",
+                        f"mailto:{_eposta}", "İletişime Geç ↗",
+                    )
+        except Exception:
+            # Excel okunamazsa/eşleşme bulunamazsa SESSİZCE jenerik
+            # varsayılana düşülür — müşteri hiçbir hata görmez.
+            pass
 
     components.html(_html_icerik, height=2400, scrolling=True)
 except FileNotFoundError:
