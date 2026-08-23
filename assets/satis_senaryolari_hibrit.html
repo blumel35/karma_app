@@ -48,10 +48,10 @@
   .spot-text:focus{ outline:none; border-bottom-color:var(--accent); color:var(--ink); }
   .byline-row{ margin-top:14px; }
   .byline-row input{
-    border:none; border-bottom:1px dashed var(--border); background:transparent; color:var(--muted);
+    border:none; border-bottom:1px dashed transparent; background:transparent; color:var(--muted);
     font-size:12.5px; padding:3px 2px; width:300px;
   }
-  .byline-row input:focus{ outline:none; border-color:var(--accent); color:var(--ink); }
+  .byline-row input:focus{ outline:none; border-bottom-color:var(--accent); color:var(--ink); }
 
   /* ---- step bar ---- */
   /* DÜZELTME (23.08.2026): Üstteki numaralı adım sekmeleri kaldırıldı —
@@ -451,8 +451,6 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
       </div>
     </div>
 
-    <div class="breakeven-line alt" id="fallbackLine" style="margin-top:22px;"></div>
-
     <div class="advanced-toggle-row" style="margin-top:26px;">
       <button id="advToggle" type="button">Detaylı İnceleme (getiri, vergi, alternatif fiyat) <span class="chevron">›</span></button>
     </div>
@@ -492,6 +490,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
           <label style="font-size:13.5px; color:var(--ink-soft);">Hiç satamazsanız, aklınızdaki alternatif fiyat</label>
           <input type="number" id="inFallback" value="17000000" step="100000">
           <div class="help">Beklediğiniz süre içinde ne hedefe ne de pazarlık fiyatına satamazsanız, düşünebileceğiniz bir rakam.</div>
+          <div class="breakeven-line alt" id="fallbackLine" style="margin-top:14px;"></div>
         </div>
       </div>
     </div>
@@ -920,6 +919,20 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
     prevBtn.disabled = (n === 1);
     nextBtn.textContent = n === TOTAL_STEPS ? 'Baştan Başla ⟲' : (n === 1 ? 'Sonuçları Gör ›' : 'İleri ›');
     window.scrollTo({top:0, behavior:'smooth'});
+    // DÜZELTME (23.08.2026): Bu satır sadece İÇERİDEKİ (iframe'in kendi)
+    // pencereyi üste kaydırıyordu. Ama Streamlit bu HTML'i sabit
+    // yükseklikli (2400px) bir iframe içine gömüyor ve o iframe'in
+    // kendisi de DIŞARIDAKİ Streamlit sayfasında kayabiliyor — kullanıcı
+    // önceki (daha uzun) sayfada aşağı kaymışsa, "İleri"ye basınca içerik
+    // değişse bile DIŞ kaydırma konumu aynı kaldığı için yeni sayfanın
+    // BAŞI değil, o dış konuma denk gelen ORTASI/SONU görünüyordu. Aynı
+    // origin'de olduğumuz için window.frameElement erişilebilir —
+    // DIŞARIDAKİ pencereyi de iframe'in başına getiriyoruz.
+    try {
+      if (window.frameElement) {
+        window.frameElement.scrollIntoView({behavior:'smooth', block:'start'});
+      }
+    } catch(e) { /* farklı origin vb. durumlarda sessizce yoksay */ }
   }
 
   stepPills.forEach(pill=>{

@@ -179,6 +179,19 @@ try:
                 f"<h1>{_esc(_musteri_adi.strip())}, Eviniz İçin Üç Olası Yol</h1>",
             )
 
+    # YENİ (23.08.2026): "Hazırlayan: Danışmanınızın adı · İletişim
+    # bilgisi" satırı önceden HİÇ enjekte edilmiyordu — müşteri gerçek
+    # bir isim yerine literal placeholder metni görüyordu. _kayit'teki
+    # "danisman" alanı (kaydı oluşturan danışmanın adı) buraya
+    # yazılıyor artık. Gerçek bir iletişim bilgisi (telefon vb.) şu an
+    # bu tabloda tutulmadığı için "İletişim bilgisi" kısmı BİLEREK
+    # eklenmedi — sahte/placeholder bir bilgi göstermektense hiç
+    # göstermemek tercih edildi.
+    if _surum == "sihirbaz" and _kayit and _kayit.get("danisman"):
+        _html_icerik = _deger_enjekte(
+            _html_icerik, "bylineInput", f"Hazırlayan: {_kayit['danisman']}"
+        )
+
     components.html(_html_icerik, height=2400, scrolling=True)
 except FileNotFoundError:
     st.error(
