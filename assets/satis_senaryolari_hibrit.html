@@ -10,6 +10,10 @@
     --border:rgba(23,22,20,0.11);
     --accent:#2e317d; --accent-tint:#eef0f8; --accent-2:#cc2027; --accent-2-tint:#fbebec;
     --shadow: 0 1px 2px rgba(23,22,20,0.05), 0 8px 24px rgba(23,22,20,0.06);
+    /* NOT (24.08.2026): Kısa/Orta/Uzun Vade + Önerilen Fiyat + Hedef
+       Fiyat için ayrı renk kodlaması denendi (birkaç tur), istenen
+       görünüme oturmadı — kullanıcı isteğiyle geri alındı, alanlar
+       sade/nötr .minor/.major stiline döndü. */
   }
   html[data-theme="dark"]{
     --surface-1:#1a1b26; --page:#0f1017; --ink:#f2f2f6; --ink-soft:#c3c4d4; --muted:#8b8c9e;
@@ -180,6 +184,7 @@
     flex:0 0 56px; width:56px; height:56px; border-radius:16px; background:var(--accent-tint);
     display:flex; align-items:center; justify-content:center; font-size:26px;
   }
+  .scenario-icon svg{ width:26px; height:26px; stroke:var(--accent); }
   .scenario-body{ flex:1; }
   .scenario-body .tag{ font-size:12.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--accent); margin-bottom:4px; }
   .scenario-body h3{ font-size:18px; margin:0 0 6px; }
@@ -212,7 +217,9 @@
   .rate-mode-btn{
     border:1px solid var(--border); background:var(--page); color:var(--ink-soft);
     border-radius:999px; padding:6px 13px; font-size:12.5px; font-weight:700; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px;
   }
+  .rate-mode-btn .ico{ width:15px; height:15px; flex-shrink:0; }
   .rate-mode-btn.active{ background:var(--accent); border-color:var(--accent); color:#fff; }
   .rate-mode-btn:hover{ border-color:var(--accent); }
   #rateDeltaField{ margin-top:14px; }
@@ -229,6 +236,10 @@
   #advPanel.open{ max-height:1400px; margin-top:16px; }
   .subsection{ margin-top:34px; padding-top:26px; border-top:1px solid var(--border); }
   .subsection:first-child{ margin-top:0; padding-top:0; border-top:none; }
+  /* DÜZELTME (23.08.2026): "Mülkünüze Ait Bilgiler" (ilk bölüm) daha
+     kompakt görünsün diye — alanlar arası boşluk daraltıldı. */
+  .subsection:first-child .subsection-sub{ margin-bottom:10px; }
+  .subsection:first-child .property-grid{ gap:10px; }
   .subsection-title{ font-size:18px; font-weight:800; margin-bottom:4px; }
   .subsection-sub{ font-size:14px; color:var(--ink-soft); margin-bottom:16px; }
 
@@ -263,7 +274,7 @@
       <div class="brand-row">
         <img src="data:image/png;base64,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" alt="StartKey Zeta Gayrimenkul">
       </div>
-      <button class="theme-toggle" id="themeToggle">🌙 Karanlık mod</button>
+      <button class="theme-toggle" id="themeToggle">Karanlık mod</button>
     </div>
     <input type="text" class="greeting-line" id="greetingInput" value="Sayın Müşterimiz,">
     <h1>Mülkünüz İçin Üç Olası Yol</h1>
@@ -298,14 +309,15 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
   <section class="wizard-step active" data-step="1">
     <div class="panel">
       <div class="subsection">
-        <div class="subsection-title">🏠 Mülkünüze Ait Bilgiler</div>
+        <div class="subsection-title">Mülkünüze Ait Bilgiler</div>
         <div class="subsection-sub">Önce mülkünüzü kısaca tanıyalım.</div>
         <div class="rate-mode-row" id="propertyTypeRow">
-          <button type="button" class="rate-mode-btn active" data-ptype="konut">🏠 Konut</button>
-          <button type="button" class="rate-mode-btn" data-ptype="ticari">🏢 Ticari</button>
-          <button type="button" class="rate-mode-btn" data-ptype="arsa">🌳 Arsa</button>
+          <button type="button" class="rate-mode-btn active" data-ptype="konut"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Konut</button>
+          <button type="button" class="rate-mode-btn" data-ptype="ticari"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 8h1M14 8h1M9 12h1M14 12h1M9 16h1M14 16h1"/></svg>Ticari</button>
+          <button type="button" class="rate-mode-btn" data-ptype="arsa"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12M12 12C12 12 5 11 5 5c6 0 7 5 7 7zM12 12c0 0 7-1 7-7-6 0-7 5-7 7z"/></svg>Arsa</button>
         </div>
-        <div class="property-grid" style="margin-top:14px;">
+        <input type="hidden" id="inPropertyType" value="konut">
+        <div class="property-grid" style="margin-top:10px;">
           <div class="field">
             <label>Konum</label>
             <input type="text" id="inLocation" placeholder="Örn. Kadıköy, İstanbul">
@@ -323,7 +335,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
             <input type="number" id="inM2" value="120" min="1">
           </div>
         </div>
-        <div class="property-grid" id="arsaExtra" style="margin-top:14px; display:none;">
+        <div class="property-grid" id="arsaExtra" style="margin-top:10px; display:none;">
           <div class="field">
             <label>İmar Durumu</label>
             <input type="text" id="inImar" placeholder="Örn. Konut İmarlı">
@@ -333,14 +345,14 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
             <input type="text" id="inKaks" placeholder="Örn. 1.5">
           </div>
         </div>
-        <div class="field" style="margin-top:14px;">
+        <div class="field" style="margin-top:10px;">
           <label>Diğer Özellikler</label>
           <input type="text" id="inFeatures" placeholder="Örn. Asansör, Otopark, Balkon, Eşyalı">
         </div>
       </div>
 
       <div class="subsection">
-        <div class="subsection-title">📊 Mülkünüze Ait Değerleme Raporu Sonuçları</div>
+        <div class="subsection-title">Mülkünüze Ait Değerleme Raporu Sonuçları</div>
         <div class="subsection-sub">Danışmanınızın hazırladığı kısa/orta/uzun vade değerleme rakamları.</div>
         <div class="tier-row">
           <div class="tier-item minor">
@@ -359,7 +371,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
       </div>
 
       <div class="subsection">
-        <div class="subsection-title">💰 Önerilen Fiyat veya Gelen Teklif Var mı?</div>
+        <div class="subsection-title">Önerilen Fiyat veya Gelen Teklif Var mı?</div>
         <div class="subsection-sub">İkisi de opsiyonel. Girdiğiniz değer, "Bugün Satarsanız" hesaplamasında kullanılır.</div>
         <div class="tier-row">
           <div class="tier-item minor">
@@ -371,7 +383,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
       </div>
 
       <div class="subsection">
-        <div class="subsection-title">🎯 Eviniz İçin Belirlediğiniz Satış Fiyatı Nedir?</div>
+        <div class="subsection-title">Eviniz İçin Belirlediğiniz Satış Fiyatı Nedir?</div>
         <div class="subsection-sub">Ulaşmayı umduğunuz fiyat.</div>
         <div class="field">
           <input type="number" id="inP1" step="100000" placeholder="Hedef fiyatınızı girin">
@@ -380,7 +392,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
       </div>
 
       <div class="subsection">
-        <div class="subsection-title">⏳ Ne Kadar Bekleyebilirsiniz?</div>
+        <div class="subsection-title">Ne Kadar Bekleyebilirsiniz?</div>
         <div class="subsection-sub">Bölgenizdeki benzer satışlarla kıyaslayıp, bekleme ve pazarlık toleransınızı belirleyin.</div>
         <div class="mini-compare">
           <div class="mini-box">
@@ -410,11 +422,19 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
       </div>
 
       <div class="subsection">
-        <div class="subsection-title">💶 Bekleme Süresince Aylık Maliyetiniz (opsiyonel)</div>
-        <div class="subsection-sub">Aidat, abonelik, sigorta vb. — ev elinizde kaldığı sürece her ay ödemeye devam ettiğiniz giderler. Yoksa boş bırakabilirsiniz.</div>
-        <div class="field">
-          <input type="number" id="inMonthlyCost" value="0" step="500" min="0">
-          <div class="info-note" id="costNote"></div>
+        <div class="subsection-title">Bekleme Süresince Maliyetleriniz (opsiyonel)</div>
+        <div class="subsection-sub">Aidat, abonelik, sigorta vb. aylık giderler ile kredi kapama/tek seferlik ödemeler gibi bir defalık maliyetler. Yoksa boş bırakabilirsiniz.</div>
+        <div class="grid2">
+          <div class="field">
+            <label style="font-size:13.5px; color:var(--ink-soft);">Aylık Maliyet</label>
+            <input type="number" id="inMonthlyCost" value="0" step="500" min="0">
+            <div class="info-note" id="costNote"></div>
+          </div>
+          <div class="field">
+            <label style="font-size:13.5px; color:var(--ink-soft);">Tek Seferlik Maliyet</label>
+            <input type="number" id="inOneTimeCost" value="0" step="1000" min="0">
+            <div class="help">Kredi kapama, tek seferlik sigorta vb. — bir kere ödenen giderler.</div>
+          </div>
         </div>
       </div>
     </div>
@@ -427,7 +447,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
     <div class="scenario-list fade-in">
       <div class="scenario-card has-extra">
         <div class="scenario-row">
-          <div class="scenario-icon">🏠</div>
+          <div class="scenario-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg></div>
           <div class="scenario-body">
             <div class="tag">Yol 1</div>
             <h3>Bugün Satarsanız</h3>
@@ -435,11 +455,11 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
           </div>
           <div class="scenario-num"><div class="amt" id="numA">—</div><div class="cap">mevduat getirisiyle değerlendirdiğiniz senaryo</div></div>
         </div>
-        <div class="scenario-extra" id="extraA" style="display:none;"><span class="bulb">💡</span><span id="extraAText"></span></div>
+        <div class="scenario-extra" id="extraA" style="display:none;"><span class="bulb"></span><span id="extraAText"></span></div>
       </div>
 
       <div class="scenario-card">
-        <div class="scenario-icon">🎯</div>
+        <div class="scenario-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v18M5 4h13l-3 4 3 4H5"/></svg></div>
         <div class="scenario-body">
           <div class="tag">Yol 2</div>
           <h3>Bekler ve Hedefinize Ulaşırsanız</h3>
@@ -449,7 +469,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
       </div>
 
       <div class="scenario-card">
-        <div class="scenario-icon">🤝</div>
+        <div class="scenario-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
         <div class="scenario-body">
           <div class="tag">Yol 3</div>
           <h3>Bekler ama Pazarlık Yaparsanız</h3>
@@ -482,8 +502,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
   <!-- STEP 3 -->
   <section class="wizard-step" data-step="3">
     <div class="panel">
-      <div class="step-eyebrow">Detaylı İnceleme</div>
-      <div class="step-heading">İleri Düzey Varsayımlar</div>
+      <div class="step-heading">Detaylı İnceleme</div>
       <div class="step-sub">Getiri, vergi ve alternatif fiyat varsayımlarını burada detaylı inceleyebilirsiniz.</div>
       <div class="grid2">
         <div class="field">
@@ -491,9 +510,9 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
           <input type="range" id="inRate" min="10" max="70" step="0.5" value="45">
           <div class="help">Bugün satarsanız, elde ettiğiniz tutarı bu oranla büyütebileceğinizi varsayıyoruz.</div>
           <div class="rate-mode-row" id="rateModeRow">
-            <button type="button" class="rate-mode-btn active" data-mode="flat">Sabit Kalır</button>
-            <button type="button" class="rate-mode-btn" data-mode="down">📉 Faizler Düşer</button>
-            <button type="button" class="rate-mode-btn" data-mode="up">📈 Faizler Yükselir</button>
+            <button type="button" class="rate-mode-btn active" data-mode="flat"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16"/></svg>Sabit Kalır</button>
+            <button type="button" class="rate-mode-btn" data-mode="down"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8l-5 5-3-3-4 4"/><path d="M17 13v-5h-5"/></svg>Faizler Düşer</button>
+            <button type="button" class="rate-mode-btn" data-mode="up"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 16l-5-5-3 3-4-4"/><path d="M17 11v5h-5"/></svg>Faizler Yükselir</button>
           </div>
           <div class="field" id="rateDeltaField" style="display:none;">
             <label style="font-size:14px; color:var(--ink-soft); font-weight:600;">
@@ -581,8 +600,9 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
   const inTax = document.getElementById('inTax');
   const lblTax = document.getElementById('lblTax');
   const inMonthlyCost = document.getElementById('inMonthlyCost');
+  const inOneTimeCost = document.getElementById('inOneTimeCost');
 
-  [inShort, inMid, inLong, inOneri, inP1, inMarketM2, inDiscount, inFallback, inMonthlyCost]
+  [inShort, inMid, inLong, inOneri, inP1, inMarketM2, inDiscount, inFallback, inMonthlyCost, inOneTimeCost]
     .forEach(tlMaskeBagla);
 
   const rateModeBtns = document.querySelectorAll('.rate-mode-btn');
@@ -666,7 +686,8 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
     const short = Math.max(1, parseTL(inShort)||0);
     const mid = Math.max(1, parseTL(inMid)||0);
     const long = Math.max(1, parseTL(inLong)||0);
-    // "bugün satarsanız" hesaplaması için baz fiyat: doluysa önerilen fiyat/gelen teklif, yoksa kısa vade
+    // "bugün satarsanız" hesaplaması için baz fiyat: öncelik önerilen fiyat/gelen teklif > kısa vade
+    // NOT: HTML'de "Önerilen Fiyat" ve "Gelen Teklif" tek bir alanda (inOneri) birleşmiş durumda.
     const oneriVal = Math.max(0, parseTL(inOneri)||0);
     let P0 = short;
     if(oneriVal > 0){ P0 = oneriVal; }
@@ -689,7 +710,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
     // değerleme raporu ile hedef fiyat kıyaslaması
     const tierNote = document.getElementById('tierNote');
     if(p1Empty){
-      tierNote.innerHTML = '👆 Hedef satış fiyatınızı yukarıya girerek karşılaştırmayı başlatabilirsiniz.';
+      tierNote.innerHTML = 'Hedef satış fiyatınızı yukarıya girerek karşılaştırmayı başlatabilirsiniz.';
       tierNote.classList.remove('note-negative');
     } else {
       const diffMid = P1 - mid;
@@ -698,7 +719,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
       const pctLong = long > 0 ? (diffLong/long*100) : 0;
       const dir = (v) => v > 0 ? 'üzerinde' : (v < 0 ? 'altında' : 'ile aynı seviyede');
 
-      let tierTxt = '📋 Hedef fiyatınızı (<b>' + trMoney(P1) + '</b>), orta vade değerlemesinin (' + trMoney(mid) + ') ';
+      let tierTxt = 'Hedef fiyatınızı (<b>' + trMoney(P1) + '</b>), orta vade değerlemesinin (' + trMoney(mid) + ') ';
       if(diffMid !== 0){
         tierTxt += '<b>%' + trNum(Math.abs(pctMid),1) + ' ' + dir(diffMid) + '</b>, ';
       } else {
@@ -752,7 +773,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
     const marketAvg = Math.max(0, parseFloat(inMarketAvg.value)||0);
     const marketNote = document.getElementById('marketNote');
     if(marketAvg > 0){
-      let noteTxt = '📊 Bu bölgede benzer evler ortalama <b>' + trNum(marketAvg,1) + ' ay</b>da satılıyor.';
+      let noteTxt = 'Bu bölgede benzer evler ortalama <b>' + trNum(marketAvg,1) + ' ay</b>da satılıyor.';
       // DÜZELTME: bekleme süresini tek başına değil, hedef fiyatın piyasa
       // değerlemesiyle ilişkisi üzerinden yorumluyoruz — fiyat ve süre
       // piyasada birlikte hareket eder (denge fiyatının üzerindeki bir
@@ -791,13 +812,14 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
 
     // bekleme süresince aylık maliyet (aidat, abonelik vb.) — sadece bekleyen senaryoları etkiler
     const monthlyCost = Math.max(0, parseTL(inMonthlyCost)||0);
-    const totalCost = monthlyCost * T;
+    const oneTimeCost = Math.max(0, parseTL(inOneTimeCost)||0);
+    const totalCost = monthlyCost * T + oneTimeCost;
     const netB = Math.max(0, P1 - totalCost);
     const netC = Math.max(0, pazarlikFiyati - totalCost);
 
     const costNote = document.getElementById('costNote');
     if(totalCost > 0){
-      costNote.innerHTML = '💶 ' + T + ' ay boyunca toplam maliyetiniz <b>' + trMoney(totalCost) + '</b> — bu tutar Yol 2, Yol 3 ve "hiç satamazsanız" sonuçlarından düşülmüştür.';
+      costNote.innerHTML = T + ' ay boyunca toplam maliyetiniz <b>' + trMoney(totalCost) + '</b> — bu tutar Yol 2, Yol 3 ve "hiç satamazsanız" sonuçlarından düşülmüştür.';
       costNote.style.display = 'block';
     } else {
       costNote.style.display = 'none';
@@ -839,7 +861,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
         extraA.style.display = '';
         extraAText.innerHTML =
           'Bu hesaba göre, parayı bugün değerlendirseydiniz yaklaşık <b>' + roundedMonth + '. ayda</b> zaten ' + trMoney(P1) + '\'ye ulaşırdınız. ' +
-          'O noktadan sonra, sabit ' + trMoney(P1) + ' beklemek, aslında bu getiri karşısında geride kalmak anlamına gelir.';
+          'O noktadan sonra, evi hâlâ aynı fiyata satmayı beklemek, aslında bu getiri karşısında geride kalmak anlamına gelir.';
       } else {
         extraA.style.display = 'none';
       }
@@ -893,7 +915,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
     }
   }
 
-  [inShort, inMid, inLong, inOneri, inP1, inT, inMarketAvg, inM2, inMarketM2, inDiscount, inRate, inFallback, inDelta, inTax, inMonthlyCost].forEach(el=>{
+  [inShort, inMid, inLong, inOneri, inP1, inT, inMarketAvg, inM2, inMarketM2, inDiscount, inRate, inFallback, inDelta, inTax, inMonthlyCost, inOneTimeCost].forEach(el=>{
     el.addEventListener('input', ()=>{
       if(el === inDelta){ lblDelta.textContent = inDelta.value + ' puan'; }
       render();
@@ -944,6 +966,20 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
       applyPropertyType();
     });
   });
+  // YENİ (23.08.2026): Danışman tarafında mülk türü seçilip
+  // kaydedildiyse, sayfa açılışında gizli #inPropertyType alanından
+  // okunup doğru düğme otomatik seçili hale getiriliyor (aksi halde
+  // enjekte edilen İmar Durumu/Kaks-Emsal gibi alanlar hep gizli kalır,
+  // çünkü ekran hep "Konut" varsayımıyla açılırdı).
+  const _inPropertyType = document.getElementById('inPropertyType');
+  if (_inPropertyType && _inPropertyType.value && _inPropertyType.value !== 'konut') {
+    const _hedefBtn = document.querySelector(`#propertyTypeRow .rate-mode-btn[data-ptype="${_inPropertyType.value}"]`);
+    if (_hedefBtn) {
+      propertyType = _inPropertyType.value;
+      propertyTypeBtns.forEach(b=>b.classList.toggle('active', b===_hedefBtn));
+      applyPropertyType();
+    }
+  }
 
   // DÜZELTME (23.08.2026): advPanel artık yok — "Detaylı İnceleme"
   // içeriği kendi ayrı sayfasına (3. adım) taşındı, eskisi gibi
@@ -957,7 +993,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
     const html = document.documentElement;
     const isDark = html.getAttribute('data-theme') === 'dark';
     html.setAttribute('data-theme', isDark ? 'light' : 'dark');
-    themeToggle.textContent = isDark ? '🌙 Karanlık mod' : '☀️ Aydınlık mod';
+    themeToggle.textContent = isDark ? 'Karanlık mod' : 'Aydınlık mod';
   });
 
   const io = new IntersectionObserver((entries)=>{

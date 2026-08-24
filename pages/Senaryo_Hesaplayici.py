@@ -69,12 +69,13 @@ _SURUM_DOSYALARI = {
 _ALAN_ESLEME = {
     "konum": "inLocation", "oda_sayisi": "inRooms", "bina_yasi": "inAge",
     "m2": "inM2", "ozellikler": "inFeatures",
+    "mulk_turu": "inPropertyType", "imar_durumu": "inImar", "kaks_emsal": "inKaks",
     "deger_kisa": "inShort", "deger_orta": "inMid", "deger_uzun": "inLong",
     "oneri_fiyat": "inOneri", "teklif_tutari": "inTeklif",
     "hedef_fiyat": "inP1",
     "ort_m2_fiyati": "inMarketM2",
     "piyasa_faiz_orani": "inRate",
-    "aylik_maliyet": "inMonthlyCost",
+    "aylik_maliyet": "inMonthlyCost", "tek_seferlik_maliyet": "inOneTimeCost",
 }
 
 

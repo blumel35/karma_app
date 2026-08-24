@@ -56,7 +56,7 @@ if st.session_state.pop("_dp_sn_temizle", False):
     for _k in ["dp_sn_musteri", "dp_sn_konum", "dp_sn_oda", "dp_sn_yas", "dp_sn_m2",
                "dp_sn_ozellik", "dp_sn_kisa", "dp_sn_orta", "dp_sn_uzun", "dp_sn_oneri",
                "dp_sn_teklif", "dp_sn_hedef", "dp_sn_m2fiyat", "dp_sn_aylik",
-               "dp_sn_sure", "dp_sn_faiz"]:
+               "dp_sn_tekseferlik", "dp_sn_sure", "dp_sn_faiz", "dp_sn_imar", "dp_sn_kaks"]:
         st.session_state[_k] = ""
 
 # DÜZELTME (22.08.2026): st.rerun() hemen çalıştığı için, "Link Oluştur"
@@ -77,6 +77,7 @@ _TEMEL_URL = "https://startkey-zeta.streamlit.app/Senaryo_Hesaplayici"
 _TL_ALANLARI = [
     "dp_sn_kisa", "dp_sn_orta", "dp_sn_uzun", "dp_sn_oneri",
     "dp_sn_teklif", "dp_sn_hedef", "dp_sn_m2fiyat", "dp_sn_aylik",
+    "dp_sn_tekseferlik",
 ]
 
 
@@ -130,19 +131,37 @@ with st.expander("+ Yeni Senaryo Oluştur", expanded=True):
     )
 
     st.markdown("**Evine Ait Bilgiler** (opsiyonel)")
+    f_mulk_turu = st.radio(
+        "Mülk Türü", ["Konut", "Ticari", "Arsa"], key="dp_sn_mulkturu", horizontal=True,
+    )
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         f_konum = st.text_input("Konum", key="dp_sn_konum", placeholder="örn. Bornova, İzmir")
     with c2:
-        f_oda = st.text_input("Oda Sayısı", key="dp_sn_oda", placeholder="örn. 3+1")
+        f_oda = st.text_input(
+            "Oda Sayısı" if f_mulk_turu != "Ticari" else "İşyeri Tipi",
+            key="dp_sn_oda",
+            placeholder="örn. 3+1" if f_mulk_turu != "Ticari" else "örn. Ofis, Dükkan, Depo",
+        )
     with c3:
-        f_yas = st.text_input("Bina Yaşı", key="dp_sn_yas", placeholder="örn. 8")
+        f_yas = st.text_input("Bina Yaşı", key="dp_sn_yas", placeholder="örn. 8", disabled=(f_mulk_turu == "Arsa"))
     with c4:
-        f_m2 = st.text_input("m²", key="dp_sn_m2", placeholder="örn. 120")
+        f_m2 = st.text_input(
+            "m²" if f_mulk_turu != "Arsa" else "m² (Arsa Alanı)",
+            key="dp_sn_m2", placeholder="örn. 120",
+        )
     f_ozellik = st.text_input(
         "Diğer Özellikler", key="dp_sn_ozellik",
         placeholder="örn. Asansör, Otopark, Balkon",
     )
+    if f_mulk_turu == "Arsa":
+        a1, a2 = st.columns(2)
+        with a1:
+            f_imar = st.text_input("İmar Durumu", key="dp_sn_imar", placeholder="örn. Konut İmarlı")
+        with a2:
+            f_kaks = st.text_input("Kaks / Emsal", key="dp_sn_kaks", placeholder="örn. 1.5")
+    else:
+        f_imar, f_kaks = "", ""
 
     st.markdown("**Değerleme Raporu Sonuçları** (opsiyonel — bilgi amaçlı, hesaplamayı etkilemez)")
     v1, v2, v3 = st.columns(3)
@@ -184,7 +203,7 @@ with st.expander("+ Yeni Senaryo Oluştur", expanded=True):
         )
 
     st.markdown("**Piyasa Varsayımları** (opsiyonel — müşteri kendi tarafında oynatabilir)")
-    p1, p2, p3, p4 = st.columns(4)
+    p1, p2, p3 = st.columns(3)
     with p1:
         f_sure = st.text_input(
             "Piyasada Satış Süresi (ay)", key="dp_sn_sure", placeholder="örn. 6",
@@ -200,11 +219,20 @@ with st.expander("+ Yeni Senaryo Oluştur", expanded=True):
             "Piyasa Faiz Oranı (%)", key="dp_sn_faiz", placeholder="örn. 45",
             help="%10-70 arası bir kaydırıcının başlangıç noktası olur.",
         )
-    with p4:
+
+    st.markdown("**Bekleme Süresince Maliyetler** (opsiyonel)")
+    m1, m2 = st.columns(2)
+    with m1:
         f_aylik = st.text_input(
             "Aylık Maliyet (TL)", key="dp_sn_aylik", placeholder="örn. 2.500",
-            help="Aidat/abonelik gibi bekleme süresince devam eden giderler (opsiyonel).",
+            help="Aidat/abonelik gibi bekleme süresince devam eden giderler.",
             on_change=_tl_bicimlendir, args=("dp_sn_aylik",),
+        )
+    with m2:
+        f_tek_seferlik = st.text_input(
+            "Tek Seferlik Maliyet (TL)", key="dp_sn_tekseferlik", placeholder="örn. 50.000",
+            help="Kredi kapama, tek seferlik sigorta vb. — bir kere ödenen giderler.",
+            on_change=_tl_bicimlendir, args=("dp_sn_tekseferlik",),
         )
 
     if st.button("Link Oluştur", type="primary", use_container_width=True, key="dp_sn_kaydet_btn"):
@@ -214,12 +242,13 @@ with st.expander("+ Yeni Senaryo Oluştur", expanded=True):
             kod = senaryo_kaydet(su_kullanici, {
                 "musteri_adi": f_musteri, "konum": f_konum, "oda_sayisi": f_oda,
                 "bina_yasi": f_yas, "m2": f_m2, "ozellikler": f_ozellik,
+                "mulk_turu": f_mulk_turu.lower(), "imar_durumu": f_imar, "kaks_emsal": f_kaks,
                 "deger_kisa": _tl_temizle(f_kisa), "deger_orta": _tl_temizle(f_orta),
                 "deger_uzun": _tl_temizle(f_uzun),
                 "oneri_fiyat": _tl_temizle(f_oneri), "teklif_tutari": _tl_temizle(f_teklif),
                 "hedef_fiyat": _tl_temizle(f_hedef), "piyasa_satis_suresi": f_sure,
                 "ort_m2_fiyati": _tl_temizle(f_m2fiyat), "piyasa_faiz_orani": f_faiz,
-                "aylik_maliyet": _tl_temizle(f_aylik),
+                "aylik_maliyet": _tl_temizle(f_aylik), "tek_seferlik_maliyet": _tl_temizle(f_tek_seferlik),
                 "surum": "sihirbaz" if f_surum.startswith("Bölümlü") else "klasik",
             })
             st.session_state["_dp_sn_son_link"] = _link_olustur(kod, f_musteri)
