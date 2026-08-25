@@ -267,15 +267,17 @@ with st.expander("+ Yeni Senaryo Oluştur", expanded=True):
 
 st.write("")
 
-# YENİ (24.08.2026): admin/broker/medya rolündeki kullanıcılar tüm
-# ekibin senaryolarını görebiliyor — core/personel_manager.py'deki
-# _TUMU_ERISIM_ROLLERI ile AYNI rol seti (ofis-bazlı değil, tam erişim).
-_su_anki_rol = str(st.session_state.get("user_role", "")).strip().lower()
-_tum_erisim_var = _su_anki_rol in {"admin", "broker", "medya"}
-
-_tumunu_goster = False
-if _tum_erisim_var:
-    _tumunu_goster = st.toggle("Tüm Danışmanların Senaryolarını Göster", key="dp_sn_tumu_goster")
+# DÜZELTME (24.08.2026): Bu sayfada st.session_state["user_role"] henüz
+# güvenilir şekilde set edilmiyor (bu sayfanın oturum akışında rol
+# ataması yok). Bunun yerine, İletişime Geç özelliğinde de kullandığımız
+# AYNI kaynağa (core/personel_manager.py'nin okuduğu
+# zeta_personel_listesi.xlsx) bakıp, mevcut danışmanın adını "ad_soyad"
+# ile eşleştirip rolü ORADAN okuyoruz — oturuma hiç bağımlı değil.
+# DÜZELTME (24.08.2026, 2. tur): Şimdilik rol kısıtı kaldırıldı — herkes
+# birbirinin senaryolarını görüp örnek alabilsin diye herkese açık.
+# (Önceki, role-özel hali gerekirse kolayca geri getirilebilir — rol
+# kontrolü zeta_personel_listesi.xlsx üzerinden yapılıyordu.)
+_tumunu_goster = st.toggle("Tüm Danışmanların Senaryolarını Göster", key="dp_sn_tumu_goster")
 
 st.markdown("##### " + ("Tüm Senaryolar" if _tumunu_goster else "Önceki Senaryoların"))
 
