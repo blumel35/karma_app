@@ -65,9 +65,18 @@ if st.session_state.pop("_dp_sn_temizle", False):
 # saklanıp BİR SONRAKİ çalıştırmada burada, en üstte gösteriliyor —
 # gösterildikten sonra kendini temizliyor (bir daha tekrar etmesin diye).
 if st.session_state.get("_dp_sn_son_link"):
-    st.success(f"✅ Link hazır: {st.session_state['_dp_sn_son_link']}")
-    st.code(st.session_state["_dp_sn_son_link"], language=None)
+    _son_link = st.session_state["_dp_sn_son_link"]
+    _son_musteri = st.session_state.get("_dp_sn_son_musteri", "")
+    st.success("✅ Link hazır!")
+    # YENİ (24.08.2026): ham URL yerine (ya da onunla birlikte) tıklanabilir,
+    # okunur bir bağlantı metni — "Ad Soyad - Mülkünüze Özel Senaryo
+    # Hesaplayıcı" gibi. st.markdown'ın [metin](url) sözdizimiyle.
+    _baglanti_metni = f"{_son_musteri} - Mülkünüze Özel Senaryo Hesaplayıcı" if _son_musteri else "Mülkünüze Özel Senaryo Hesaplayıcı"
+    st.markdown(f"🔗 [{_baglanti_metni}]({_son_link})")
+    st.caption("Kopyalamak için (WhatsApp/e-posta'ya yapıştırmak üzere):")
+    st.code(_son_link, language=None)
     del st.session_state["_dp_sn_son_link"]
+    st.session_state.pop("_dp_sn_son_musteri", None)
 
 _TEMEL_URL = "https://startkey-zeta.streamlit.app/Senaryo_Hesaplayici"
 
@@ -252,6 +261,7 @@ with st.expander("+ Yeni Senaryo Oluştur", expanded=True):
                 "surum": "sihirbaz" if f_surum.startswith("Bölümlü") else "klasik",
             })
             st.session_state["_dp_sn_son_link"] = _link_olustur(kod, f_musteri)
+            st.session_state["_dp_sn_son_musteri"] = f_musteri
             st.session_state["_dp_sn_temizle"] = True
             st.rerun()
 
@@ -269,6 +279,8 @@ for s in senaryolar:
             _surum_etiket = "📑 Bölümlü" if s.get("surum") == "sihirbaz" else "📄 Klasik"
             st.markdown(f"**{s.get('musteri_adi', '')}**  ·  `{_surum_etiket}`")
             link = _link_olustur(s["kod"], s.get("musteri_adi", ""))
+            _baglanti_metni_2 = f"{s.get('musteri_adi', '')} - Mülkünüze Özel Senaryo Hesaplayıcı"
+            st.markdown(f"🔗 [{_baglanti_metni_2}]({link})")
             st.code(link, language=None)
         with c2:
             if st.button("Sil", key=f"dp_sn_sil_{s['id']}", use_container_width=True):

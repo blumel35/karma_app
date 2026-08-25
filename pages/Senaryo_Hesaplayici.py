@@ -220,7 +220,11 @@ try:
     # varsa WhatsApp'a, yoksa e-postaya yönlendiriyor. Bulunamazsa
     # (Excel yoksa, isim eşleşmezse vb.) buton HTML'in kendi jenerik
     # varsayılan mailto'sunda sessizce kalır — hata göstermiyoruz.
-    if _surum == "sihirbaz" and _kayit and _kayit.get("danisman"):
+    # DÜZELTME (24.08.2026): Artık HER İKİ şablonda da (Klasik + Bölümlü)
+    # bylineInput/bylineContact elemanları var, bu yüzden "sadece
+    # sihirbaz" kısıtı kaldırıldı — ikisinde de danışman adı/iletişim
+    # bilgisi doğru enjekte ediliyor.
+    if _kayit and _kayit.get("danisman"):
         _html_icerik = _deger_enjekte(
             _html_icerik, "bylineInput", f"Hazırlayan: {_kayit['danisman']}"
         )

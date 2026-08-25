@@ -131,6 +131,7 @@
     flex:0 0 56px; width:56px; height:56px; border-radius:16px; background:var(--accent-tint);
     display:flex; align-items:center; justify-content:center; font-size:26px;
   }
+  .scenario-icon svg{ width:26px; height:26px; stroke:var(--accent); }
   .scenario-body{ flex:1; }
   .scenario-body .tag{ font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--accent); margin-bottom:4px; }
   .scenario-body h3{ font-size:18px; font-family:Georgia,serif; margin:0 0 6px; }
@@ -178,7 +179,9 @@
   .rate-mode-btn{
     border:1px solid var(--border); background:var(--page); color:var(--ink-soft);
     border-radius:999px; padding:6px 13px; font-size:12.5px; font-weight:700; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px;
   }
+  .rate-mode-btn .ico{ width:15px; height:15px; flex-shrink:0; }
   .rate-mode-btn.active{ background:var(--accent); border-color:var(--accent); color:#fff; }
   .rate-mode-btn:hover{ border-color:var(--accent); }
   #rateDeltaField{ margin-top:14px; }
@@ -193,12 +196,18 @@
     display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:800;
   }
 
-  .byline{ margin-top:18px; }
+  .byline{ margin-top:18px; display:flex; align-items:center; flex-wrap:wrap; gap:12px; }
   .byline input{
-    border:none; border-bottom:1px dashed var(--border); background:transparent; color:var(--muted);
-    font-size:12.5px; padding:3px 2px; width:280px;
+    border:none; border-bottom:1px dashed transparent; background:transparent; color:var(--muted);
+    font-size:12.5px; padding:3px 2px; width:auto; flex:0 1 260px;
   }
-  .byline input:focus{ outline:none; border-color:var(--accent); color:var(--ink); }
+  .byline input:focus{ outline:none; border-bottom-color:var(--accent); color:var(--ink); }
+  .byline-contact{
+    font-size:12.5px; font-weight:700; color:var(--accent); text-decoration:none;
+    border:1px solid var(--border); border-radius:999px; padding:5px 14px; white-space:nowrap;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .byline-contact:hover{ border-color:var(--accent); background:var(--accent-tint); }
 
   footer{ text-align:center; padding:30px 18px 10px; font-size:11.5px; color:var(--muted); line-height:1.7; }
 
@@ -214,7 +223,7 @@
       <h1>Eviniz İçin Üç Olası Yol</h1>
       <p>Aşağıya birkaç rakam girin, üç olası sonucu basitçe görün. İsterseniz daha fazla ayrıntıya da bakabilirsiniz — ama zorunlu değil.</p>
     </div>
-    <button class="theme-toggle" id="themeToggle">🌙 Karanlık mod</button>
+    <button class="theme-toggle" id="themeToggle">Karanlık mod</button>
   </div>
 </header>
 
@@ -223,25 +232,40 @@
   <section style="padding-bottom:0;">
     <div class="panel property-panel">
       <div class="property-header">
-        <span class="property-icon">🏠</span>
         <span class="property-title">Evinize Ait Bilgiler</span>
       </div>
+      <div class="rate-mode-row" id="propertyTypeRow" style="margin-top:0; margin-bottom:14px;">
+        <button type="button" class="rate-mode-btn active" data-ptype="konut"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Konut</button>
+        <button type="button" class="rate-mode-btn" data-ptype="ticari"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 8h1M14 8h1M9 12h1M14 12h1M9 16h1M14 16h1"/></svg>Ticari</button>
+        <button type="button" class="rate-mode-btn" data-ptype="arsa"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12M12 12C12 12 5 11 5 5c6 0 7 5 7 7zM12 12c0 0 7-1 7-7-6 0-7 5-7 7z"/></svg>Arsa</button>
+      </div>
+      <input type="hidden" id="inPropertyType" value="konut">
       <div class="property-grid">
         <div class="field">
           <label>Konum</label>
           <input type="text" id="inLocation" placeholder="Örn. Kadıköy, İstanbul">
         </div>
-        <div class="field">
-          <label>Oda Sayısı</label>
+        <div class="field" id="roomsField">
+          <label id="lblRoomsOrType">Oda Sayısı</label>
           <input type="text" id="inRooms" placeholder="Örn. 3+1">
         </div>
-        <div class="field">
+        <div class="field" id="ageField">
           <label>Bina Yaşı</label>
           <input type="number" id="inAge" placeholder="Örn. 8" min="0">
         </div>
         <div class="field">
-          <label>m²</label>
+          <label id="lblM2">m²</label>
           <input type="number" id="inM2" value="120" min="1">
+        </div>
+      </div>
+      <div class="property-grid" id="arsaExtra" style="margin-top:14px; display:none;">
+        <div class="field">
+          <label>İmar Durumu</label>
+          <input type="text" id="inImar" placeholder="Örn. Konut İmarlı">
+        </div>
+        <div class="field">
+          <label>Kaks / Emsal</label>
+          <input type="text" id="inKaks" placeholder="Örn. 1.5">
         </div>
       </div>
       <div class="field" style="margin-top:14px;">
@@ -322,10 +346,19 @@
         </div>
 
         <div class="field" style="grid-column:1 / -1;">
-          <label>Bekleme Süresince Aylık Maliyetiniz (opsiyonel)</label>
-          <input type="number" id="inMonthlyCost" value="0" step="500" min="0">
-          <div class="help">Aidat, abonelik, sigorta vb. — ev elinizde kaldığı sürece her ay ödemeye devam ettiğiniz giderler.</div>
-          <div class="info-note" id="costNote"></div>
+          <label>Bekleme Süresince Maliyetleriniz (opsiyonel)</label>
+          <div class="grid2">
+            <div class="field">
+              <label style="font-size:13.5px; color:var(--ink-soft);">Aylık Maliyet</label>
+              <input type="number" id="inMonthlyCost" value="0" step="500" min="0">
+              <div class="info-note" id="costNote"></div>
+            </div>
+            <div class="field">
+              <label style="font-size:13.5px; color:var(--ink-soft);">Tek Seferlik Maliyet</label>
+              <input type="number" id="inOneTimeCost" value="0" step="1000" min="0">
+              <div class="help">Kredi kapama, tek seferlik sigorta vb. — bir kere ödenen giderler.</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -337,7 +370,7 @@
     <div class="scenario-list fade-in">
       <div class="scenario-card has-extra">
         <div class="scenario-row">
-          <div class="scenario-icon">🏠</div>
+          <div class="scenario-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg></div>
           <div class="scenario-body">
             <div class="tag">Yol 1</div>
             <h3>Bugün Satarsanız</h3>
@@ -345,11 +378,11 @@
           </div>
           <div class="scenario-num"><div class="amt" id="numA">21.202.035 TL</div><div class="cap">mevduat getirisi elde ettiğimiz senaryo</div></div>
         </div>
-        <div class="scenario-extra" id="extraA" style="display:none;"><span class="bulb">💡</span><span id="extraAText"></span></div>
+        <div class="scenario-extra" id="extraA" style="display:none;"><span class="bulb"></span><span id="extraAText"></span></div>
       </div>
 
       <div class="scenario-card">
-        <div class="scenario-icon">🚩</div>
+        <div class="scenario-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v18M5 4h13l-3 4 3 4H5"/></svg></div>
         <div class="scenario-body">
           <div class="tag">Yol 2</div>
           <h3>Bekler ve Hedefinize Ulaşırsanız</h3>
@@ -359,7 +392,7 @@
       </div>
 
       <div class="scenario-card">
-        <div class="scenario-icon">🤝</div>
+        <div class="scenario-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
         <div class="scenario-body">
           <div class="tag">Yol 3</div>
           <h3>Bekler ama Pazarlık Yaparsanız</h3>
@@ -396,9 +429,9 @@
             <input type="range" id="inRate" min="10" max="70" step="0.5" value="45">
             <div class="help">Bugün satarsanız, elde ettiğiniz tutarı bu oranla büyütebileceğinizi varsayıyoruz.</div>
             <div class="rate-mode-row" id="rateModeRow">
-              <button type="button" class="rate-mode-btn active" data-mode="flat">Sabit Kalır</button>
-              <button type="button" class="rate-mode-btn" data-mode="down">📉 Faizler Düşer</button>
-              <button type="button" class="rate-mode-btn" data-mode="up">📈 Faizler Yükselir</button>
+              <button type="button" class="rate-mode-btn active" data-mode="flat"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16"/></svg>Sabit Kalır</button>
+              <button type="button" class="rate-mode-btn" data-mode="down"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8l-5 5-3-3-4 4"/><path d="M17 13v-5h-5"/></svg>Faizler Düşer</button>
+              <button type="button" class="rate-mode-btn" data-mode="up"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 16l-5-5-3 3-4-4"/><path d="M17 11v5h-5"/></svg>Faizler Yükselir</button>
             </div>
             <div class="field" id="rateDeltaField" style="display:none;">
               <label style="font-size:13px; color:var(--ink-soft); font-weight:600;">
@@ -424,7 +457,8 @@
         <div class="breakeven-line alt" id="fallbackLine"></div>
 
         <div class="byline">
-          <input type="text" id="bylineInput" value="Hazırlayan: Danışmanınızın adı · İletişim bilgisi">
+          <input type="text" id="bylineInput" value="Hazırlayan: Danışmanınızın adı">
+          <a href="mailto:danisman@startkeyzeta.com" id="bylineContact" class="byline-contact">İletişime Geç ↗</a>
         </div>
       </div>
     </div>
@@ -489,8 +523,9 @@
   const inTax = document.getElementById('inTax');
   const lblTax = document.getElementById('lblTax');
   const inMonthlyCost = document.getElementById('inMonthlyCost');
+  const inOneTimeCost = document.getElementById('inOneTimeCost');
 
-  [inShort, inMid, inLong, inOneri, inTeklif, inP1, inMarketM2, inDiscount, inFallback, inMonthlyCost]
+  [inShort, inMid, inLong, inOneri, inTeklif, inP1, inMarketM2, inDiscount, inFallback, inMonthlyCost, inOneTimeCost]
     .forEach(tlMaskeBagla);
 
   const rateModeBtns = document.querySelectorAll('.rate-mode-btn');
@@ -609,7 +644,7 @@
     // "0 TL" gibi anlamsız sonuçlar gösteriyorlardı).
     const p1Empty = !inP1.value || inP1.value.trim() === '';
     if(p1Empty){
-      tierNote.innerHTML = '👆 Hedef satış fiyatınızı yukarıya girerek karşılaştırmayı başlatabilirsiniz.';
+      tierNote.innerHTML = 'Hedef satış fiyatınızı yukarıya girerek karşılaştırmayı başlatabilirsiniz.';
     } else {
     const diffMid = P1 - mid;
     const pctMid = mid > 0 ? (diffMid/mid*100) : 0;
@@ -617,7 +652,7 @@
     const pctLong = long > 0 ? (diffLong/long*100) : 0;
     const dir = (v) => v > 0 ? 'üzerinde' : (v < 0 ? 'altında' : 'ile aynı seviyede');
 
-    let tierTxt = '📋 Hedef fiyatınızı (<b>' + trMoney(P1) + '</b>), orta vade değerlemesinin (' + trMoney(mid) + ') ';
+    let tierTxt = 'Hedef fiyatınızı (<b>' + trMoney(P1) + '</b>), orta vade değerlemesinin (' + trMoney(mid) + ') ';
     if(diffMid !== 0){
       tierTxt += '<b>%' + trNum(Math.abs(pctMid),1) + ' ' + dir(diffMid) + '</b>, ';
     } else {
@@ -662,7 +697,7 @@
     const marketAvg = Math.max(0, parseFloat(inMarketAvg.value)||0);
     const marketNote = document.getElementById('marketNote');
     if(marketAvg > 0){
-      let noteTxt = '📊 Bu bölgede benzer evler ortalama <b>' + trNum(marketAvg,1) + ' ay</b>da satılıyor.';
+      let noteTxt = 'Bu bölgede benzer evler ortalama <b>' + trNum(marketAvg,1) + ' ay</b>da satılıyor.';
       if(T < marketAvg * 0.8){
         noteTxt += ' Seçtiğiniz ' + T + ' ay, bu ortalamanın altında bir süre.';
       } else if(T > marketAvg * 1.3){
@@ -682,13 +717,14 @@
 
     // bekleme süresince aylık maliyet (aidat, abonelik vb.) — sadece bekleyen senaryoları etkiler
     const monthlyCost = Math.max(0, parseTL(inMonthlyCost)||0);
-    const totalCost = monthlyCost * T;
+    const oneTimeCost = Math.max(0, parseTL(inOneTimeCost)||0);
+    const totalCost = monthlyCost * T + oneTimeCost;
     const netB = Math.max(0, P1 - totalCost);
     const netC = Math.max(0, pazarlikFiyati - totalCost);
 
     const costNote = document.getElementById('costNote');
     if(totalCost > 0){
-      costNote.innerHTML = '💶 ' + T + ' ay boyunca toplam maliyetiniz <b>' + trMoney(totalCost) + '</b> — bu tutar Yol 2, Yol 3 ve "hiç satamazsanız" sonuçlarından düşülmüştür.';
+      costNote.innerHTML = T + ' ay boyunca toplam maliyetiniz <b>' + trMoney(totalCost) + '</b> — bu tutar Yol 2, Yol 3 ve "hiç satamazsanız" sonuçlarından düşülmüştür.';
       costNote.style.display = 'block';
     } else {
       costNote.style.display = 'none';
@@ -726,7 +762,7 @@
         extraA.style.display = '';
         extraAText.innerHTML =
           'Bu hesaba göre, parayı bugün değerlendirseydiniz yaklaşık <b>' + roundedMonth + '. ayda</b> zaten ' + trMoney(P1) + '\'ye ulaşırdınız. ' +
-          'O noktadan sonra, sabit ' + trMoney(P1) + ' beklemek, aslında bu getiri karşısında geride kalmak anlamına gelir.';
+          'O noktadan sonra, evi hâlâ aynı fiyata satmayı beklemek, aslında bu getiri karşısında geride kalmak anlamına gelir.';
       } else {
         extraA.style.display = 'none';
       }
@@ -770,7 +806,7 @@
     }
   }
 
-  [inShort, inMid, inLong, inOneri, inTeklif, inP1, inT, inMarketAvg, inM2, inMarketM2, inDiscount, inRate, inFallback, inDelta, inTax, inMonthlyCost].forEach(el=>{
+  [inShort, inMid, inLong, inOneri, inTeklif, inP1, inT, inMarketAvg, inM2, inMarketM2, inDiscount, inRate, inFallback, inDelta, inTax, inMonthlyCost, inOneTimeCost].forEach(el=>{
     el.addEventListener('input', ()=>{
       if(el === inDelta){ lblDelta.textContent = inDelta.value + ' puan'; }
       render();
@@ -795,12 +831,56 @@
     detailToggle.innerHTML = isOpen ? 'Detayı Gizle <span class="chevron">▾</span>' : 'Detaylı İncele <span class="chevron">▾</span>';
   });
 
+  // YENİ (24.08.2026): Mülk Türü (Konut/Ticari/Arsa) — hibrit sürümden
+  // taşındı. Alanların kendisi hesaplamayı etkilemiyor (sadece bilgi
+  // amaçlı), sadece hangi alanların görüneceğini/etiketlerin ne
+  // olacağını değiştiriyor.
+  const propertyTypeBtns = document.querySelectorAll('#propertyTypeRow .rate-mode-btn');
+  const roomsField = document.getElementById('roomsField');
+  const ageField = document.getElementById('ageField');
+  const arsaExtra = document.getElementById('arsaExtra');
+  const lblRoomsOrType = document.getElementById('lblRoomsOrType');
+  const lblM2 = document.getElementById('lblM2');
+  const inRoomsPT = document.getElementById('inRooms');
+  const inFeaturesPT = document.getElementById('inFeatures');
+  let propertyType = 'konut';
+
+  function applyPropertyType(){
+    const isArsa = propertyType === 'arsa';
+    const isTicari = propertyType === 'ticari';
+    roomsField.style.display = isArsa ? 'none' : '';
+    ageField.style.display = isArsa ? 'none' : '';
+    arsaExtra.style.display = isArsa ? '' : 'none';
+    lblRoomsOrType.textContent = isTicari ? 'İşyeri Tipi' : 'Oda Sayısı';
+    inRoomsPT.placeholder = isTicari ? 'Örn. Ofis, Dükkan, Depo' : 'Örn. 3+1';
+    lblM2.textContent = isArsa ? 'm² (Arsa Alanı)' : 'm²';
+    inFeaturesPT.placeholder = isArsa
+      ? 'Örn. Köşe Parsel, Yola Cephe, Elektrik-Su Mevcut'
+      : (isTicari ? 'Örn. Cadde Cephesi, Otopark, Boş/Kiracılı' : 'Örn. Asansör, Otopark, Balkon, Eşyalı');
+  }
+  propertyTypeBtns.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      propertyType = btn.dataset.ptype;
+      propertyTypeBtns.forEach(b=>b.classList.toggle('active', b===btn));
+      applyPropertyType();
+    });
+  });
+  const _inPropertyType = document.getElementById('inPropertyType');
+  if (_inPropertyType && _inPropertyType.value && _inPropertyType.value !== 'konut') {
+    const _hedefBtn = document.querySelector(`#propertyTypeRow .rate-mode-btn[data-ptype="${_inPropertyType.value}"]`);
+    if (_hedefBtn) {
+      propertyType = _inPropertyType.value;
+      propertyTypeBtns.forEach(b=>b.classList.toggle('active', b===_hedefBtn));
+      applyPropertyType();
+    }
+  }
+
   const themeToggle = document.getElementById('themeToggle');
   themeToggle.addEventListener('click', ()=>{
     const html = document.documentElement;
     const isDark = html.getAttribute('data-theme') === 'dark';
     html.setAttribute('data-theme', isDark ? 'light' : 'dark');
-    themeToggle.textContent = isDark ? '🌙 Karanlık mod' : '☀️ Aydınlık mod';
+    themeToggle.textContent = isDark ? 'Karanlık mod' : 'Aydınlık mod';
   });
 
   const io = new IntersectionObserver((entries)=>{
