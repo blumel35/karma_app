@@ -24,6 +24,7 @@ etkilenmiyor).
 import streamlit as st
 
 import sys, os
+from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from urllib.parse import quote
 from core.auth import oturum_kontrol
@@ -104,6 +105,19 @@ def _tl_temizle(deger):
     if not deger:
         return deger
     return "".join(ch for ch in deger if ch.isdigit()) or None
+
+
+def _tarih_formatla(iso_str):
+    """Supabase'in döndürdüğü ISO 8601 zaman damgasını (olusturma_tarihi)
+    okunur "GG.AA.YYYY SS:DD" formatına çevirir. Ayrıştırılamazsa
+    (bozuk/eksik veri) sessizce boş döner — sayfa çökmesin diye."""
+    if not iso_str:
+        return ""
+    try:
+        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+        return dt.strftime("%d.%m.%Y %H:%M")
+    except (ValueError, TypeError):
+        return ""
 
 
 def _link_olustur(kod, musteri_adi=""):
@@ -292,6 +306,9 @@ for s in senaryolar:
             _surum_etiket = "📑 Bölümlü" if s.get("surum") == "sihirbaz" else "📄 Klasik"
             _danisman_etiketi = f"  ·  👤 {s.get('danisman', '')}" if _tumunu_goster else ""
             st.markdown(f"**{s.get('musteri_adi', '')}**  ·  `{_surum_etiket}`{_danisman_etiketi}")
+            _tarih_str = _tarih_formatla(s.get("olusturma_tarihi"))
+            if _tarih_str:
+                st.caption(f"🕒 {_tarih_str}")
             link = _link_olustur(s["kod"], s.get("musteri_adi", ""))
             _baglanti_metni_2 = f"{s.get('musteri_adi', '')} - Mülkünüze Özel Senaryo Hesaplayıcı"
             st.markdown(f"🔗 [{_baglanti_metni_2}]({link})")
