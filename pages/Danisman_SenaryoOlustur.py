@@ -24,7 +24,7 @@ etkilenmiyor).
 import streamlit as st
 
 import sys, os
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from urllib.parse import quote
 from core.auth import oturum_kontrol
@@ -107,15 +107,21 @@ def _tl_temizle(deger):
     return "".join(ch for ch in deger if ch.isdigit()) or None
 
 
+_TR_SAATI = timezone(timedelta(hours=3))  # Türkiye 2016'dan beri sabit UTC+3, DST yok
+
+
 def _tarih_formatla(iso_str):
-    """Supabase'in döndürdüğü ISO 8601 zaman damgasını (olusturma_tarihi)
-    okunur "GG.AA.YYYY SS:DD" formatına çevirir. Ayrıştırılamazsa
-    (bozuk/eksik veri) sessizce boş döner — sayfa çökmesin diye."""
+    """Supabase'in döndürdüğü ISO 8601 zaman damgasını (olusturma_tarihi,
+    UTC olarak saklanıyor) okunur "GG.AA.YYYY SS:DD" formatına çevirir.
+    DÜZELTME (25.08.2026): önceden UTC değeri Türkiye saatine
+    ÇEVRİLMEDEN doğrudan yazdırılıyordu (gerçek saatten 3 saat geri
+    görünüyordu) — artık Europe/Istanbul (UTC+3) karşılığı gösteriliyor.
+    Ayrıştırılamazsa (bozuk/eksik veri) sessizce boş döner."""
     if not iso_str:
         return ""
     try:
         dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        return dt.strftime("%d.%m.%Y %H:%M")
+        return dt.astimezone(_TR_SAATI).strftime("%d.%m.%Y %H:%M")
     except (ValueError, TypeError):
         return ""
 
