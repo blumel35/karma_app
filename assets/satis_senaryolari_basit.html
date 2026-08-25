@@ -300,12 +300,8 @@
           <label>Önerilen Fiyat veya Gelen Teklif Var mı?</label>
           <div class="tier-row">
             <div class="tier-item minor">
-              <span class="tlabel">Önerilen Fiyat</span>
+              <span class="tlabel">Önerilen Fiyat / Gelen Teklif</span>
               <input type="number" id="inOneri" step="100000" min="0" placeholder="—">
-            </div>
-            <div class="tier-item minor">
-              <span class="tlabel">Gelen Teklif</span>
-              <input type="number" id="inTeklif" step="100000" min="0" placeholder="—">
             </div>
           </div>
           <div class="help" id="p0SourceNote"></div>
@@ -510,7 +506,6 @@
   const inMid = document.getElementById('inMid');
   const inLong = document.getElementById('inLong');
   const inOneri = document.getElementById('inOneri');
-  const inTeklif = document.getElementById('inTeklif');
   const inP1 = document.getElementById('inP1');
   const inT = document.getElementById('inT');
   const inMarketAvg = document.getElementById('inMarketAvg');
@@ -525,7 +520,7 @@
   const inMonthlyCost = document.getElementById('inMonthlyCost');
   const inOneTimeCost = document.getElementById('inOneTimeCost');
 
-  [inShort, inMid, inLong, inOneri, inTeklif, inP1, inMarketM2, inDiscount, inFallback, inMonthlyCost, inOneTimeCost]
+  [inShort, inMid, inLong, inOneri, inP1, inMarketM2, inDiscount, inFallback, inMonthlyCost, inOneTimeCost]
     .forEach(tlMaskeBagla);
 
   const rateModeBtns = document.querySelectorAll('.rate-mode-btn');
@@ -609,20 +604,17 @@
     const short = Math.max(1, parseTL(inShort)||0);
     const mid = Math.max(1, parseTL(inMid)||0);
     const long = Math.max(1, parseTL(inLong)||0);
-    // "bugün satarsanız" hesaplaması için baz fiyat: öncelik gelen teklif > önerilen fiyat > kısa vade
+    // "bugün satarsanız" hesaplaması için baz fiyat: öncelik önerilen fiyat/gelen teklif > kısa vade
+    // NOT: "Önerilen Fiyat" ve "Gelen Teklif" tek bir alanda (inOneri) birleştirildi.
     const oneriVal = Math.max(0, parseTL(inOneri)||0);
-    const teklifVal = Math.max(0, parseTL(inTeklif)||0);
     let P0 = short;
-    if(teklifVal > 0){ P0 = teklifVal; }
-    else if(oneriVal > 0){ P0 = oneriVal; }
+    if(oneriVal > 0){ P0 = oneriVal; }
 
     const p0SourceNote = document.getElementById('p0SourceNote');
-    if(teklifVal > 0){
-      p0SourceNote.innerHTML = '"Bugün Satarsanız" hesaplaması artık <b>gelen teklif</b> (' + trMoney(teklifVal) + ') üzerinden yapılıyor.';
-    } else if(oneriVal > 0){
-      p0SourceNote.innerHTML = '"Bugün Satarsanız" hesaplaması artık <b>önerilen fiyat</b> (' + trMoney(oneriVal) + ') üzerinden yapılıyor.';
+    if(oneriVal > 0){
+      p0SourceNote.innerHTML = '"Bugün Satarsanız" hesaplaması artık <b>girdiğiniz fiyat</b> (' + trMoney(oneriVal) + ') üzerinden yapılıyor.';
     } else {
-      p0SourceNote.innerHTML = 'Bu alanlar boş bırakılırsa, "Bugün Satarsanız" hesaplaması kısa vade fiyatınız (' + trMoney(short) + ') üzerinden yapılır.';
+      p0SourceNote.innerHTML = 'Bu alan boş bırakılırsa, "Bugün Satarsanız" hesaplaması kısa vade fiyatınız (' + trMoney(short) + ') üzerinden yapılır.';
     }
 
     const P1 = Math.max(1, parseTL(inP1)||0);
@@ -806,7 +798,7 @@
     }
   }
 
-  [inShort, inMid, inLong, inOneri, inTeklif, inP1, inT, inMarketAvg, inM2, inMarketM2, inDiscount, inRate, inFallback, inDelta, inTax, inMonthlyCost, inOneTimeCost].forEach(el=>{
+  [inShort, inMid, inLong, inOneri, inP1, inT, inMarketAvg, inM2, inMarketM2, inDiscount, inRate, inFallback, inDelta, inTax, inMonthlyCost, inOneTimeCost].forEach(el=>{
     el.addEventListener('input', ()=>{
       if(el === inDelta){ lblDelta.textContent = inDelta.value + ' puan'; }
       render();

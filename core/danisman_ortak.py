@@ -493,14 +493,15 @@ def musteri_sil(musteri_id):
 # deseni: sadece kaydeden danışman kendi listesini görür.
 
 @st.cache_data(ttl=30, show_spinner=False)
-def senaryolari_cek(danisman_adi):
-    resp = (
-        supabase.table("danisman_senaryolari")
-        .select("*")
-        .eq("danisman", danisman_adi)
-        .order("olusturma_tarihi", desc=True)
-        .execute()
-    )
+def senaryolari_cek(danisman_adi, tumu=False):
+    """tumu=True verilirse (sadece admin/broker/medya rolleri için —
+    yetki kontrolü çağıran sayfada yapılır) danışman filtresi
+    UYGULANMAZ, tüm ekibin senaryoları döner. Varsayılan davranış
+    (tumu=False) değişmedi — herkes kendi listesini görür."""
+    sorgu = supabase.table("danisman_senaryolari").select("*")
+    if not tumu:
+        sorgu = sorgu.eq("danisman", danisman_adi)
+    resp = sorgu.order("olusturma_tarihi", desc=True).execute()
     return resp.data or []
 
 

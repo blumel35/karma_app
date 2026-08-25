@@ -266,18 +266,30 @@ with st.expander("+ Yeni Senaryo Oluştur", expanded=True):
             st.rerun()
 
 st.write("")
-st.markdown("##### Önceki Senaryoların")
 
-senaryolar = senaryolari_cek(su_kullanici)
+# YENİ (24.08.2026): admin/broker/medya rolündeki kullanıcılar tüm
+# ekibin senaryolarını görebiliyor — core/personel_manager.py'deki
+# _TUMU_ERISIM_ROLLERI ile AYNI rol seti (ofis-bazlı değil, tam erişim).
+_su_anki_rol = str(st.session_state.get("user_role", "")).strip().lower()
+_tum_erisim_var = _su_anki_rol in {"admin", "broker", "medya"}
+
+_tumunu_goster = False
+if _tum_erisim_var:
+    _tumunu_goster = st.toggle("Tüm Danışmanların Senaryolarını Göster", key="dp_sn_tumu_goster")
+
+st.markdown("##### " + ("Tüm Senaryolar" if _tumunu_goster else "Önceki Senaryoların"))
+
+senaryolar = senaryolari_cek(su_kullanici, tumu=_tumunu_goster)
 if not senaryolar:
-    st.info("Henüz bir senaryo oluşturmadın.")
+    st.info("Henüz bir senaryo oluşturmadın." if not _tumunu_goster else "Henüz hiç senaryo oluşturulmamış.")
 
 for s in senaryolar:
     with st.container(border=True, key=f"dp_sn_kart_{s['id']}"):
         c1, c2 = st.columns([4, 1])
         with c1:
             _surum_etiket = "📑 Bölümlü" if s.get("surum") == "sihirbaz" else "📄 Klasik"
-            st.markdown(f"**{s.get('musteri_adi', '')}**  ·  `{_surum_etiket}`")
+            _danisman_etiketi = f"  ·  👤 {s.get('danisman', '')}" if _tumunu_goster else ""
+            st.markdown(f"**{s.get('musteri_adi', '')}**  ·  `{_surum_etiket}`{_danisman_etiketi}")
             link = _link_olustur(s["kod"], s.get("musteri_adi", ""))
             _baglanti_metni_2 = f"{s.get('musteri_adi', '')} - Mülkünüze Özel Senaryo Hesaplayıcı"
             st.markdown(f"🔗 [{_baglanti_metni_2}]({link})")
