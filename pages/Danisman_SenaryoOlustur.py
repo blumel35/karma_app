@@ -53,10 +53,22 @@ su_kullanici = su_anki_danisman()
 # "Link Oluştur" butonu bayrağı set edip rerun ediyor, bir SONRAKİ
 # çalıştırmada (widget'lar henüz oluşmadan) bu blok bayrağı görüp
 # alanları temizliyor.
+#
+# DÜZELTME (26.08.2026): "Gelen Teklif Tutarı" (dp_sn_teklif) alanı
+# KALDIRILDI. HTML şablonlarının ikisi de (basit + hibrit) "Önerilen
+# Fiyat" ve "Gelen Teklif"i uzun zaman önce TEK bir kutuda (inOneri)
+# birleştirmişti — ama bu form hâlâ ayrı bir ikinci kutu gösteriyor,
+# değerini teklif_tutari'ye kaydediyor ve enjeksiyon tarafı onu artık
+# var olmayan bir "inTeklif" id'sine yazmaya çalışıyordu (sadece ölü
+# sihirbaz şablonunda vardı, satmasız/sessizce hiçbir yere düşmüyordu).
+# Danışman o kutuya bir şey yazsa bile müşteri ekranına hiç yansımıyordu.
+# Artık tek kutu var (Önerilen Fiyat / Gelen Teklif), gerçek davranışla
+# eşleşiyor. teklif_tutari sütunu DB'de veri kaybı riski almamak için
+# silinmedi, sadece bu formdan artık yazılmıyor.
 if st.session_state.pop("_dp_sn_temizle", False):
     for _k in ["dp_sn_musteri", "dp_sn_konum", "dp_sn_oda", "dp_sn_yas", "dp_sn_m2",
                "dp_sn_ozellik", "dp_sn_kisa", "dp_sn_orta", "dp_sn_uzun", "dp_sn_oneri",
-               "dp_sn_teklif", "dp_sn_hedef", "dp_sn_m2fiyat", "dp_sn_aylik",
+               "dp_sn_hedef", "dp_sn_m2fiyat", "dp_sn_aylik",
                "dp_sn_tekseferlik", "dp_sn_sure", "dp_sn_faiz", "dp_sn_imar", "dp_sn_kaks"]:
         st.session_state[_k] = ""
 
@@ -86,7 +98,7 @@ _TEMEL_URL = "https://startkey-zeta.streamlit.app/Senaryo_Hesaplayici"
 # rakamlar olduğu için bilerek dışarıda bırakıldı.
 _TL_ALANLARI = [
     "dp_sn_kisa", "dp_sn_orta", "dp_sn_uzun", "dp_sn_oneri",
-    "dp_sn_teklif", "dp_sn_hedef", "dp_sn_m2fiyat", "dp_sn_aylik",
+    "dp_sn_hedef", "dp_sn_m2fiyat", "dp_sn_aylik",
     "dp_sn_tekseferlik",
 ]
 
@@ -212,19 +224,17 @@ with st.expander("+ Yeni Senaryo Oluştur", expanded=True):
         )
 
     st.markdown("**Önerilen Fiyat / Gelen Teklif** (opsiyonel — doluysa hesaplamayı ezer)")
-    o1, o2, o3 = st.columns(3)
+    o1, o2 = st.columns(2)
     with o1:
         f_oneri = st.text_input(
-            "Önerilen Fiyat (TL)", key="dp_sn_oneri", placeholder="Doluysa kısa vadeyi ezer",
+            "Önerilen Fiyat / Gelen Teklif (TL)", key="dp_sn_oneri",
+            placeholder="Doluysa kısa vadeyi ezer",
+            help="Senin önerdiğin fiyat ya da müşteriye gelen teklif — ikisi için TEK kutu "
+                 "(hesaplayıcı ekranında da tek alan olarak gösteriliyor). Öncelik sırası: "
+                 "bu alan > Kısa Vade.",
             on_change=_tl_bicimlendir, args=("dp_sn_oneri",),
         )
     with o2:
-        f_teklif = st.text_input(
-            "Gelen Teklif Tutarı (TL)", key="dp_sn_teklif", placeholder="Doluysa her şeyi ezer",
-            help="Öncelik sırası: Gelen Teklif > Önerilen Fiyat > Kısa Vade.",
-            on_change=_tl_bicimlendir, args=("dp_sn_teklif",),
-        )
-    with o3:
         f_hedef = st.text_input(
             "Hedef Satış Fiyatı (TL)", key="dp_sn_hedef",
             placeholder="Biliyorsan doldur, yoksa boş bırak",
@@ -274,7 +284,7 @@ with st.expander("+ Yeni Senaryo Oluştur", expanded=True):
                 "mulk_turu": f_mulk_turu.lower(), "imar_durumu": f_imar, "kaks_emsal": f_kaks,
                 "deger_kisa": _tl_temizle(f_kisa), "deger_orta": _tl_temizle(f_orta),
                 "deger_uzun": _tl_temizle(f_uzun),
-                "oneri_fiyat": _tl_temizle(f_oneri), "teklif_tutari": _tl_temizle(f_teklif),
+                "oneri_fiyat": _tl_temizle(f_oneri),
                 "hedef_fiyat": _tl_temizle(f_hedef), "piyasa_satis_suresi": f_sure,
                 "ort_m2_fiyati": _tl_temizle(f_m2fiyat), "piyasa_faiz_orani": f_faiz,
                 "aylik_maliyet": _tl_temizle(f_aylik), "tek_seferlik_maliyet": _tl_temizle(f_tek_seferlik),

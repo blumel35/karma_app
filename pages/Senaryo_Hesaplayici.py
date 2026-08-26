@@ -71,7 +71,14 @@ _ALAN_ESLEME = {
     "m2": "inM2", "ozellikler": "inFeatures",
     "mulk_turu": "inPropertyType", "imar_durumu": "inImar", "kaks_emsal": "inKaks",
     "deger_kisa": "inShort", "deger_orta": "inMid", "deger_uzun": "inLong",
-    "oneri_fiyat": "inOneri", "teklif_tutari": "inTeklif",
+    # DÜZELTME (26.08.2026): "teklif_tutari": "inTeklif" eşlemesi
+    # kaldırıldı — inTeklif id'si sadece ölü sihirbaz şablonunda vardı
+    # (bkz. assets/satis_senaryolari_sihirbaz.html), aktif iki şablonda
+    # (basit/hibrit) hiç yok. Bu satır zaten sessizce hiçbir yere
+    # yazmıyordu; danışman formundaki karşılığı da (dp_sn_teklif) aynı
+    # gerekçeyle kaldırıldı (Danisman_SenaryoOlustur.py). Önerilen Fiyat
+    # ve Gelen Teklif artık tek alanda (oneri_fiyat -> inOneri).
+    "oneri_fiyat": "inOneri",
     "hedef_fiyat": "inP1",
     "ort_m2_fiyati": "inMarketM2",
     "piyasa_faiz_orani": "inRate",
