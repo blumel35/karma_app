@@ -8,28 +8,37 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────
-# DAVET LİNKİ YÖNLENDİRMESİ (Supabase "Invite User") — durum tespiti
+# DAVET LİNKİ (Supabase "Invite User") — DOĞRUDAN RENDER, SAYFA GEÇİŞİ YOK
 # Supabase'in davet e-postasındaki link, belirli bir sayfa yoluna değil
 # uygulamanın KÖK adresine (Site URL) auth_action/token_hash/type query
 # parametreleriyle geliyor — örn. ".../?auth_action=invite&token_hash=
-# ...&type=invite". Asıl yönlendirme (st.switch_page) burada YAPILMIYOR;
-# DÜZELTME: bu Streamlit sürümünde st.switch_page("pages/....py") bir
-# STRING yol verildiğinde, sayfa kaydı (st.navigation()) henüz bu script
-# çalışmasında oturmadan çağrılırsa "Could not find page" hatası
-# fırlatabiliyor — özellikle tarayıcı zaten Streamlit'in ürettiği
-# /hesap-aktivasyon slug URL'sindeyken (gerçek ortamda tekrarlanan hata
-# ile doğrulandı). Bu yüzden burada sadece bayrağı session_state'e
-# yazıyoruz; gerçek switch_page çağrısı aşağıda, st.navigation() sayfa
-# nesnelerini (hesap_aktivasyon) tanımladıktan SONRA, nesne referansıyla
-# yapılıyor.
+# ...&type=invite".
+#
+# DÜZELTME (2026-08-27, 4. ve son deneme): Üç ayrı st.switch_page()
+# yaklaşımı sırayla denendi ve üçü de gerçek ortamda başarısız oldu:
+# (1) string yol + st.navigation() henüz oturmadan çağrı → StreamlitAPIException
+#     "Could not find page" (ekran görüntüsüyle doğrulandı, tekrarlandı);
+# (2) nesne referansıyla, st.navigation() tanımlandıktan SONRA çağrı →
+#     tarayıcı seviyesinde "Page not found" diyaloğu belirdi (ekran
+#     görüntüsüyle doğrulandı) — sayfa geçişi sırasında oluşan URL,
+#     Streamlit'in ürettiği urlPathname ile tam eşleşmiyordu;
+# (3) session_state fallback'e rağmen token_hash bazen hedef sayfanın
+#     ilk render'ında kayboluyordu.
+# Kök sebep hep aynı: SAYFA GEÇİŞİ (switch_page) bu ortamda güvenilmez.
+# Bu yüzden artık hiç sayfa geçişi YAPMIYORUZ — davet parametreleri kök
+# URL'de görülür görülmez core/auth_ui.py:render_hesap_aktivasyon()
+# doğrudan burada çağrılıyor. Aynı script çalışması olduğu için query
+# params hiç kaybolmuyor, tarayıcı URL'i hiç değişmiyor (kök URL'de
+# kalıyor), st.switch_page hiç devreye girmiyor.
 if (
     st.query_params.get("auth_action") == "invite"
     and st.query_params.get("token_hash")
     and st.query_params.get("type") == "invite"
 ):
-    st.session_state["_invite_redirect_token_hash"] = st.query_params.get("token_hash")
-    st.session_state["_invite_redirect_pending"] = True
-    st.query_params.clear()
+    from core.auth_ui import render_hesap_aktivasyon
+
+    render_hesap_aktivasyon()
+    st.stop()
 
 # ─────────────────────────────────────────────────────
 # SESSION RESTORE
@@ -379,12 +388,5 @@ pg = st.navigation(
     },
     position="hidden"
 )
-
-# DÜZELTME (devamı): davet yönlendirmesi burada, sayfa nesneleri
-# (hesap_aktivasyon) tanımlı olduğu için STRING yol yerine doğrudan
-# nesne referansıyla yapılıyor — "Could not find page" hatasının kökü
-# buydu.
-if st.session_state.pop("_invite_redirect_pending", False):
-    st.switch_page(hesap_aktivasyon)
 
 pg.run()
