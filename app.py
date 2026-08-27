@@ -23,6 +23,16 @@ if (
     and st.query_params.get("token_hash")
     and st.query_params.get("type") == "invite"
 ):
+    # DÜZELTME: st.switch_page() hedef sayfanın İLK render'ında query
+    # parametrelerini güvenilir şekilde taşımıyor (adres çubuğunda
+    # görünseler bile Hesap_Aktivasyon.py o anda st.query_params'ı boş
+    # okuyabiliyor — gerçek ortamda doğrulandı). Bu yüzden token_hash'i
+    # ayrıca session_state'e de yazıyoruz; Hesap_Aktivasyon.py query
+    # param boşsa oradan geri düşüyor. Query params'ı burada temizlemek,
+    # her rerun'da bu bloğun tekrar tekrar switch_page tetiklemesini de
+    # önlüyor.
+    st.session_state["_invite_redirect_token_hash"] = st.query_params.get("token_hash")
+    st.query_params.clear()
     st.switch_page("pages/Hesap_Aktivasyon.py")
     st.stop()
 

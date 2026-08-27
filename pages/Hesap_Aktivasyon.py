@@ -74,6 +74,18 @@ auth_action = _param("auth_action")
 token_hash = _param("token_hash")
 auth_type = _param("type")
 
+# DÜZELTME: app.py kök URL'deki davet parametrelerini görünce buraya
+# st.switch_page() ile yönlendiriyor — ancak query parametreleri hedef
+# sayfanın ilk render'ında burada boş gelebiliyor (Streamlit switch_page
+# kısıtı, gerçek ortamda doğrulandı). app.py bu ihtimale karşı token_hash'i
+# ayrıca session_state'e de yazıyor; query param boşsa oradan geri düşülür.
+if not token_hash:
+    _redirect_token = str(st.session_state.pop("_invite_redirect_token_hash", "") or "").strip()
+    if _redirect_token:
+        token_hash = _redirect_token
+        auth_action = "invite"
+        auth_type = "invite"
+
 # Daha önce bu sayfa oturumunda token doğrulanmışsa URL temizlenmiş olabilir;
 # geçici doğrulanmış davet oturumuyla form çalışmaya devam eder.
 invite_verified = bool(st.session_state.get("_invite_flow_active"))
