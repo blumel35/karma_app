@@ -10,3 +10,7 @@ revy_pazar_cikti/
 revy_startkey_cikti/
 .streamlit/login_session.json
 match_dry_run_sonuclar_*.csv
+pages/yedekler/
+snapshots/
+core/*_BEFORE_*.py
+core/*_Kanit_*.txt

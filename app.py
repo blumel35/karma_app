@@ -204,6 +204,18 @@ danisman_senaryo_olustur = st.Page(
     icon=":material/edit_calendar:",
 )
 
+# ── Hesap Aktivasyonu — Supabase "Invite User" davet linkinin açtığı
+# TEK amaçlı, girişsiz/bağımsız sayfa (bkz. core/auth.py: davet_token_dogrula,
+# davet_sifresi_guncelle). Menüde HİÇ görünmemeli — Pano Görüntüle ve Senaryo
+# Hesaplayıcı ile AYNI desen: st.navigation() listesine eklenmeden bu sayfaya
+# hiçbir URL ile erişilemiyor ("sayfa bulunamadı" hatası) — önceden burada
+# eksikti, davet linkleri bu yüzden açılmıyordu.
+hesap_aktivasyon = st.Page(
+    "pages/Hesap_Aktivasyon.py",
+    title="Hesap Aktivasyonu",
+    icon=":material/vpn_key:",
+)
+
 # ── Danışman Panosu — Karma App'ten BAĞIMSIZ görünen, sade mini-arayüz ──
 # NOT: Kendi giriş ekranı (Danisman_Giris) ve kendi sade görünümü
 # (Danisman_Pano, render_navbar yok) var — aynı Supabase hesaplarını
@@ -295,6 +307,7 @@ pg = st.navigation(
             giris,
             ana,
             profil,
+            hesap_aktivasyon,
             pano_goruntule,
             senaryo_hesaplayici,
             danisman_senaryo_olustur,
