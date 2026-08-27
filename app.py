@@ -8,33 +8,28 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────
-# DAVET LİNKİ YÖNLENDİRMESİ (Supabase "Invite User")
+# DAVET LİNKİ YÖNLENDİRMESİ (Supabase "Invite User") — durum tespiti
 # Supabase'in davet e-postasındaki link, belirli bir sayfa yoluna değil
 # uygulamanın KÖK adresine (Site URL) auth_action/token_hash/type query
 # parametreleriyle geliyor — örn. ".../?auth_action=invite&token_hash=
-# ...&type=invite". Bu adres varsayılan sayfaya (giris) düştüğü için,
-# Hesap_Aktivasyon.py'yi st.navigation()'a eklemek TEK BAŞINA yetmiyordu
-# — kimse bu parametrelere bakıp o sayfaya yönlendirmiyordu. Bu blok,
-# ana_sayfa.py'deki "?nav=" kalıbıyla aynı mantıkla, davet parametreleri
-# görülür görülmez Hesap_Aktivasyon.py'ye geçer; bu sayede token orada
-# (core/auth.py: davet_token_dogrula) gerçekten doğrulanabilir.
+# ...&type=invite". Asıl yönlendirme (st.switch_page) burada YAPILMIYOR;
+# DÜZELTME: bu Streamlit sürümünde st.switch_page("pages/....py") bir
+# STRING yol verildiğinde, sayfa kaydı (st.navigation()) henüz bu script
+# çalışmasında oturmadan çağrılırsa "Could not find page" hatası
+# fırlatabiliyor — özellikle tarayıcı zaten Streamlit'in ürettiği
+# /hesap-aktivasyon slug URL'sindeyken (gerçek ortamda tekrarlanan hata
+# ile doğrulandı). Bu yüzden burada sadece bayrağı session_state'e
+# yazıyoruz; gerçek switch_page çağrısı aşağıda, st.navigation() sayfa
+# nesnelerini (hesap_aktivasyon) tanımladıktan SONRA, nesne referansıyla
+# yapılıyor.
 if (
     st.query_params.get("auth_action") == "invite"
     and st.query_params.get("token_hash")
     and st.query_params.get("type") == "invite"
 ):
-    # DÜZELTME: st.switch_page() hedef sayfanın İLK render'ında query
-    # parametrelerini güvenilir şekilde taşımıyor (adres çubuğunda
-    # görünseler bile Hesap_Aktivasyon.py o anda st.query_params'ı boş
-    # okuyabiliyor — gerçek ortamda doğrulandı). Bu yüzden token_hash'i
-    # ayrıca session_state'e de yazıyoruz; Hesap_Aktivasyon.py query
-    # param boşsa oradan geri düşüyor. Query params'ı burada temizlemek,
-    # her rerun'da bu bloğun tekrar tekrar switch_page tetiklemesini de
-    # önlüyor.
     st.session_state["_invite_redirect_token_hash"] = st.query_params.get("token_hash")
+    st.session_state["_invite_redirect_pending"] = True
     st.query_params.clear()
-    st.switch_page("pages/Hesap_Aktivasyon.py")
-    st.stop()
 
 # ─────────────────────────────────────────────────────
 # SESSION RESTORE
@@ -384,5 +379,12 @@ pg = st.navigation(
     },
     position="hidden"
 )
+
+# DÜZELTME (devamı): davet yönlendirmesi burada, sayfa nesneleri
+# (hesap_aktivasyon) tanımlı olduğu için STRING yol yerine doğrudan
+# nesne referansıyla yapılıyor — "Could not find page" hatasının kökü
+# buydu.
+if st.session_state.pop("_invite_redirect_pending", False):
+    st.switch_page(hesap_aktivasyon)
 
 pg.run()
