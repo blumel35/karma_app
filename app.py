@@ -8,6 +8,25 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────
+# DAVET LİNKİ YÖNLENDİRMESİ (Supabase "Invite User")
+# Supabase'in davet e-postasındaki link, belirli bir sayfa yoluna değil
+# uygulamanın KÖK adresine (Site URL) auth_action/token_hash/type query
+# parametreleriyle geliyor — örn. ".../?auth_action=invite&token_hash=
+# ...&type=invite". Bu adres varsayılan sayfaya (giris) düştüğü için,
+# Hesap_Aktivasyon.py'yi st.navigation()'a eklemek TEK BAŞINA yetmiyordu
+# — kimse bu parametrelere bakıp o sayfaya yönlendirmiyordu. Bu blok,
+# ana_sayfa.py'deki "?nav=" kalıbıyla aynı mantıkla, davet parametreleri
+# görülür görülmez Hesap_Aktivasyon.py'ye geçer; bu sayede token orada
+# (core/auth.py: davet_token_dogrula) gerçekten doğrulanabilir.
+if (
+    st.query_params.get("auth_action") == "invite"
+    and st.query_params.get("token_hash")
+    and st.query_params.get("type") == "invite"
+):
+    st.switch_page("pages/Hesap_Aktivasyon.py")
+    st.stop()
+
+# ─────────────────────────────────────────────────────
 # SESSION RESTORE
 # Local geliştirme ortamında dosya tabanlı session restore
 # aktif. Cloud ortamında core/personel_manager.py içindeki
