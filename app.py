@@ -1,10 +1,65 @@
 import streamlit as st
+import streamlit.components.v1 as components
 
 st.set_page_config(
     page_title="Startkey Zeta",
     page_icon="🏠",
     layout="wide",
     initial_sidebar_state="expanded"
+)
+
+# ─────────────────────────────────────────────────────
+# PWA (TELEFONDA "ANA EKRANA EKLE") DESTEĞİ — 2026-08-30
+# Danışman Panosu'nu telefona simge olarak sabitleyip tarayıcı çubuğu
+# olmadan, uygulama gibi açabilmek için. Streamlit'in kendi HTML <head>'ine
+# resmi bir erişim yolu yok — bu yüzden bilinen bir teknik kullanılıyor:
+# components.html ile aynı-origin bir script çalıştırıp
+# window.parent.document.head'e manifest linkini + Apple'a özel meta
+# etiketlerini elle ekliyoruz. height=0 olduğu için sayfada hiçbir görsel
+# iz bırakmaz, HER sayfada (app.py tek giriş noktası olduğu için) bir kez
+# çalışır. Gerekli dosyalar: static/manifest.json + static/icons/*.png
+# (bkz. tools/generate_pwa_icons.py) — bunların servis edilebilmesi için
+# .streamlit/config.toml'da [server] enableStaticServing = true şart.
+components.html(
+    """
+    <script>
+    (function () {
+        var head = window.parent.document.head;
+        if (head.querySelector('link[rel="manifest"]')) { return; }
+
+        var manifest = document.createElement('link');
+        manifest.rel = 'manifest';
+        manifest.href = '/app/static/manifest.json';
+        head.appendChild(manifest);
+
+        var themeColor = document.createElement('meta');
+        themeColor.name = 'theme-color';
+        themeColor.content = '#1C2B47';
+        head.appendChild(themeColor);
+
+        var appleCapable = document.createElement('meta');
+        appleCapable.name = 'apple-mobile-web-app-capable';
+        appleCapable.content = 'yes';
+        head.appendChild(appleCapable);
+
+        var appleStatusBar = document.createElement('meta');
+        appleStatusBar.name = 'apple-mobile-web-app-status-bar-style';
+        appleStatusBar.content = 'black-translucent';
+        head.appendChild(appleStatusBar);
+
+        var appleTitle = document.createElement('meta');
+        appleTitle.name = 'apple-mobile-web-app-title';
+        appleTitle.content = 'Danışman Panosu';
+        head.appendChild(appleTitle);
+
+        var appleTouchIcon = document.createElement('link');
+        appleTouchIcon.rel = 'apple-touch-icon';
+        appleTouchIcon.href = '/app/static/icons/apple-touch-icon.png';
+        head.appendChild(appleTouchIcon);
+    })();
+    </script>
+    """,
+    height=0,
 )
 
 # ─────────────────────────────────────────────────────
