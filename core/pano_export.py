@@ -716,6 +716,319 @@ function panoyaKaydir(harf) {{
     return buffer
 
 
+def _pazar_ilan_kart_html(v):
+    """izmir_pazar_ilanlar satırı için kart HTML'i — Danışman FSBO
+    İlanları / Danışman Startkey İlanları ekranları için (30.08.2026).
+
+    _kart_html()'den KASITLI OLARAK AYRI: bu tablo Zeta'nın kendi talep/
+    portföy kayıtları değil, dışarıdan (mülk sahibinden veya rakip
+    ofislerden) taranan piyasa ilanları — favori/danışman-sahipliği gibi
+    kavramlar burada anlamsız. Bunun yerine "İlana Git" linki ve
+    ofis/ilan kaynağı rozeti öne çıkıyor."""
+    islem = (v.get("islem_tipi") or "").strip()
+    bg, fg = _rozet_renk(islem)
+    ilce_rengi = _ilce_renk(_ilce_al(v))
+
+    tarih = _esc(str(v.get("ilan_tarihi") or ""))
+    mulk_turu = str(v.get("mulk_turu") or "").strip()
+    mulk_tipi = str(v.get("mulk_tipi") or "").strip()
+    oda = str(v.get("oda_sayisi") or "").strip()
+    baslik = _esc(" · ".join(x for x in [mulk_turu, oda] if x) or mulk_tipi or "Belirsiz")
+    mahalle = str(v.get("mahalle") or "").strip()
+    alt_parcalar = [p for p in [mulk_tipi, oda] if p]
+    alt_satir = _esc((mahalle + " · " if mahalle else "") + " · ".join(alt_parcalar))
+
+    fiyat = _sayi_ayikla(v.get("fiyat"))
+    birim = _sayi_ayikla(v.get("birim_fiyat"))
+    if fiyat is not None:
+        deger = f"{_sayi_formatla(fiyat)} TL"
+        if birim:
+            deger += (
+                f' <span style="font-weight:400;color:var(--ink-soft);">'
+                f'({_sayi_formatla(birim)} TL/m²)</span>'
+            )
+    else:
+        deger = "-"
+
+    ofis = _esc(str(v.get("ofis") or "").strip())
+    kaynak = _esc(str(v.get("ilan_kaynagi") or "").strip())
+    kaynak_etiketi = ofis or kaynak or "-"
+    ilan_sahibi = _esc(str(v.get("talep_eden_danisan") or "").strip())
+
+    ilan_linki = v.get("ilan_linki") or ""
+    ilan_link_html = ""
+    if ilan_linki:
+        ilan_link_html = (
+            f'<a class="kart-ilan-link" href="{_esc(ilan_linki)}" '
+            f'target="_blank" rel="noopener noreferrer">↗ İlana Git</a>'
+        )
+
+    durum_notu = (
+        ' <span class="kart-kopru-notu">(Yayından kalkmış)</span>'
+        if v.get("aktif") is False else ""
+    )
+
+    detay_satirlari = []
+    for alan, etiket in [
+        ("kat", "Bulunduğu kat"), ("m2", "m²"), ("bina_yasi", "Bina yaşı"),
+        ("site_icerisinde", "Site içerisinde"), ("esyali", "Eşyalı"),
+        ("kullanim_durumu", "Kullanım durumu"), ("ilan_suresi", "Yayın süresi (gün)"),
+    ]:
+        deger_ham = v.get(alan)
+        if deger_ham not in (None, "", "None"):
+            detay_satirlari.append(
+                f'<div class="detay-satir"><span class="detay-etiket">{_esc(etiket)}:</span> '
+                f'<span>{_esc(str(deger_ham))}</span></div>'
+            )
+    if v.get("yayindan_kalkis_tarihi"):
+        detay_satirlari.append(
+            f'<div class="detay-satir"><span class="detay-etiket">Yayından kalkış:</span> '
+            f'<span>{_esc(str(v.get("yayindan_kalkis_tarihi")))}</span></div>'
+        )
+    detay_icerik_html = (
+        "".join(detay_satirlari) if detay_satirlari
+        else '<div class="detay-satir">Ek detay bilgisi yok.</div>'
+    )
+    detay_blok_html = f"""
+      <details class="kart-detay">
+        <summary>📋 Detay Bilgilerini Gör</summary>
+        <div class="detay-grup">{detay_icerik_html}</div>
+      </details>"""
+
+    return f"""
+    <div class="kart" style="--dist-color:{ilce_rengi}">
+      <div class="kart-ust">
+        <span class="rozet" style="background:{bg};color:{fg}">{_esc(islem or "Belirsiz")}</span>
+        <span class="kart-tarih">{tarih}</span>
+      </div>
+      {ilan_link_html}
+      <div class="kart-baslik">{baslik}{durum_notu}</div>
+      <div class="kart-alt">{alt_satir}</div>
+      <div class="kart-deger">Fiyat: <b>{deger}</b></div>
+      <div class="kart-alt-satir">
+        <span class="kart-danisman">{('👤 ' + ilan_sahibi) if ilan_sahibi else ''}</span>
+        <span class="kart-kaynak">{kaynak_etiketi}</span>
+      </div>{detay_blok_html}
+    </div>"""
+
+
+def pazar_ilan_pano_html_olustur(kayitlar, pano_basligi, baslik_goster=False):
+    """Danışman FSBO İlanları / Danışman Startkey İlanları ekranları için
+    izmir_pazar_ilanlar satırlarından, pano_html_olustur ile GÖRSEL
+    OLARAK BİREBİR AYNI (aynı CSS/A-Z ilçe navigasyonu/kart-grid düzeni)
+    bir HTML pano üretir — ama favori_destekli desteği YOK (bu dış pazar
+    verisi, favorilemenin bir anlamı yok).
+
+    kayitlar: izmir_pazar_ilanlar tablosundan gelen dict listesi (marka'ya
+    ve etkin ilçe kümesine göre önceden filtrelenmiş olmalı — bu fonksiyon
+    kendisi hiçbir filtreleme yapmaz).
+
+    NOT: CSS bloğu bilerek pano_html_olustur'dakiyle AYNI ama AYRI olarak
+    tutuluyor (paylaşılan bir _pano_stil_bloku() helper'ına çıkarılmadı) —
+    amaç, hâlâ üretimde/canlıda çalışan ve test edilmiş pano_html_olustur'a
+    hiç dokunmamak. İki blok birbirinden ayrışmaya başlayıp bakımı
+    zorlaştırırsa, ileride ortak bir helper'a taşınabilir.
+    """
+    gruplar = {}
+    for v in kayitlar:
+        ilce = _ilce_al(v)
+        gruplar.setdefault(ilce, []).append(v)
+
+    sirali_ilceler = sorted(gruplar.keys(), key=lambda x: (x == "Diğer", x))
+    mevcut_harfler = {_harf_al(ilce) for ilce in sirali_ilceler}
+
+    nav_parcalari = []
+    for harf in TURK_ALFABE:
+        if harf in mevcut_harfler:
+            nav_parcalari.append(
+                f'<a href="javascript:void(0)" class="harf aktif" '
+                f'onclick="panoyaKaydir(\'{harf}\'); return false;">{harf}</a>'
+            )
+        else:
+            nav_parcalari.append(f'<span class="harf pasif">{harf}</span>')
+    nav_html = "\n".join(nav_parcalari)
+
+    bolumler = []
+    onceki_harf = None
+    for ilce in sirali_ilceler:
+        harf = _harf_al(ilce)
+        veri_harf = f'data-harf-ilk="{harf}"' if harf != onceki_harf else ""
+        onceki_harf = harf
+        kayitlar_bu_ilce = gruplar[ilce]
+        kartlar = "\n".join(_pazar_ilan_kart_html(v) for v in kayitlar_bu_ilce)
+        bolumler.append(f"""
+        <div class="ilce-bolum" {veri_harf}>
+          <h2 class="ilce-baslik">{_esc(ilce)} <span class="ilce-sayi">({len(kayitlar_bu_ilce)})</span></h2>
+          <div class="kart-grid">{kartlar}</div>
+        </div>
+        """)
+    bolumler_html = "\n".join(bolumler)
+
+    tarih_str = datetime.now().strftime("%d.%m.%Y %H:%M")
+    toplam = len(kayitlar)
+
+    html = f"""<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{_esc(pano_basligi)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {{
+    --cream:{CREAM}; --cream-2:{CREAM_2}; --card:{CARD_BG}; --ink:{INK}; --ink-soft:{MUTED};
+    --navy:{NAVY}; --navy-soft:{NAVY_SOFT}; --gold:{GOLD}; --sage:{SAGE};
+    --border:{BORDER}; --border-strong:{BORDER_STRONG};
+    --shadow:0 1px 2px rgba(43,39,31,.04),0 8px 22px rgba(43,39,31,.07);
+    --shadow-hover:0 3px 8px rgba(43,39,31,.07),0 18px 36px rgba(43,39,31,.12);
+  }}
+  * {{ box-sizing: border-box; }}
+  html {{ scroll-behavior: smooth; }}
+  body {{
+    margin: 0; font-family: 'Inter', sans-serif;
+    background: var(--cream); color: var(--ink); min-height: 100vh;
+  }}
+  header {{
+    max-width: 1280px; margin: 0 auto; padding: 16px 26px 14px;
+  }}
+  header h1 {{
+    font-family: 'Montserrat', sans-serif; font-size: 27px; font-weight: 800;
+    color: var(--navy); margin: 0 0 6px 0; letter-spacing: -.01em;
+  }}
+  header .meta {{ margin: 0; color: var(--ink-soft); font-size: 13px; }}
+  header .meta.meta-tek {{
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .04em;
+  }}
+  nav.harfler {{
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(251,247,240,0.92); backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 26px; display: flex; flex-wrap: wrap; gap: 4px;
+  }}
+  nav.harfler .harf {{
+    display: inline-flex; align-items:center; justify-content:center;
+    width: 27px; height: 27px; border-radius: 8px; font-size: 12.5px;
+    font-weight: 700; font-family: 'Montserrat', sans-serif;
+  }}
+  nav.harfler .harf.aktif {{
+    background: var(--card); color: var(--navy); text-decoration: none;
+    cursor: pointer; border: 1px solid var(--border-strong); box-shadow: var(--shadow);
+    transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+  }}
+  nav.harfler .harf.aktif:hover {{ background: var(--gold); color: #fff; transform: translateY(-1px); box-shadow: var(--shadow-hover); }}
+  nav.harfler .harf.pasif {{ color: var(--border-strong); }}
+  main {{ max-width: 1280px; margin: 0 auto; padding: 24px 26px 70px; }}
+  .ilce-bolum {{ margin-bottom: 36px; scroll-margin-top: 76px; }}
+  .ilce-baslik {{
+    font-family: 'Montserrat', sans-serif; font-size: 16px; font-weight: 700;
+    color: var(--navy); display: flex; align-items: baseline; gap: 8px;
+    border-bottom: 2px solid var(--gold); padding-bottom: 8px; margin-bottom: 16px;
+  }}
+  .ilce-sayi {{ font-weight: 500; color: var(--ink-soft); font-size: 13px; font-family: 'Inter', sans-serif; }}
+  .kart-grid {{
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }}
+  .kart {{
+    background: var(--card); border: 1px solid var(--border);
+    border-left: 5px solid var(--dist-color, var(--navy));
+    border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }}
+  .kart:hover {{ transform: translateY(-3px); box-shadow: var(--shadow-hover); }}
+  .kart-ust {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; }}
+  .rozet {{ font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 99px; }}
+  .kart-tarih {{ font-size: 11px; color: var(--ink-soft); }}
+  .kart-baslik {{
+    font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 14.5px;
+    color: var(--navy); margin-bottom: 5px; line-height: 1.35;
+  }}
+  .kart-alt {{ font-size: 12.5px; color: var(--ink-soft); margin-bottom: 7px; }}
+  .kart-deger {{ font-size: 13.5px; margin-bottom: 4px; }}
+  .kart-deger b {{ color: var(--navy); }}
+  .kart-alt-satir {{
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 9px;
+  }}
+  .kart-danisman {{ font-size: 12.5px; color: var(--ink-soft); }}
+  .kart-kopru-notu {{ font-size: 11px; font-style: italic; color: var(--gold); font-weight: 600; }}
+  .kart-kaynak {{
+    font-size: 10px; font-weight: 700; color: var(--ink-soft);
+    background: var(--cream-2); border: 1px solid var(--border);
+    padding: 2px 8px; border-radius: 20px; letter-spacing: .02em;
+  }}
+  .kart-ilan-link {{
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 700; color: var(--navy);
+    background: var(--cream-2); border: 1px solid var(--border);
+    padding: 3px 10px; border-radius: 20px; text-decoration: none;
+    margin-bottom: 8px; width: fit-content;
+  }}
+  .kart-ilan-link:hover {{ background: var(--gold); color: #fff; border-color: var(--gold); }}
+  .kart-detay summary {{
+    cursor: pointer; font-size: 12.5px; color: var(--navy); font-weight: 600;
+    padding-top: 8px; border-top: 1px dashed var(--border);
+    list-style: none;
+  }}
+  .kart-detay summary::-webkit-details-marker {{ display: none; }}
+  .kart-detay summary:hover {{ color: var(--gold); }}
+  .kart-detay[open] summary {{ margin-bottom: 8px; }}
+  .detay-satir {{
+    font-size: 12.5px; color: var(--ink); line-height: 1.7;
+    background: var(--cream-2); border-radius: 8px; padding: 4px 12px;
+  }}
+  .detay-satir:first-child {{ border-radius: 8px 8px 0 0; padding-top: 10px; }}
+  .detay-satir:last-child {{ border-radius: 0 0 8px 8px; padding-bottom: 10px; }}
+  .detay-etiket {{ color: var(--ink-soft); font-weight: 600; }}
+  .detay-grup {{ margin-bottom: 6px; }}
+  .detay-grup:last-child {{ margin-bottom: 0; }}
+  @media (max-width: 640px) {{
+    header, main, nav.harfler {{ padding-left: 16px; padding-right: 16px; }}
+    header {{ padding-top: 14px; padding-bottom: 10px; }}
+    header h1 {{ font-size: 19px; line-height: 1.25; }}
+    header .meta {{ font-size: 11.5px; }}
+    header .meta.meta-tek {{ font-size: 10px; }}
+    nav.harfler {{
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }}
+    nav.harfler::-webkit-scrollbar {{ display: none; }}
+    nav.harfler .harf {{ flex-shrink: 0; }}
+  }}
+</style>
+</head>
+<body>
+<header>
+  {"" if not baslik_goster else f'<h1>{_esc(pano_basligi)}</h1>'}
+  <div class="meta{'' if baslik_goster else ' meta-tek'}">Oluşturulma: {tarih_str} &middot; Toplam kayıt: {toplam} &middot; {len(sirali_ilceler)} ilçe</div>
+</header>
+<nav class="harfler">{nav_html}</nav>
+<main>
+{bolumler_html}
+</main>
+<script>
+function panoyaKaydir(harf) {{
+  var hedef = document.querySelector('[data-harf-ilk="' + harf + '"]');
+  if (!hedef) return;
+  var nav = document.querySelector('nav.harfler');
+  var navYuksekligi = nav ? nav.offsetHeight : 0;
+  var hedefKonum = hedef.getBoundingClientRect().top + window.pageYOffset - navYuksekligi - 12;
+  window.scrollTo({{ top: hedefKonum, behavior: 'smooth' }});
+}}
+</script>
+</body>
+</html>"""
+
+    buffer = BytesIO(html.encode("utf-8"))
+    buffer.seek(0)
+    return buffer
+
+
 PANO_BUCKET = "pano-paylasim"
 
 
