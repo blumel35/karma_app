@@ -25,6 +25,7 @@ core/pano_export.py: pazar_ilan_pano_html_olustur().
 
 import streamlit as st
 import streamlit.components.v1 as components
+from datetime import date, datetime, timedelta
 
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -104,10 +105,71 @@ with toolbar_col2:
         pazar_ilanlarini_cek.clear()
         st.rerun()
 
-ilanlar = pazar_ilanlarini_cek(MARKA, aktif_ilceler)
+ilanlar_ham = pazar_ilanlarini_cek(MARKA, aktif_ilceler)
+
+if not ilanlar_ham:
+    st.info("Seçili bölge(ler)de şu an aktif FSBO ilanı yok.")
+    st.stop()
+
+# ── ZAMAN + SIRALAMA FİLTRESİ (30.08.2026 — Meltem'in geri bildirimi) ──
+# NOT: izmir_pazar_sync.py'de otomatik pasifleştirme BİLİNÇLİ OLARAK
+# kapalı (TUR 2A) — yani "aktif" alanı, bir ilan piyasadan gerçekten
+# kalksa bile şu an güvenilir şekilde değişmiyor. Bu yüzden tek başına
+# "aktif=True" filtresi hâlâ çok eski ilanları da getirebiliyor. Zaman
+# filtresi bunu TAM çözmüyor (o, ayrı bir senkronizasyon işi — TUR 2B),
+# ama pratikte listeyi güncel/anlamlı ilanlara indirgemenin en basit yolu
+# — bu yüzden varsayılan "Son 7 Gün" seçili geliyor, "Tümü" her zaman
+# bir tık uzakta.
+def _ilan_tarihi_gun(v):
+    t = v.get("ilan_tarihi")
+    if not t:
+        return None
+    try:
+        return datetime.strptime(str(t)[:10], "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
+
+zaman_col, siralama_col = st.columns([1, 1])
+with zaman_col:
+    zaman_secim = st.radio(
+        "Zaman aralığı",
+        ["Tümü", "Son 7 Gün", "Bugün"],
+        index=1,
+        horizontal=True,
+        key="fsbo_zaman",
+        help=(
+            "İlan tarihi alanında saat bilgisi yok, bu yüzden 'Bugün' "
+            "pratikte 'ilan tarihi bugün olanlar' anlamına geliyor."
+        ),
+    )
+with siralama_col:
+    siralama_secim = st.selectbox(
+        "Sıralama",
+        ["En Yeni İlan", "En Eski İlan", "Fiyat: Düşükten Yükseğe", "Fiyat: Yüksekten Düşüğe"],
+        key="fsbo_siralama",
+    )
+
+ilanlar = ilanlar_ham
+if zaman_secim == "Son 7 Gün":
+    esik = date.today() - timedelta(days=7)
+    ilanlar = [v for v in ilanlar if (_ilan_tarihi_gun(v) or date.min) >= esik]
+elif zaman_secim == "Bugün":
+    bugun = date.today()
+    ilanlar = [v for v in ilanlar if _ilan_tarihi_gun(v) == bugun]
+
+if siralama_secim == "En Yeni İlan":
+    ilanlar = sorted(ilanlar, key=lambda v: v.get("ilan_tarihi") or "", reverse=True)
+elif siralama_secim == "En Eski İlan":
+    ilanlar = sorted(ilanlar, key=lambda v: v.get("ilan_tarihi") or "")
+elif siralama_secim == "Fiyat: Düşükten Yükseğe":
+    ilanlar = sorted(ilanlar, key=lambda v: (v.get("fiyat") is None, v.get("fiyat") or 0))
+elif siralama_secim == "Fiyat: Yüksekten Düşüğe":
+    ilanlar = sorted(ilanlar, key=lambda v: (v.get("fiyat") is None, -(v.get("fiyat") or 0)))
+
+st.caption(f"{len(ilanlar)} / {len(ilanlar_ham)} ilan gösteriliyor")
 
 if not ilanlar:
-    st.info("Seçili bölge(ler)de şu an aktif FSBO ilanı yok.")
+    st.info("Bu zaman aralığında ilan yok — 'Zaman aralığı' filtresinden 'Tümü'nü dene.")
     st.stop()
 
 html_buf = pazar_ilan_pano_html_olustur(ilanlar, "FSBO İlanları", baslik_goster=False)

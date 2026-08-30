@@ -134,15 +134,32 @@ def pazar_ilanlarini_cek(marka, ilceler):
     hiç sorgu atmadan boş liste döner: hem gereksiz bir 'tüm İzmir' sorgusu
     hem de danışmanın hiç seçmediği bölgelerin yanlışlıkla görünmesi
     böylece engellenmiş olur (core/danisman_ortak.py'deki
-    uzmanlik_bolgesi_filtrele'nin DAVRANIŞÇA aynı temkinli deseni)."""
+    uzmanlik_bolgesi_filtrele'nin DAVRANIŞÇA aynı temkinli deseni).
+
+    DÜZELTME (30.08.2026): PostgREST tek sorguda EN FAZLA 1000 satır
+    döndürüyor — ilk sürüm bunu hesaba katmıyordu, tek ilçede bile tam
+    1000 kayıt varsa (gerçek toplam bundan fazla olsa da) sessizce
+    kırpılıyordu. core/danisman_ortak.py'deki _tum_sayfalari_cek() ile
+    AYNI sayfalama (range) deseni burada da uygulanıyor."""
     if not ilceler:
         return []
-    resp = (
-        supabase.table("izmir_pazar_ilanlar")
-        .select("*")
-        .eq("marka", marka)
-        .eq("aktif", True)
-        .in_("ilce", list(ilceler))
-        .execute()
-    )
-    return resp.data or []
+    tum_kayitlar = []
+    baslangic = 0
+    sayfa_boyutu = 1000
+    while True:
+        resp = (
+            supabase.table("izmir_pazar_ilanlar")
+            .select("*")
+            .eq("marka", marka)
+            .eq("aktif", True)
+            .in_("ilce", list(ilceler))
+            .order("id", desc=True)
+            .range(baslangic, baslangic + sayfa_boyutu - 1)
+            .execute()
+        )
+        satirlar = resp.data or []
+        tum_kayitlar.extend(satirlar)
+        if len(satirlar) < sayfa_boyutu:
+            break
+        baslangic += sayfa_boyutu
+    return tum_kayitlar
