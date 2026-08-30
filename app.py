@@ -20,38 +20,50 @@ st.set_page_config(
 # çalışır. Gerekli dosyalar: static/manifest.json + static/icons/*.png
 # (bkz. tools/generate_pwa_icons.py) — bunların servis edilebilmesi için
 # .streamlit/config.toml'da [server] enableStaticServing = true şart.
+#
+# DÜZELTME (2026-08-30, 2. tur): İlk sürümde "<head>'de zaten bir manifest
+# linki varsa dokunma" şeklinde bir koruma vardı (tekrarlanan Streamlit
+# rerun'larında aynı etiketi ikinci kez eklememek için). Ama Streamlit'in
+# kendi sayfa kabuğunda ZATEN kendi varsayılan manifest'i (adı "Streamlit",
+# genel Streamlit ikonu) bulunuyor — bu koruma yüzünden bizim script hiç
+# çalışmadan hemen çıkıyordu, sonuç: Android'de "Ana Ekrana Ekle" bizim
+# manifest'imizi değil Streamlit'in kendi varsayılanını kullandı (yanlış
+# isim/ikon, yanlış başlangıç sayfası — Danışman Girişi yerine Karma App).
+# Şimdi tersi: önce var olan manifest/meta/ikon etiketleri varsa SİLİNİYOR,
+# sonra bizimkiler ekleniyor — hem Streamlit'in varsayılanının hem de
+# önceki rerun'lardan kalan kopyaların üzerine kesin olarak yazılıyor.
 components.html(
     """
     <script>
     (function () {
         var head = window.parent.document.head;
-        if (head.querySelector('link[rel="manifest"]')) { return; }
 
+        head.querySelectorAll('link[rel="manifest"]').forEach(function (el) {
+            el.parentNode.removeChild(el);
+        });
         var manifest = document.createElement('link');
         manifest.rel = 'manifest';
         manifest.href = '/app/static/manifest.json';
         head.appendChild(manifest);
 
-        var themeColor = document.createElement('meta');
-        themeColor.name = 'theme-color';
-        themeColor.content = '#1C2B47';
-        head.appendChild(themeColor);
+        [
+            ['theme-color', '#1C2B47'],
+            ['apple-mobile-web-app-capable', 'yes'],
+            ['apple-mobile-web-app-status-bar-style', 'black-translucent'],
+            ['apple-mobile-web-app-title', 'Danışman Panosu'],
+        ].forEach(function (pair) {
+            head.querySelectorAll('meta[name="' + pair[0] + '"]').forEach(function (el) {
+                el.parentNode.removeChild(el);
+            });
+            var meta = document.createElement('meta');
+            meta.name = pair[0];
+            meta.content = pair[1];
+            head.appendChild(meta);
+        });
 
-        var appleCapable = document.createElement('meta');
-        appleCapable.name = 'apple-mobile-web-app-capable';
-        appleCapable.content = 'yes';
-        head.appendChild(appleCapable);
-
-        var appleStatusBar = document.createElement('meta');
-        appleStatusBar.name = 'apple-mobile-web-app-status-bar-style';
-        appleStatusBar.content = 'black-translucent';
-        head.appendChild(appleStatusBar);
-
-        var appleTitle = document.createElement('meta');
-        appleTitle.name = 'apple-mobile-web-app-title';
-        appleTitle.content = 'Danışman Panosu';
-        head.appendChild(appleTitle);
-
+        head.querySelectorAll('link[rel="apple-touch-icon"]').forEach(function (el) {
+            el.parentNode.removeChild(el);
+        });
         var appleTouchIcon = document.createElement('link');
         appleTouchIcon.rel = 'apple-touch-icon';
         appleTouchIcon.href = '/app/static/icons/apple-touch-icon.png';
