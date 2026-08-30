@@ -101,9 +101,17 @@ def merkezi_tabloya_yaz(birlesik: dict, hedef_ilceler: list, progress_cb=None, s
     üzerinden st.secrets ile bağlanılır; verilmişse (headless iş) doğrudan
     kullanılır — bu fonksiyon hiçbir kimlik bilgisini kendisi okumaz.
 
-    TUR 2A (non_destructive_sync): Otomatik pasifleştirme BİLİNÇLİ OLARAK
-    KAPALI — yalnızca ekleme/güncelleme yapılıyor, hiçbir kayıt
-    pasifleştirilmiyor (ayrıntı için önceki sürümdeki not korunmuştur).
+    TUR 2B (30.08.2026 — Meltem: "pasif ilanları görmemem lazım
+    düzeltmeliyiz"): Otomatik pasifleştirme ARTIK AÇIK. Önceki sürümde
+    (TUR 2A) bilerek kapalıydı — sadece ekleme/güncelleme yapılıyordu,
+    hiçbir kayıt pasifleştirilmiyordu. Danışman FSBO/Startkey İlanları
+    ekranları gerçek kullanıma açıldığı için 'aktif=True' filtresinin
+    anlamlı olması gerekiyor: bir ilan, ilçesi bu koşuda TARANDIĞI halde
+    sonuçlarda görünmüyorsa (yani piyasadan kalkmış/URL değişmiş
+    görünüyorsa) aktif=False + yayindan_kalkis_tarihi=bugün olarak
+    işaretlenir. SADECE hedef_ilceler kapsamındaki (bu koşuda GERÇEKTEN
+    taranan) ilçeler etkilenir — hiç taranmayan bir ilçedeki eski
+    kayıtlara dokunulmaz.
     """
     if supabase_client is not None:
         supa = supabase_client
@@ -167,35 +175,53 @@ def merkezi_tabloya_yaz(birlesik: dict, hedef_ilceler: list, progress_cb=None, s
             if progress_cb:
                 progress_cb(f"⚠️ Bir parça yazılamadı. Takip kodu: {_takip_kodu}")
 
-    # ── TUR 2A: Otomatik pasifleştirme geçici olarak KAPALI ──────────────
+    # ── TUR 2B: Otomatik pasifleştirme (30.08.2026, artık AÇIK) ──────────
+    # Bu koşuda TARANAN her ilçe için: veritabanında hâlâ aktif=True
+    # görünen ama bu tarama sonucunda (taranan_urller) hiç karşımıza
+    # çıkmayan ilan_linki'ler artık piyasada yok/URL'i değişmiş sayılır —
+    # aktif=False + yayindan_kalkis_tarihi=bugün olarak güncellenir.
+    # Sadece TARANAN ilçeler etkilenir; hiç taranmayan bir ilçedeki
+    # kayıtlara dokunulmaz.
+    pasif_yapilan = 0
+    pasiflestirme_hatasi = False
     if hedef_ilceler:
         try:
-            toplam_gorunmeyen = 0
+            from datetime import date
+            bugun = date.today().strftime("%Y-%m-%d")
             for ilce_ad in hedef_ilceler:
                 mevcut = supa.table("izmir_pazar_ilanlar") \
                     .select("ilan_linki").eq("ilce", ilce_ad).eq("aktif", True).execute()
-                eski = {r["ilan_linki"] for r in (mevcut.data or [])}
-                toplam_gorunmeyen += len(eski - taranan_urller)
-            if toplam_gorunmeyen and progress_cb:
+                eski = sorted({r["ilan_linki"] for r in (mevcut.data or [])} - taranan_urller)
+                for i in range(0, len(eski), 500):
+                    parca = eski[i:i + 500]
+                    supa.table("izmir_pazar_ilanlar").update({
+                        "aktif": False,
+                        "yayindan_kalkis_tarihi": bugun,
+                    }).in_("ilan_linki", parca).execute()
+                pasif_yapilan += len(eski)
+        except Exception as e:
+            import logging, uuid
+            _takip_kodu = str(uuid.uuid4())[:8]
+            logging.getLogger(__name__).exception(
+                "Pasifleştirme hatası (takip kodu: %s): %s", _takip_kodu, e,
+            )
+            pasiflestirme_hatasi = True
+            if progress_cb:
                 progress_cb(
-                    f"ℹ️ {toplam_gorunmeyen} ilan bu taramada görünmüyor ama "
-                    f"pasifleştirilmedi (otomatik pasifleştirme TUR 2B'ye kadar kapalı)."
+                    f"⚠️ Pasifleştirme adımı başarısız oldu (yeni/güncellenen "
+                    f"kayıtların yazılması ETKİLENMEDİ). Takip kodu: {_takip_kodu}"
                 )
-        except Exception:
-            pass
 
     if progress_cb:
         if yazma_hatasi_sayisi == 0:
-            progress_cb(
-                f"✅ Merkezi tablo güncellendi: {yazilan:,} kayıt yazıldı "
-                f"(pasifleştirme devre dışı — non_destructive_sync)."
-            )
+            progress_cb(f"✅ Merkezi tablo güncellendi: {yazilan:,} kayıt yazıldı.")
         else:
             progress_cb(
                 f"⚠️ Merkezi tablo kısmen güncellendi: {yazilan:,} kayıt yazıldı, "
-                f"{yazma_hatasi_sayisi} parça başarısız oldu "
-                f"(pasifleştirme devre dışı — non_destructive_sync)."
+                f"{yazma_hatasi_sayisi} parça başarısız oldu."
             )
+        if pasif_yapilan and not pasiflestirme_hatasi:
+            progress_cb(f"🔕 {pasif_yapilan} ilan artık taramada görünmüyor, pasif olarak işaretlendi.")
 
     return {
         "basarili": yazma_hatasi_sayisi == 0,
