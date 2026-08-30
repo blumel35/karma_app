@@ -1548,6 +1548,44 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
 # Danisman_Talep.py ve Danisman_Portfoy.py bu tek fonksiyonu çağırır —
 # iki ayrı dosyada aynı kart/A-Z/filtre mantığını tekrarlamamak için.
 
+# ── KAPALI PORTFÖY TESPİTİ (Danışman Portföy Panosu) ────────────────────
+# YENİ (2026-08-30, 1. tur — basit sürüm): Meltem'in isteği üzerine
+# Danışman Portföy Panosu artık SADECE kapalı/pasif portföyleri gösteriyor
+# (açık/ilandaki olanlar hiç listelenmiyor). Kapalı sayılma kuralı bilerek
+# basit tutuldu: ilan linki YOKSA, VEYA özet/özellikler metninde "kapalı",
+# "ilanda yok" gibi anahtar kelimelerden biri geçiyorsa kapalı sayılır.
+#
+# DÜZELTME (2026-08-30, 2. tur): "yayından kalktı", "satıldı", "kiralandı"
+# (ve aynı mantıktaki "ilandan kalktı") anahtar kelimelerden ÇIKARILDI.
+# Buradaki "kapalı" tanımı, işi BİTMİŞ/tamamlanmış bir anlaşmayı DEĞİL —
+# HÂLÂ AKTİF ama hiçbir portalda ilanda OLMAYAN portföyü ifade ediyor.
+# "Satıldı/kiralandı/yayından kalktı" gibi ifadeler tam tersini, yani işin
+# BİTTİĞİNİ gösterir — bu yüzden burada aranmamalı.
+#
+# NOT: core/portfoy_gorunurluk.py'de bundan çok daha kapsamlı bir motor
+# zaten var (gerçek portal linki çıkarma, izmir_pazar_ilanlar ile merkezi
+# eşleştirme, "kapalı_portfoy" alanını Supabase'e yazma) — ama o motorun
+# sonucu SADECE tools/portfoy_gorunurluk_backfill.py elle çalıştırıldığında
+# güncelleniyor, otomatik değil. Bu basit sürüm hiçbir backfill'e bağımlı
+# değil, her sayfa açılışında anlık hesaplanır — yeni eklenen bir kayıt
+# bile aynı anda doğru sınıflandırılır. İleride ihtiyaç olursa
+# core.portfoy_gorunurluk.siniflandir_portfoy() ile değiştirilebilir.
+KAPALI_PORTFOY_ANAHTAR_KELIMELERI = (
+    "kapalı", "kapandı", "kapatıldı", "ilanda yok",
+)
+
+
+def _kapali_portfoy_mu(kayit):
+    link = str(kayit.get("ilan_linki") or "").strip()
+    if not link:
+        return True
+    metin = _tr_lower(" ".join([
+        str(kayit.get("ozet") or ""),
+        str(kayit.get("ozellikler") or ""),
+    ]))
+    return any(kelime in metin for kelime in KAPALI_PORTFOY_ANAHTAR_KELIMELERI)
+
+
 def render_pano_ekrani(kayit_tipi):
     """kayit_tipi: 'talep' | 'portfoy'
     'TÜM HAVUZU' gösterir (Zeta + Startkey/mail birlikte) — kaynağa göre
@@ -1563,7 +1601,10 @@ def render_pano_ekrani(kayit_tipi):
     sessizce Portföy Panosu'na (TÜM ~30 danışmanın gördüğü ORTAK pano)
     karışmaya başlamıştı. Resmi ilanların TEK gösterileceği yer artık
     'Zeta Portföyleri' (Danisman_ZetaPortfoyleri.py) — burada değil, iki
-    yapı kesinlikle karıştırılmamalı (bilinçli tasarım kararı)."""
+    yapı kesinlikle karıştırılmamalı (bilinçli tasarım kararı).
+
+    YENİ (2026-08-30): 'portfoy' için ayrıca SADECE kapalı/pasif kayıtlar
+    gösteriliyor — bkz. _kapali_portfoy_mu()."""
     if kayit_tipi == "talep":
         veri_cek = talepleri_cek
         baslik = "Talep Panosu"
@@ -1594,6 +1635,10 @@ def render_pano_ekrani(kayit_tipi):
             v for v in kayitlar
             if str(v.get("kaynak") or "").strip().lower() not in ILAN_PORTAL_DEGERLERI
         ]
+        # YENİ (2026-08-30): Portföy Panosu artık SADECE kapalı/pasif
+        # portföyleri gösterir — bkz. _kapali_portfoy_mu() yukarıda.
+        kayitlar = [v for v in kayitlar if _kapali_portfoy_mu(v)]
+        st.caption("🔒 Sadece kapalı/pasif portföyler gösteriliyor (ilan linki olmayan ya da 'kapalı' / 'ilanda yok' gibi ifade geçen kayıtlar).")
 
     render_pano_icerik(
         kayitlar, kayit_tipi, baslik, key_prefix=kayit_tipi,
