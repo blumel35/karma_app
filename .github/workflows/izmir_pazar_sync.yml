@@ -1,0 +1,69 @@
+name: Otomatik İzmir Pazar Senkronizasyonu
+
+# Danışmanların Uzmanlık Bölgelerim'de seçtiği ilçeler için Revy pazar
+# verisini (Startkey + FSBO + diğer markalar) çekip izmir_pazar_ilanlar
+# tablosuna yazar — "Danışman Startkey İlanları" ve "Danışman FSBO
+# İlanları" ekranlarının okuduğu tablo, kimse Startkey İlanları (admin)
+# sayfasını elle açmasa bile taze kalsın diye.
+#
+# "Otomatik Revy Senkronizasyonu" (revy_sync.yml, 03:00 UTC) ile AYNI
+# desen: zamanlanmış (cron) + elle tetiklenebilir (workflow_dispatch).
+# Aynı runner'da ikisinin çakışmaması için bilinçli olarak 1 saat
+# kaydırılmış (04:00 UTC = 07:00 Türkiye saati).
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  izmir-pazar-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Repoyu çek
+        uses: actions/checkout@v4
+
+      - name: Python kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Chrome kur (Selenium ile eşleşen sürüm)
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Bağımlılıkları kur
+        run: |
+          pip install --upgrade pip
+          pip install selenium pandas openpyxl supabase python-dateutil requests streamlit
+
+      - name: Supabase secrets dosyasını oluştur
+        # core/danisman_ortak.py (aktif_uzmanlik_bolgeleri için) modül
+        # yüklenirken st.secrets["supabase"] okuyor — GitHub Actions'ta
+        # gerçek bir .streamlit/secrets.toml olmadığı için, deploy
+        # ortamındakiyle AYNI biçimde geçici bir tane üretiyoruz. Değerler
+        # hiçbir adımda ekrana/loga yazdırılmıyor.
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          mkdir -p .streamlit
+          cat > .streamlit/secrets.toml <<EOF
+          [supabase]
+          url = "$SUPABASE_URL"
+          secret_key = "$SUPABASE_SECRET_KEY"
+          EOF
+
+      - name: İzmir Pazar Senkronizasyonu'nu çalıştır
+        env:
+          REVY_GIRIS_URL: ${{ secrets.REVY_GIRIS_URL }}
+          REVY1_KULLANICI: ${{ secrets.REVY1_KULLANICI }}
+          REVY1_SIFRE: ${{ secrets.REVY1_SIFRE }}
+          REVY1_OFIS_AKTIF_URL: ${{ secrets.REVY1_OFIS_AKTIF_URL }}
+          REVY2_KULLANICI: ${{ secrets.REVY2_KULLANICI }}
+          REVY2_SIFRE: ${{ secrets.REVY2_SIFRE }}
+          REVY2_OFIS_AKTIF_URL: ${{ secrets.REVY2_OFIS_AKTIF_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: python izmir_pazar_sync_job.py

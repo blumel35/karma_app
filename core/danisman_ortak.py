@@ -712,6 +712,32 @@ def uzmanlik_bolgelerini_kaydet(ilceler):
             )
 
 
+def aktif_uzmanlik_bolgeleri():
+    """TÜM danışmanların 'uzmanlik_bolgeleri' tablosuna kaydettiği ilçelerin
+    tekrarsız (distinct) birleşimini döndürür — belirli bir kullanıcıya değil,
+    tüm ekibe ait. Otomatik/periyodik veri çekme işleri (ör. FSBO/Startkey
+    İlanları için izmir_pazar_ilanlar tablosunu güncelleyen günlük GitHub
+    Actions görevi) HANGİ ilçelerin taranacağını buradan öğrenir — hiçbir
+    danışman seçmediği bir ilçe için gereksiz yere Revy'ye gidilmez.
+
+    NOT (2026-08-30): Şimdilik yalnızca Uzmanlık Bölgelerim'i kapsıyor.
+    FSBO/Startkey İlanları ekranlarına kendi bağımsız bölge seçimleri
+    eklendiğinde (bkz. ilgili ekran planı), bu fonksiyon o tabloların
+    ilçelerini de birleşime katacak şekilde genişletilmeli — aksi halde
+    bir danışmanın SADECE FSBO takibi için seçtiği ama Uzmanlık
+    Bölgelerim'de olmayan bir ilçe otomatik taramaya girmez."""
+    try:
+        resp = supabase.table("uzmanlik_bolgeleri").select("ilce").execute()
+        ilceler = sorted({
+            (r.get("ilce") or "").strip()
+            for r in (resp.data or [])
+            if (r.get("ilce") or "").strip()
+        })
+        return ilceler
+    except Exception:
+        return []
+
+
 def _kayit_ilcesi_eslesiyor_mu(kayit, secili_ilceler_norm):
     """Bir kaydın ilceler listesindeki (yoksa tekil ilce alanındaki) HER
     HANGİ BİR ilçesi, seçili uzmanlık bölgeleriyle eşleşiyor mu?
