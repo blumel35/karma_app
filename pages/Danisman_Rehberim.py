@@ -5,7 +5,7 @@ Rehberim — kişisel kişi defteri (13.08.2026). Hamburger menüden
 erişilir. Talep/Portföy tablolarından TAMAMEN BAĞIMSIZ — "Yeni Talep/
 Portföy Ekle" formunda müşteri adı girildiğinde buraya OTOMATİK
 senkronize edilir (core.danisman_ortak._musteri_senkronize), ama bu
-sayfadan elle de kişi eklenebilir (iş ortağı, tedarikçi vb. — bir
+sayfadan elle de kişi eklenebilir (iş ortağı, kiraya veren vb. — bir
 talep/portföye bağlı olmak zorunda değil).
 
 BİLİNÇLİ TASARIM: Şimdilik KİŞİSEL — sadece kaydı ekleyen danışmana
@@ -41,7 +41,7 @@ hide_sidebar_css()
 render_topbar("Rehberim", ikon="📇", geri_hedefi="pages/Danisman_Secim.py")
 st.caption("Kişisel kişi defterin — sadece sana görünür, ofis geneli paylaşılmaz.")
 
-TIP_SECENEKLERI = ["Alıcı", "Satıcı", "İş Ortağı", "Tedarikçi", "Diğer"]
+TIP_SECENEKLERI = ["Alıcı", "Satıcı", "Kiraya Veren", "Kiracı", "İş Ortağı", "Diğer"]
 TUM_HARFLER = list("ABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZ")
 
 
@@ -183,7 +183,7 @@ with col_ekle:
                 f_telefon = st.text_input("Telefon (opsiyonel)", key="dp_mus_telefon")
                 # YENİ (13.08.2026, 2. tur): "kim ne iş yapıyor, nerede
                 # çalışıyor" sorusuna notları açmadan cevap verebilmek için
-                # — özellikle İş Ortağı/Tedarikçi'de fark yaratıyor (örn.
+                # — özellikle İş Ortağı'nda fark yaratıyor (örn.
                 # "Ender Böncü — Gayrimenkul Değerleme Uzmanı — Bornova").
                 f_uzmanlik = st.text_input(
                     "Uzmanlık / Meslek (opsiyonel)", key="dp_mus_uzmanlik",
