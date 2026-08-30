@@ -368,6 +368,17 @@ danisman_uzmanlik_bolgeleri = st.Page(
     icon=":material/pin_drop:",
 )
 
+# ── FSBO İlanları — Uzmanlık Bölgelerim ile AYNI iskelet (kalıcı 5-ilçe
+# seçimi), ama KENDİ tablosunda (fsbo_bolgeleri) ve izmir_pazar_ilanlar'dan
+# marka='mulk_sahibi' ile beslenen, danışmanın kendi kaydı OLMAYAN dış
+# pazar verisi (30.08.2026). Bilerek basit başladı — "sırayla başlayalım,
+# kullanım pratiğine göre eklemeler yapılacak" (Meltem).
+danisman_fsbo_ilanlari = st.Page(
+    "pages/Danisman_FSBOIlanlari.py",
+    title="FSBO İlanları",
+    icon=":material/sell:",
+)
+
 danisman_kayitlarim = st.Page(
     "pages/Danisman_Kayitlarim.py",
     title="Kendi Kayıtlarım",
@@ -418,6 +429,7 @@ pg = st.navigation(
             danisman_portfoy,
             danisman_favoriler,
             danisman_uzmanlik_bolgeleri,
+            danisman_fsbo_ilanlari,
             danisman_kayitlarim,
             danisman_paylasimlar,
             danisman_zeta_portfoyleri,

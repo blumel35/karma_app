@@ -29,6 +29,7 @@ from core.danisman_ortak import (
     ekle_dialog, render_activity_bar, render_topbar, hide_sidebar_css,
     uzmanlik_bolgelerini_cek, su_anki_danisman, ILAN_PORTAL_DEGERLERI,
 )
+from core.bolge_secici import bolgelerini_cek
 
 if not oturum_kontrol():
     st.switch_page("pages/Danisman_Giris.py")
@@ -479,6 +480,28 @@ with st.container(border=True, key="dp_page_frame"):
     with col_favori:
         if st.button("Favori Listem", key="dp_favori_btn"):
             st.switch_page("pages/Danisman_Favoriler.py")
+
+    st.write("")
+
+    # ── FSBO İlanları — YENİ (30.08.2026), Uzmanlık Bölgelerim ile AYNI
+    # "buton + canlı bölge sayısı rozeti" deseni. BİLEREK ayrı bir satırda,
+    # üsttekilerin genişliğini değiştirmeden eklendi — kartların büyük
+    # ölçekli yeniden düzenlenmesi (FSBO'nun birincil karta terfi etmesi)
+    # onaylanmış ayrı bir mockup işi, henüz başlanmadı; bu sadece ekranı
+    # gerçek kullanıma açan minimum adım.
+    col_fsbo, _col_fsbo_bos = st.columns([1, 1])
+    with col_fsbo:
+        fsbo_btn_col, fsbo_sayi_col = st.columns([3, 1])
+        with fsbo_btn_col:
+            if st.button("FSBO İlanları", key="dp_fsbo_btn", use_container_width=True):
+                st.switch_page("pages/Danisman_FSBOIlanlari.py")
+        with fsbo_sayi_col:
+            fsbo_bolge_sayisi = len(bolgelerini_cek("fsbo_bolgeleri", su_anki_danisman()))
+            if fsbo_bolge_sayisi:
+                st.markdown(
+                    f"<div class='dp-bolge-sayisi'>{fsbo_bolge_sayisi} bölge</div>",
+                    unsafe_allow_html=True,
+                )
 
     st.write("")
     render_activity_bar()

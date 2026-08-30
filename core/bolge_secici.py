@@ -34,6 +34,11 @@ Ayrıca ekranların "Uzmanlık Bölgelerim"de OLMAYAN bir desen olan geçici
 özel) kalıcı seçimle birleştirmek için etkin_ilceler() var — bu DB'ye
 hiç dokunmuyor, saf Python.
 
+Son olarak pazar_ilanlarini_cek(marka, ilceler) — etkin_ilceler()'in
+ürettiği birleşik listeyle izmir_pazar_ilanlar tablosundan AKTİF ilanları
+çeker (marka='mulk_sahibi' -> FSBO, marka='startkey' -> Startkey
+İlanları). ilceler boşsa sorgu hiç atılmaz, boş liste döner.
+
 NOT (2026-08-30): aktif_bolgeler() şu an hiçbir yerden çağrılmıyor —
 otomatik senkronizasyon işi (izmir_pazar_sync_job.py) hâlâ sadece
 core.danisman_ortak.aktif_uzmanlik_bolgeleri()'ni kullanıyor. FSBO ve
@@ -42,6 +47,8 @@ başlayınca, senkronizasyon kapsamını bu tabloları da içerecek şekilde
 genişletmek AYRI BİR ADIM (bilerek şimdi yapılmadı — küçük, test
 edilebilir adımlar halinde ilerleniyor).
 """
+
+import streamlit as st
 
 from core.supabase_client import get_client
 from core.danisman_ortak import su_anki_danisman
@@ -115,3 +122,27 @@ def etkin_ilceler(kalici_ilceler, gecici_ilceler=None):
     listeden üretilir. Saf Python — Supabase'e hiç dokunmaz."""
     birlesim = set(kalici_ilceler or []) | set(gecici_ilceler or [])
     return sorted(b for b in birlesim if b)
+
+
+@st.cache_data(ttl=60, show_spinner="Pazar ilanları yükleniyor...")
+def pazar_ilanlarini_cek(marka, ilceler):
+    """izmir_pazar_ilanlar tablosundan, verilen marka ('mulk_sahibi' ->
+    Danışman FSBO İlanları, 'startkey' -> Danışman Startkey İlanları) ve
+    etkin ilçe kümesine göre AKTİF ilanları çeker.
+
+    ilceler boşsa (henüz hiçbir bölge — ne kalıcı ne geçici — seçilmemişse)
+    hiç sorgu atmadan boş liste döner: hem gereksiz bir 'tüm İzmir' sorgusu
+    hem de danışmanın hiç seçmediği bölgelerin yanlışlıkla görünmesi
+    böylece engellenmiş olur (core/danisman_ortak.py'deki
+    uzmanlik_bolgesi_filtrele'nin DAVRANIŞÇA aynı temkinli deseni)."""
+    if not ilceler:
+        return []
+    resp = (
+        supabase.table("izmir_pazar_ilanlar")
+        .select("*")
+        .eq("marka", marka)
+        .eq("aktif", True)
+        .in_("ilce", list(ilceler))
+        .execute()
+    )
+    return resp.data or []
