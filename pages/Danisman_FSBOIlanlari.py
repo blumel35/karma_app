@@ -31,7 +31,10 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import oturum_kontrol
 from core.pano_export import pazar_ilan_pano_html_olustur
-from core.danisman_ortak import su_anki_danisman, IZMIR_ILCELERI, render_topbar, hide_sidebar_css
+from core.danisman_ortak import (
+    su_anki_danisman, IZMIR_ILCELERI, render_topbar, hide_sidebar_css,
+    islem_tipi_filtrele,
+)
 from core.bolge_secici import (
     bolgelerini_cek, bolgelerini_kaydet, etkin_ilceler, pazar_ilanlarini_cek,
 )
@@ -111,7 +114,9 @@ if not ilanlar_ham:
     st.info("Seçili bölge(ler)de şu an aktif FSBO ilanı yok.")
     st.stop()
 
-# ── ZAMAN + SIRALAMA FİLTRESİ (30.08.2026 — Meltem'in geri bildirimi) ──
+# ── İŞLEM TİPİ + ZAMAN + SIRALAMA FİLTRESİ (30-31.08.2026 — Meltem'in
+# geri bildirimi) ── İşlem Tipi, Uzmanlık Bölgelerim/Zeta Portföyleri ile
+# AYNI islem_tipi_filtrele() paylaşılan yardımcısını kullanıyor.
 # NOT: izmir_pazar_sync.py'de otomatik pasifleştirme BİLİNÇLİ OLARAK
 # kapalı (TUR 2A) — yani "aktif" alanı, bir ilan piyasadan gerçekten
 # kalksa bile şu an güvenilir şekilde değişmiyor. Bu yüzden tek başına
@@ -129,7 +134,15 @@ def _ilan_tarihi_gun(v):
     except (TypeError, ValueError):
         return None
 
-zaman_col, siralama_col = st.columns([1, 1])
+islem_col, zaman_col, siralama_col = st.columns([1, 1, 1])
+with islem_col:
+    islem_secim = st.radio(
+        "İşlem Tipi",
+        ["Tümü", "Satılık", "Kiralık"],
+        horizontal=True,
+        key="fsbo_islem",
+        label_visibility="collapsed",
+    )
 with zaman_col:
     zaman_secim = st.radio(
         "Zaman aralığı",
@@ -149,7 +162,7 @@ with siralama_col:
         key="fsbo_siralama",
     )
 
-ilanlar = ilanlar_ham
+ilanlar = islem_tipi_filtrele(ilanlar_ham, islem_secim)
 if zaman_secim == "Son 7 Gün":
     esik = date.today() - timedelta(days=7)
     ilanlar = [v for v in ilanlar if (_ilan_tarihi_gun(v) or date.min) >= esik]
