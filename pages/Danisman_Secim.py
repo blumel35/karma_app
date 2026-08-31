@@ -30,6 +30,7 @@ from core.danisman_ortak import (
     uzmanlik_bolgelerini_cek, su_anki_danisman, ILAN_PORTAL_DEGERLERI,
 )
 from core.bolge_secici import bolgelerini_cek
+from core.push_bildirim import render_bildirim_izni_butonu, bildirim_gonder
 
 if not oturum_kontrol():
     st.switch_page("pages/Danisman_Giris.py")
@@ -504,4 +505,34 @@ with st.container(border=True, key="dp_page_frame"):
                 )
 
     st.write("")
+
+    # ── TELEFON BİLDİRİMLERİ — FAZ 1 (31.08.2026, Meltem: "nolur mümkün
+    # olsun") — sadece TEMEL ALTYAPI: izin iste + abone ol + kendine bir
+    # test bildirimi gönder. Henüz hiçbir OTOMATİK tetikleyici (FSBO takip
+    # alarmı, yeni portföy/eşleşen talep bildirimi) yok — bunlar bu
+    # altyapı üzerine ayrı, sonraki adımlarda inşa edilecek. Bilerek bir
+    # expander içinde, sade — asıl ekranı kalabalıklaştırmasın diye.
+    with st.expander("🔔 Telefon bildirimleri (deneme aşaması)", expanded=False):
+        st.caption(
+            "Önce telefonunda 'Ana Ekrana Ekle' ile Danışman Panosu'nu "
+            "yükleyip AÇIK bırak, sonra aşağıdan bildirimleri aç. "
+            "iPhone'da bu sadece ana ekrana eklenmiş uygulamada çalışıyor."
+        )
+        render_bildirim_izni_butonu(su_anki_danisman(), key_prefix="dp_pb")
+        if st.button("Kendime test bildirimi gönder", key="dp_pb_test"):
+            try:
+                sonuc = bildirim_gonder(
+                    su_anki_danisman(),
+                    "Test Bildirimi",
+                    "Bildirimler çalışıyor! 🎉",
+                )
+                if sonuc["gonderildi"]:
+                    st.success(f"{sonuc['gonderildi']} cihaza gönderildi.")
+                elif sonuc["silinen"]:
+                    st.warning("Kayıtlı abonelik süresi dolmuş görünüyor — yukarıdan tekrar 'Bildirimleri Aç'a bas.")
+                else:
+                    st.warning("Henüz kayıtlı bir bildirim aboneliğin yok — önce yukarıdan 'Bildirimleri Aç'a bas.")
+            except Exception as e:
+                st.error(f"Gönderilemedi: {e}")
+
     render_activity_bar()

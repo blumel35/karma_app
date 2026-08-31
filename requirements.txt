@@ -59,6 +59,8 @@ pyparsing==3.3.2
 pyroaring==1.0.4
 PySocks==1.7.1
 pytesseract==0.3.13
+py-vapid==1.9.4
+pywebpush==2.5.0
 python-dateutil==2.9.0.post0
 python-docx==1.2.0
 python-dotenv==1.2.2
