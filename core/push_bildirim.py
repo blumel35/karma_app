@@ -107,7 +107,13 @@ def render_bildirim_izni_butonu(kullanici, key_prefix="pb"):
 
             var wrap = pdoc.createElement('div');
             wrap.id = '{fab_id}';
-            wrap.style.cssText = 'position:fixed; right:16px; bottom:16px; z-index:999999; font-family:sans-serif; display:flex; flex-direction:column; align-items:flex-end;';
+            // bottom:80px — Streamlit'in sağ altta her sayfada gösterdiği
+            // sabit "Hosted with Streamlit" rozetinin ÜSTÜNDE kalsın diye
+            // (Meltem: "bildirim emojisi streamlit işaretinin altında
+            // kalıyor, ulaşamıyor" — rozet bizim düğmemizin üstüne
+            // biniyor ve tıklamayı yiyordu). z-index de en üst değere
+            // çekildi, garantiye almak için.
+            wrap.style.cssText = 'position:fixed; right:16px; bottom:80px; z-index:2147483647; font-family:sans-serif; display:flex; flex-direction:column; align-items:flex-end; pointer-events:auto;';
 
             var durumEl = pdoc.createElement('div');
             durumEl.style.cssText = 'max-width:230px; margin-bottom:6px; padding:7px 10px; border-radius:8px; background:#1c2b47; color:#ffffff; font-size:11px; line-height:1.4; display:none; box-shadow:0 2px 8px rgba(0,0,0,.25);';
