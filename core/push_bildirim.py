@@ -51,44 +51,49 @@ def abonelikleri_cek(kullanici):
 
 
 def render_bildirim_izni_butonu(kullanici, key_prefix="pb"):
-    """'🔔 Bildirimleri Aç' butonu + durum yazısı. Tıklanınca:
-    1) Notification.requestPermission() (kullanıcı gerçekten tıkladığı
-       için tarayıcılar bunu güvenilir şekilde kabul ediyor),
+    """Sağ altta yüzen bir '🔔' düğmesi. Tıklanınca:
+    1) Notification.requestPermission(),
     2) service worker kaydını bekler (app.py'de zaten sessizce
        kaydedilmiş olmalı — burada sadece hazır olmasını bekliyoruz),
     3) pushManager.subscribe(),
     4) aboneliği DOĞRUDAN Supabase'e yazar (anon/publishable key ile,
-       core/pano_export.py'deki favoriToggle JS'iyle AYNI desen —
-       Streamlit'e hiç uğramadan, çünkü bu HTML bir iframe içinde
-       render ediliyor).
+       core/pano_export.py'deki favoriToggle JS'iyle AYNI desen).
 
-    Tüm DOM/Notification/serviceWorker erişimi window.parent üzerinden
-    yapılıyor — app.py'deki PWA manifest injection'ıyla AYNI, KANITLANMIŞ
-    aynı-origin iframe tekniği."""
+    DÜZELTME (31.08.2026 — Meltem'in "izin verilmedi" hatası): düğme
+    ÖNCEDEN bu bileşenin kendi <iframe>'i İÇİNDE render ediliyordu.
+    Android Chrome'da o iç-çerçeveden gelen tıklama, üst sayfanın
+    Notification.requestPermission() çağrısı için istediği "gerçek
+    kullanıcı tıklaması" (transient activation) olarak sayılmıyor —
+    tarayıcı hiçbir izin penceresi GÖSTERMEDEN sessizce 'denied'
+    döndürüyor. Çözüm: düğmeyi artık üst sayfanın (window.parent)
+    GERÇEK DOM'una — body'nin sonuna, sabit/yüzen küçük bir daire
+    olarak — ekliyoruz. Böylece tıklama gerçekten üst sayfada
+    gerçekleşiyor. Streamlit'in kendi React ağacına dokunmuyoruz
+    (body'ye ayrı bir kardeş eleman olarak ekleniyor), bu yüzden
+    sayfa yeniden render olduğunda React'in "beklenmeyen DOM
+    elemanı" hatası vermesi riski de yok. Sayfa her rerun olduğunda
+    bileşen tekrar çalışır ama id kontrolüyle ikinci kez eklemiyor."""
     supabase_url, supabase_anon = supabase_anon_secrets()
     if not supabase_url or not supabase_anon:
         st.caption("⚠️ Bildirim altyapısı için Supabase anon anahtarı bulunamadı.")
         return
 
     kullanici_js = json.dumps(kullanici or "")
+    fab_id = f"{key_prefix}_fab"
 
     components.html(
         f"""
-        <div style="font-family:sans-serif;">
-          <button id="{key_prefix}_btn" style="
-              padding:8px 16px; border-radius:8px; border:1px solid #d8cdb4;
-              background:#ffffff; color:#1c2b47; font-weight:600; font-size:13px;
-              cursor:pointer;">🔔 Bildirimleri Aç</button>
-          <div id="{key_prefix}_durum" style="margin-top:6px; font-size:12px; color:#8a8271;"></div>
-        </div>
         <script>
         (function () {{
             var win = window.parent;
-            var durumEl = document.getElementById('{key_prefix}_durum');
-            var btn = document.getElementById('{key_prefix}_btn');
+            var pdoc = win.document;
 
-            function durumYaz(metin) {{
-                if (durumEl) durumEl.textContent = metin;
+            // Zaten eklenmişse (Streamlit bu bileşeni yeniden render
+            // ettiği için) ikinci kez ekleme.
+            if (pdoc.getElementById('{fab_id}')) {{ return; }}
+
+            if (!win.navigator.serviceWorker || !win.PushManager || !win.Notification) {{
+                return; // desteklenmiyor — sessizce hiçbir şey gösterme
             }}
 
             function urlB64ToUint8Array(base64String) {{
@@ -100,25 +105,47 @@ def render_bildirim_izni_butonu(kullanici, key_prefix="pb"):
                 return arr;
             }}
 
-            if (!win.navigator.serviceWorker || !win.PushManager) {{
-                durumYaz('Bu tarayıcı telefon bildirimlerini desteklemiyor.');
-                btn.disabled = true;
-                return;
+            var wrap = pdoc.createElement('div');
+            wrap.id = '{fab_id}';
+            wrap.style.cssText = 'position:fixed; right:16px; bottom:16px; z-index:999999; font-family:sans-serif; display:flex; flex-direction:column; align-items:flex-end;';
+
+            var durumEl = pdoc.createElement('div');
+            durumEl.style.cssText = 'max-width:230px; margin-bottom:6px; padding:7px 10px; border-radius:8px; background:#1c2b47; color:#ffffff; font-size:11px; line-height:1.4; display:none; box-shadow:0 2px 8px rgba(0,0,0,.25);';
+
+            var btn = pdoc.createElement('button');
+            btn.type = 'button';
+            btn.textContent = '🔔';
+            btn.title = 'Telefon bildirimlerini aç';
+            btn.style.cssText = 'width:48px; height:48px; border-radius:50%; border:none; background:#c0392b; color:#fff; font-size:20px; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,.25);';
+
+            wrap.appendChild(durumEl);
+            wrap.appendChild(btn);
+            pdoc.body.appendChild(wrap);
+
+            function durumYaz(metin) {{
+                durumEl.textContent = metin;
+                durumEl.style.display = metin ? 'block' : 'none';
             }}
 
-            // Zaten abone mi? (sayfa her yenilendiğinde butonu tekrar
-            // basmaya zorlamamak için) — sessizce kontrol et.
+            if (win.Notification.permission === 'denied') {{
+                btn.style.background = '#8a8271';
+                durumYaz('Bildirimler bu tarayıcıda engellenmiş. Chrome ⋮ > Ayarlar > Site ayarları > Bildirimler\\'den bu siteyi bulup izin vermen gerekiyor (site listede yoksa: yukarıdaki genel anahtarın açık olduğundan emin ol).');
+            }}
+
+            // Zaten abone mi? — buysa düğmeyi tamamen gizle.
             win.navigator.serviceWorker.ready.then(function (reg) {{
                 return reg.pushManager.getSubscription();
             }}).then(function (mevcut) {{
-                if (mevcut) durumYaz('Bildirimler açık ✅');
+                if (mevcut && win.Notification.permission === 'granted') {{
+                    wrap.style.display = 'none';
+                }}
             }}).catch(function () {{}});
 
             btn.addEventListener('click', function () {{
-                durumYaz('İzin isteniyor...');
+                durumYaz('İzin isteniyor... (telefonunda bir izin penceresi çıkmalı — çıkmazsa engellenmiş demektir)');
                 win.Notification.requestPermission().then(function (izin) {{
                     if (izin !== 'granted') {{
-                        durumYaz('İzin verilmedi — tarayıcı/telefon ayarlarından bildirim iznini açabilirsin.');
+                        durumYaz('İzin verilmedi (durum: ' + izin + '). Chrome ⋮ > Ayarlar > Site ayarları > Bildirimler\\'den bu siteyi bul, izin ver.');
                         return;
                     }}
                     return win.navigator.serviceWorker.ready.then(function (reg) {{
@@ -146,6 +173,7 @@ def render_bildirim_izni_butonu(kullanici, key_prefix="pb"):
                     }}).then(function (r) {{
                         if (r && r.ok) {{
                             durumYaz('Bildirimler açık ✅');
+                            setTimeout(function () {{ wrap.style.display = 'none'; }}, 2500);
                         }} else {{
                             durumYaz('Abonelik kaydedilemedi (sunucu hatası).');
                         }}
@@ -157,7 +185,7 @@ def render_bildirim_izni_butonu(kullanici, key_prefix="pb"):
         }})();
         </script>
         """,
-        height=70,
+        height=0,
     )
 
 
