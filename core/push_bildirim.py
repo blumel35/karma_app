@@ -138,8 +138,38 @@ def render_bildirim_izni_butonu(kullanici, key_prefix="pb"):
                 durumYaz('Bildirimler bu tarayıcıda engellenmiş. Chrome ⋮ > Ayarlar > Site ayarları > Bildirimler\\'den bu siteyi bulup izin vermen gerekiyor (site listede yoksa: yukarıdaki genel anahtarın açık olduğundan emin ol).');
             }}
 
+            // DÜZELTME (31.08.2026 — "Service worker 15 saniyede yanıt
+            // vermedi" hatası): navigator.serviceWorker.READY, sadece
+            // service worker'ın kaydının GEÇERLİ SAYFAYI KAPSADIĞI
+            // durumda çözülüyor. Ama sw.js /app/static/sw.js altında
+            // (varsayılan kapsamı /app/static/) kayıtlı, biz ise
+            // /Danisman_Secim gibi kök seviye sayfalardayız — kapsam
+            // örtüşmediği için .ready SÜRESİZ bekliyordu. Push aboneliği
+            // için sayfanın service worker tarafından "kontrol edilmesi"
+            // GEREKMİYOR — sadece KAYIT'ın kendisi (aktif ya da aktif
+            // olmak üzere) yeterli. Bu yüzden .ready yerine, tüm
+            // kayıtları tarayıp bizimkini (script adında 'sw.js' geçen)
+            // doğrudan buluyoruz; bulamazsak kendimiz (yeniden) register
+            // ediyoruz — register() zaten idempotent, var olan kaydı
+            // döndürür.
+            function swKaydiGetir() {{
+                return win.navigator.serviceWorker.getRegistrations().then(function (kayitlar) {{
+                    for (var i = 0; i < kayitlar.length; i++) {{
+                        var k = kayitlar[i];
+                        var aktif = k.active || k.waiting || k.installing;
+                        if (aktif && aktif.scriptURL && aktif.scriptURL.indexOf('sw.js') !== -1) {{
+                            if (k.active) return k;
+                        }}
+                    }}
+                    // Aktif kayıt bulunamadı — kendimiz (yeniden) register edelim.
+                    return win.navigator.serviceWorker.register('/app/static/sw.js').then(function (reg) {{
+                        return win.navigator.serviceWorker.ready.catch(function () {{ return reg; }});
+                    }});
+                }});
+            }}
+
             // Zaten abone mi? — buysa düğmeyi tamamen gizle.
-            win.navigator.serviceWorker.ready.then(function (reg) {{
+            swKaydiGetir().then(function (reg) {{
                 return reg.pushManager.getSubscription();
             }}).then(function (mevcut) {{
                 if (mevcut && win.Notification.permission === 'granted') {{
@@ -165,7 +195,7 @@ def render_bildirim_izni_butonu(kullanici, key_prefix="pb"):
                         return;
                     }}
                     durumYaz('İzin verildi ✅ — cihaz kaydı hazırlanıyor (service worker)...');
-                    return zamanAsimliCalistir(win.navigator.serviceWorker.ready, 15000, 'Service worker')
+                    return zamanAsimliCalistir(swKaydiGetir(), 15000, 'Service worker')
                         .then(function (reg) {{
                             durumYaz('Service worker hazır — push servisine kaydediliyor...');
                             return zamanAsimliCalistir(
