@@ -141,6 +141,16 @@ def render_bildirim_izni_butonu(kullanici, key_prefix="pb"):
                 }}
             }}).catch(function () {{}});
 
+            function zamanAsimliCalistir(sozVerme, ms, etiket) {{
+                return new Promise(function (resolve, reject) {{
+                    var zamanlayici = setTimeout(function () {{
+                        reject(new Error(etiket + ' 15 saniyede yanıt vermedi (ağ/firewall engeli olabilir).'));
+                    }}, ms);
+                    sozVerme.then(function (v) {{ clearTimeout(zamanlayici); resolve(v); }},
+                                   function (e) {{ clearTimeout(zamanlayici); reject(e); }});
+                }});
+            }}
+
             btn.addEventListener('click', function () {{
                 durumYaz('İzin isteniyor... (telefonunda bir izin penceresi çıkmalı — çıkmazsa engellenmiş demektir)');
                 win.Notification.requestPermission().then(function (izin) {{
@@ -148,38 +158,56 @@ def render_bildirim_izni_butonu(kullanici, key_prefix="pb"):
                         durumYaz('İzin verilmedi (durum: ' + izin + '). Chrome ⋮ > Ayarlar > Site ayarları > Bildirimler\\'den bu siteyi bul, izin ver.');
                         return;
                     }}
-                    return win.navigator.serviceWorker.ready.then(function (reg) {{
-                        return reg.pushManager.subscribe({{
-                            userVisibleOnly: true,
-                            applicationServerKey: urlB64ToUint8Array('{VAPID_PUBLIC_KEY}')
+                    durumYaz('İzin verildi ✅ — cihaz kaydı hazırlanıyor (service worker)...');
+                    return zamanAsimliCalistir(win.navigator.serviceWorker.ready, 15000, 'Service worker')
+                        .then(function (reg) {{
+                            durumYaz('Service worker hazır — push servisine kaydediliyor...');
+                            return zamanAsimliCalistir(
+                                reg.pushManager.subscribe({{
+                                    userVisibleOnly: true,
+                                    applicationServerKey: urlB64ToUint8Array('{VAPID_PUBLIC_KEY}')
+                                }}),
+                                15000,
+                                'Push servisi kaydı'
+                            );
+                        }})
+                        .then(function (sub) {{
+                            durumYaz('Push kaydı alındı — sunucuya yazılıyor...');
+                            var ham = sub.toJSON();
+                            return zamanAsimliCalistir(
+                                fetch('{supabase_url}/rest/v1/push_abonelikleri?on_conflict=endpoint', {{
+                                    method: 'POST',
+                                    headers: {{
+                                        'apikey': '{supabase_anon}',
+                                        'Authorization': 'Bearer {supabase_anon}',
+                                        'Content-Type': 'application/json',
+                                        'Prefer': 'resolution=merge-duplicates'
+                                    }},
+                                    body: JSON.stringify({{
+                                        kullanici: {kullanici_js},
+                                        endpoint: ham.endpoint,
+                                        p256dh: ham.keys.p256dh,
+                                        auth: ham.keys.auth
+                                    }})
+                                }}),
+                                15000,
+                                'Sunucuya kayıt'
+                            );
+                        }})
+                        .then(function (r) {{
+                            if (r && r.ok) {{
+                                durumYaz('Bildirimler açık ✅');
+                                setTimeout(function () {{ wrap.style.display = 'none'; }}, 2500);
+                            }} else {{
+                                r.text().then(function (t) {{
+                                    durumYaz('Sunucu reddetti (HTTP ' + (r ? r.status : '?') + '): ' + t);
+                                }}).catch(function () {{
+                                    durumYaz('Abonelik kaydedilemedi (sunucu hatası, HTTP ' + (r ? r.status : '?') + ').');
+                                }});
+                            }}
                         }});
-                    }}).then(function (sub) {{
-                        var ham = sub.toJSON();
-                        return fetch('{supabase_url}/rest/v1/push_abonelikleri?on_conflict=endpoint', {{
-                            method: 'POST',
-                            headers: {{
-                                'apikey': '{supabase_anon}',
-                                'Authorization': 'Bearer {supabase_anon}',
-                                'Content-Type': 'application/json',
-                                'Prefer': 'resolution=merge-duplicates'
-                            }},
-                            body: JSON.stringify({{
-                                kullanici: {kullanici_js},
-                                endpoint: ham.endpoint,
-                                p256dh: ham.keys.p256dh,
-                                auth: ham.keys.auth
-                            }})
-                        }});
-                    }}).then(function (r) {{
-                        if (r && r.ok) {{
-                            durumYaz('Bildirimler açık ✅');
-                            setTimeout(function () {{ wrap.style.display = 'none'; }}, 2500);
-                        }} else {{
-                            durumYaz('Abonelik kaydedilemedi (sunucu hatası).');
-                        }}
-                    }});
                 }}).catch(function (e) {{
-                    durumYaz('Bir hata oluştu: ' + (e && e.message ? e.message : e));
+                    durumYaz('Hata: ' + (e && e.message ? e.message : e));
                 }});
             }});
         }})();
