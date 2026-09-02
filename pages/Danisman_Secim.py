@@ -513,8 +513,8 @@ with st.container(border=True, key="dp_page_frame"):
     # altyapı üzerine ayrı, sonraki adımlarda inşa edilecek. Bilerek bir
     # expander içinde, sade — asıl ekranı kalabalıklaştırmasın diye.
     with st.expander("🔔 Telefon bildirimleri (deneme aşaması)", expanded=False):
-       st.caption(f"DEBUG: su_anki_danisman = [{su_anki_danisman()}]") 
-       st.caption(
+        st.caption(f"DEBUG: su_anki_danisman = [{su_anki_danisman()}]") 
+        st.caption(
             "Aşağıdaki düğmeye basınca yeni bir sekme açılır — orada "
             "'Bildirimleri Aç'a bas, tarayıcı izin isteyecek, izin ver. "
             "Sonra o sekmeyi kapatıp buraya dönebilirsin."
