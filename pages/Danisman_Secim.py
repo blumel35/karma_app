@@ -514,13 +514,9 @@ with st.container(border=True, key="dp_page_frame"):
     # expander içinde, sade — asıl ekranı kalabalıklaştırmasın diye.
     with st.expander("🔔 Telefon bildirimleri (deneme aşaması)", expanded=False):
         st.caption(
-            "Önce telefonunda 'Ana Ekrana Ekle' ile Danışman Panosu'nu "
-            "yükleyip AÇIK bırak, sonra bildirimleri aç. "
-            "iPhone'da bu sadece ana ekrana eklenmiş uygulamada çalışıyor."
-        )
-        st.caption(
-            "📍 Bildirim düğmesi bu kutunun içinde değil — sağ alt köşede "
-            "yüzen kırmızı 🔔 simgesi olarak görünüyor. Ona dokun."
+            "Aşağıdaki düğmeye basınca yeni bir sekme açılır — orada "
+            "'Bildirimleri Aç'a bas, tarayıcı izin isteyecek, izin ver. "
+            "Sonra o sekmeyi kapatıp buraya dönebilirsin."
         )
         render_bildirim_izni_butonu(su_anki_danisman(), key_prefix="dp_pb")
         if st.button("Kendime test bildirimi gönder", key="dp_pb_test"):
