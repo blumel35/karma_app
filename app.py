@@ -69,23 +69,10 @@ components.html(
         appleTouchIcon.href = '/app/static/icons/apple-touch-icon.png';
         head.appendChild(appleTouchIcon);
 
-        // ── TELEFON BİLDİRİMLERİ (push) altyapısı — 2026-08-31 ──────
-        // Service worker'ı burada, HER sayfa yüklemesinde sessizce
-        // kaydediyoruz (manifest ile aynı mantık — window.parent üzerinden,
-        // aynı-origin iframe trick'i). Asıl bildirim İZNİ ve abonelik
-        // (subscribe) ise AYRI, kullanıcının bilerek tıkladığı bir buton
-        // üzerinden yapılıyor (core/push_bildirim.py:
-        // render_bildirim_izni_butonu()) — tarayıcılar Notification.
-        // requestPermission()'ı genelde ancak gerçek bir kullanıcı
-        // tıklamasından sonra güvenilir şekilde kabul ediyor, bu yüzden
-        // izin isteği burada, sessiz/otomatik olarak YAPILMIYOR.
-        if (window.parent.navigator && window.parent.navigator.serviceWorker) {
-            window.parent.navigator.serviceWorker.register('/app/static/sw.js').catch(function () {
-                // Sessizce geç — desteklemeyen tarayıcı/ortamda PWA'nın
-                // geri kalanını bozmasın.
-            });
-        }
-    })();
+              // Telefon bildirimleri (push) için service worker artık burada
+        // DEĞİL — ayrı bir origin'deki mini-PWA'da (bkz. core/
+        // push_bildirim.py, bildirim_aktivasyon_linki_uret()).
+    })(); 
     </script>
     """,
     height=0,
