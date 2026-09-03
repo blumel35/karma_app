@@ -87,8 +87,29 @@ KARMA_APP_URL = "https://startkey-zeta.streamlit.app"
 
 
 def abonelikleri_cek(kullanici):
-    resp = supabase.table("push_abonelikleri").select("*").eq("kullanici", kullanici).execute()
-    return resp.data or []
+    """kullanici'nin KAYITLI TÜM abonelik satırlarını döner.
+
+    DEĞİŞTİ (02.09.2026, Meltem: "bildirim hâlâ gitmiyor" teşhisi):
+    Eskiden .eq("kullanici", kullanici) ile TAM (büyük/küçük harf ve
+    boşluk DUYARLI) eşleşme aranıyordu. Aktivasyon anında token'a
+    gömülen isim (bildirim_aktivasyon_linki_uret çağrıldığı andaki
+    su_anki_danisman()) ile gönderim anında tekrar çağrılan
+    su_anki_danisman() arasında TEK bir boşluk veya harf büyüklüğü
+    farkı bile (örn. profil tablosundaki "ad" alanı iki farkı zaman
+    farklı normalize edildiyse) satırı SESSİZCE "0 abonelik" gibi
+    gösteriyordu — ne kullanıcıya ne de log'a hiçbir hata düşmüyordu.
+    Artık kullanıcı adı normalize edilip (strip + casefold) TÜM
+    abonelik satırları üzerinde Python tarafında karşılaştırılıyor —
+    böylece büyük/küçük harf ve baştaki/sondaki boşluk farkları artık
+    bildirim göndermeyi ENGELLEMİYOR. (Kayıt anında RPC hâlâ token
+    içindeki ham ismi aynen yazıyor — burada SADECE okuma/eşleştirme
+    tarafı gevşetildi, veri değişmedi.)"""
+    hedef = (kullanici or "").strip().casefold()
+    if not hedef:
+        return []
+    resp = supabase.table("push_abonelikleri").select("*").execute()
+    tumu = resp.data or []
+    return [ab for ab in tumu if (ab.get("kullanici") or "").strip().casefold() == hedef]
 
 
 def _aktivasyon_gizli_anahtar():
