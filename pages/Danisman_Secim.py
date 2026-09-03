@@ -30,7 +30,7 @@ from core.danisman_ortak import (
     uzmanlik_bolgelerini_cek, su_anki_danisman, ILAN_PORTAL_DEGERLERI,
 )
 from core.bolge_secici import bolgelerini_cek
-from core.push_bildirim import render_bildirim_izni_butonu, bildirim_gonder
+from core.push_bildirim import render_bildirim_izni_butonu, bildirim_gonder, abonelikleri_cek
 
 if not oturum_kontrol():
     st.switch_page("pages/Danisman_Giris.py")
@@ -513,19 +513,47 @@ with st.container(border=True, key="dp_page_frame"):
     # altyapı üzerine ayrı, sonraki adımlarda inşa edilecek. Bilerek bir
     # expander içinde, sade — asıl ekranı kalabalıklaştırmasın diye.
     with st.expander("🔔 Telefon bildirimleri (deneme aşaması)", expanded=False):
-        st.caption(f"DEBUG: su_anki_danisman = [{su_anki_danisman()!r}]")
+        # DEĞİŞTİ (02.09.2026): eşleştirme artık abonelikleri_cek()
+        # içinde normalize edildiği için (bkz. core/push_bildirim.py),
+        # burada kayıtlı abonelik SAYISI gösteriliyor — böylece
+        # "Bildirimleri Aç"a hiç basmadan, sayfayı her açtığında
+        # eşleşmenin hâlâ doğru olduğu görülebiliyor.
+        # DEĞİŞTİ (03.09.2026): sorun tam olarak teşhis edilip
+        # doğrulandığı için (Chrome'un kendi spam koruması — kod/eşleşme
+        # sorunu değildi) ham "DEBUG: su_anki_danisman = [...]" satırı
+        # kaldırıldı, geçici amacını tamamladı.
+        _abonelik_sayisi = len(abonelikleri_cek(su_anki_danisman()))
+        if _abonelik_sayisi:
+            # DEĞİŞTİ (03.09.2026, Meltem: "her defasında bildirimleri
+            # aç yapmak zorundayız... pratik değil"): bu cihaz zaten
+            # kayıtlıysa bunu AÇIKÇA söylüyoruz — aşağıdaki "Bildirimleri
+            # Aç" linki yine de duruyor (yeni bir cihazdan/tarayıcıdan
+            # açıyorsa lazım olur) ama artık HER seferinde tekrar
+            # tıklanması GEREKMİYOR, tek seferlik bir kurulum bu.
+            st.caption(f"✅ Zaten {_abonelik_sayisi} cihaz kayıtlı — her seferinde tekrar 'Bildirimleri Aç'a basmana gerek yok.")
         st.caption(
-            "Aşağıdaki düğmeye basınca yeni bir sekme açılır — orada "
+            "Yeni bir cihazdan/tarayıcıdan bildirim almak istersen: "
+            "aşağıdaki düğmeye bas, yeni bir sekme açılır — orada "
             "'Bildirimleri Aç'a bas, tarayıcı izin isteyecek, izin ver. "
-            "Sonra o sekmeyi kapatıp buraya dönebilirsin."
+            "Sonra o sekmeyi kapatıp buraya dönebilirsin. (Bu, o cihaz "
+            "için TEK SEFERLİK bir kurulum.)"
         )
         render_bildirim_izni_butonu(su_anki_danisman(), key_prefix="dp_pb")
+        # DEĞİŞTİ (03.09.2026, Meltem: "ne mesaj yazacağım çıkmıyor"):
+        # test bildirimi artık sabit bir metin değil, kendi yazdığın
+        # başlık/gövde ile gönderiliyor.
+        _test_baslik = st.text_input(
+            "Test bildirimi başlığı", value="Test Bildirimi", key="dp_pb_test_baslik",
+        )
+        _test_govde = st.text_input(
+            "Test bildirimi mesajı", value="Bildirimler çalışıyor! 🎉", key="dp_pb_test_govde",
+        )
         if st.button("Kendime test bildirimi gönder", key="dp_pb_test"):
             try:
                 sonuc = bildirim_gonder(
                     su_anki_danisman(),
-                    "Test Bildirimi",
-                    "Bildirimler çalışıyor! 🎉",
+                    _test_baslik or "Test Bildirimi",
+                    _test_govde or "",
                 )
                 if sonuc["gonderildi"]:
                     st.success(f"{sonuc['gonderildi']} cihaza gönderildi.")
