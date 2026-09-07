@@ -437,6 +437,20 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
           </div>
         </div>
       </div>
+
+      <!-- YENİ (07.09.2026, Meltem: "satıcının kira geliri de olabilir") —
+           Maliyetler bölümüne PARALEL, bekleme süresince varsa kira gelirini
+           de gösteren bir bölüm. Maliyetin tersine, bu tutar Yol 2/Yol 3 ve
+           "hiç satamazsanız" sonuçlarına EKLENİR. -->
+      <div class="subsection">
+        <div class="subsection-title">Bekleme Süresince Kira Geliriniz (opsiyonel)</div>
+        <div class="subsection-sub">Ev satılana kadar kirada ise, bu süre boyunca elde edeceğiniz aylık net kira geliri. Yoksa boş bırakabilirsiniz.</div>
+        <div class="field">
+          <label style="font-size:13.5px; color:var(--ink-soft);">Aylık Kira Geliri</label>
+          <input type="number" id="inMonthlyRent" value="0" step="500" min="0">
+          <div class="info-note" id="rentNote"></div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -601,8 +615,9 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
   const lblTax = document.getElementById('lblTax');
   const inMonthlyCost = document.getElementById('inMonthlyCost');
   const inOneTimeCost = document.getElementById('inOneTimeCost');
+  const inMonthlyRent = document.getElementById('inMonthlyRent');
 
-  [inShort, inMid, inLong, inOneri, inP1, inMarketM2, inDiscount, inFallback, inMonthlyCost, inOneTimeCost]
+  [inShort, inMid, inLong, inOneri, inP1, inMarketM2, inDiscount, inFallback, inMonthlyCost, inOneTimeCost, inMonthlyRent]
     .forEach(tlMaskeBagla);
 
   const rateModeBtns = document.querySelectorAll('.rate-mode-btn');
@@ -814,8 +829,29 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
     const monthlyCost = Math.max(0, parseTL(inMonthlyCost)||0);
     const oneTimeCost = Math.max(0, parseTL(inOneTimeCost)||0);
     const totalCost = monthlyCost * T + oneTimeCost;
-    const netB = Math.max(0, P1 - totalCost);
-    const netC = Math.max(0, pazarlikFiyati - totalCost);
+    // YENİ (07.09.2026): bekleme süresince kira geliri — maliyetin tam
+    // tersi yönde çalışır, Yol 2/Yol 3 ve "hiç satamazsanız" sonuçlarına
+    // EKLENİR (düşülmez).
+    const monthlyRent = Math.max(0, parseTL(inMonthlyRent)||0);
+    const totalRent = monthlyRent * T;
+    const netB = Math.max(0, P1 - totalCost + totalRent);
+    const netC = Math.max(0, pazarlikFiyati - totalCost + totalRent);
+
+    // Bekleme süresince maliyet + kira gelirini tek bir parantez notuna
+    // birleştiren yardımcılar — "Yol 2"/"Yol 3" açıklamaları ve "hiç
+    // satamazsanız" satırı için ayrı ayrı ton/biçimde kullanılıyor.
+    function beklemeNotu(){
+      const parts = [];
+      if(totalCost > 0) parts.push(trMoney(totalCost) + ' maliyet düşülmüştür');
+      if(totalRent > 0) parts.push(trMoney(totalRent) + ' kira geliri eklenmiştir');
+      return parts.length ? ' (Bekleme süresince ' + parts.join(', ') + '.)' : '';
+    }
+    function fallbackBeklemeNotu(){
+      const parts = [];
+      if(totalCost > 0) parts.push(trMoney(totalCost) + ' bekleme maliyeti düşülmüştür');
+      if(totalRent > 0) parts.push(trMoney(totalRent) + ' kira geliri eklenmiştir');
+      return parts.length ? ' (' + parts.join(', ') + '.)' : '';
+    }
 
     const costNote = document.getElementById('costNote');
     if(totalCost > 0){
@@ -823,6 +859,14 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
       costNote.style.display = 'block';
     } else {
       costNote.style.display = 'none';
+    }
+
+    const rentNote = document.getElementById('rentNote');
+    if(totalRent > 0){
+      rentNote.innerHTML = T + ' ay boyunca toplam kira geliriniz <b>' + trMoney(totalRent) + '</b> — bu tutar Yol 2, Yol 3 ve "hiç satamazsanız" sonuçlarına eklenmiştir.';
+      rentNote.style.display = 'block';
+    } else {
+      rentNote.style.display = 'none';
     }
 
     animateNumber('numA', FV_T);
@@ -848,7 +892,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
     document.getElementById('descB').textContent = p1Empty
       ? 'Hedef fiyatınızı girdiğinizde burada göreceksiniz.'
       : (T + ' ay bekler ve istediğiniz ' + trMoney(P1) + ' fiyata satarsanız, elinizde bu tutar olur.' +
-        (totalCost > 0 ? ' (Bekleme süresince ' + trMoney(totalCost) + ' maliyet düşülmüştür.)' : ''));
+        beklemeNotu());
 
     // Yol 1 ek not: bugün satıp değerlendirseydik, hedef fiyata kaçıncı ayda ulaşırdık?
     const extraA = document.getElementById('extraA');
@@ -871,7 +915,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
     document.getElementById('descC').textContent = p1Empty
       ? 'Hedef fiyatınızı girdiğinizde burada göreceksiniz.'
       : ('Alıcı pazarlık isteyebilir. En fazla ' + trMoney(discount) + ' indirim yaparsanız, elinizde bu tutar olur.' +
-        (totalCost > 0 ? ' (Bekleme süresince ' + trMoney(totalCost) + ' maliyet düşülmüştür.)' : ''));
+        beklemeNotu());
 
     // bar compare
     const maxVal = Math.max(FV_T, netB, netC, 1);
@@ -898,9 +942,9 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
       fallbackLine.classList.remove('note-negative');
     } else {
       fallbackLine.style.display = '';
-      const fallbackNet = Math.max(0, fallback - totalCost);
+      const fallbackNet = Math.max(0, fallback - totalCost + totalRent);
       const fallbackDiff = FV_T - fallbackNet;
-      const costNoteTxt = totalCost > 0 ? ' (' + trMoney(totalCost) + ' bekleme maliyeti düşülmüştür.)' : '';
+      const costNoteTxt = fallbackBeklemeNotu();
       fallbackLine.classList.toggle('note-negative', fallbackDiff > 0);
       if(fallbackDiff > 0){
         fallbackLine.innerHTML =
@@ -915,7 +959,7 @@ Detaylı değerlendirme için sonuçları inceleyebilirsiniz.</textarea>
     }
   }
 
-  [inShort, inMid, inLong, inOneri, inP1, inT, inMarketAvg, inM2, inMarketM2, inDiscount, inRate, inFallback, inDelta, inTax, inMonthlyCost, inOneTimeCost].forEach(el=>{
+  [inShort, inMid, inLong, inOneri, inP1, inT, inMarketAvg, inM2, inMarketM2, inDiscount, inRate, inFallback, inDelta, inTax, inMonthlyCost, inOneTimeCost, inMonthlyRent].forEach(el=>{
     el.addEventListener('input', ()=>{
       if(el === inDelta){ lblDelta.textContent = inDelta.value + ' puan'; }
       render();
