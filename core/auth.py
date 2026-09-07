@@ -107,6 +107,25 @@ def giris_yap(email: str, sifre: str) -> dict | None:
             if not _valid_actor(kullanici):
                 return None
 
+            # GİRİŞ LOGLAMA (2026-09-07, Meltem: "hangi kullanıcı kaç
+            # defa giriş yaptı görebilir miyim") — Supabase'in kendi
+            # auth.audit_log_entries tablosu bu projede boş çıktı
+            # (muhtemelen retention/plan kısıtı), o yüzden kendi basit
+            # tablomuzu tutuyoruz: public.giris_loglari (SQL: bkz.
+            # giris_loglari_TABLO.sql). Yalnızca GERÇEK giriş (bu
+            # fonksiyon) loglanıyor — tarayıcı cookie'sinden sessiz
+            # oturum geri yükleme (_tarayici_oturumu_yukle) burayı hiç
+            # çağırmaz, bu yüzden sayaç şişmez. Log yazımı başarısız
+            # olsa bile giriş ASLA engellenmemeli — bu yüzden sessizce
+            # yutuluyor.
+            try:
+                supa.table("giris_loglari").insert({
+                    "kullanici_id": kullanici["id"],
+                    "email": kullanici["email"],
+                }).execute()
+            except Exception:
+                pass
+
             # Tarayıcı cookie'sine de yaz — sonraki ziyaretlerde/sayfa
             # yenilemelerinde şifre tekrar sorulmasın diye. Bu, dosya
             # tabanlı LOCAL_SESSION_RESTORE'dan bağımsız, tarayıcıya
