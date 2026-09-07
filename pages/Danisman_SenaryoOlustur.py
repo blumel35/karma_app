@@ -69,7 +69,7 @@ if st.session_state.pop("_dp_sn_temizle", False):
     for _k in ["dp_sn_musteri", "dp_sn_konum", "dp_sn_oda", "dp_sn_yas", "dp_sn_m2",
                "dp_sn_ozellik", "dp_sn_kisa", "dp_sn_orta", "dp_sn_uzun", "dp_sn_oneri",
                "dp_sn_hedef", "dp_sn_m2fiyat", "dp_sn_aylik",
-               "dp_sn_tekseferlik", "dp_sn_sure", "dp_sn_faiz", "dp_sn_imar", "dp_sn_kaks"]:
+               "dp_sn_tekseferlik", "dp_sn_kira", "dp_sn_sure", "dp_sn_faiz", "dp_sn_imar", "dp_sn_kaks"]:
         st.session_state[_k] = ""
 
 # DÜZELTME (22.08.2026): st.rerun() hemen çalıştığı için, "Link Oluştur"
@@ -99,7 +99,7 @@ _TEMEL_URL = "https://startkey-zeta.streamlit.app/Senaryo_Hesaplayici"
 _TL_ALANLARI = [
     "dp_sn_kisa", "dp_sn_orta", "dp_sn_uzun", "dp_sn_oneri",
     "dp_sn_hedef", "dp_sn_m2fiyat", "dp_sn_aylik",
-    "dp_sn_tekseferlik",
+    "dp_sn_tekseferlik", "dp_sn_kira",
 ]
 
 
@@ -274,6 +274,17 @@ with st.expander("+ Yeni Senaryo Oluştur", expanded=True):
             on_change=_tl_bicimlendir, args=("dp_sn_tekseferlik",),
         )
 
+    # YENİ (07.09.2026, Meltem: "satıcının kira geliri de olabilir") —
+    # Maliyetler bölümüne PARALEL, ayrı bir bölüm. Ev satılana kadar
+    # satıcı kirada tutuyorsa, bu tutar hesaplayıcıda maliyetin tersine
+    # Yol 2/Yol 3 ve "hiç satamazsanız" sonuçlarına EKLENİR.
+    st.markdown("**Bekleme Süresince Kira Geliriniz** (opsiyonel)")
+    f_kira = st.text_input(
+        "Aylık Kira Geliri (TL)", key="dp_sn_kira", placeholder="örn. 15.000",
+        help="Ev satılana kadar kirada ise, bu süre boyunca elde edilecek aylık net kira geliri.",
+        on_change=_tl_bicimlendir, args=("dp_sn_kira",),
+    )
+
     if st.button("Link Oluştur", type="primary", use_container_width=True, key="dp_sn_kaydet_btn"):
         if not f_musteri.strip():
             st.error("Müşteri Adı zorunlu.")
@@ -288,6 +299,7 @@ with st.expander("+ Yeni Senaryo Oluştur", expanded=True):
                 "hedef_fiyat": _tl_temizle(f_hedef), "piyasa_satis_suresi": f_sure,
                 "ort_m2_fiyati": _tl_temizle(f_m2fiyat), "piyasa_faiz_orani": f_faiz,
                 "aylik_maliyet": _tl_temizle(f_aylik), "tek_seferlik_maliyet": _tl_temizle(f_tek_seferlik),
+                "aylik_kira_geliri": _tl_temizle(f_kira),
                 "surum": "sihirbaz" if f_surum.startswith("Bölümlü") else "klasik",
             })
             st.session_state["_dp_sn_son_link"] = _link_olustur(kod, f_musteri)
