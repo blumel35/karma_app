@@ -83,6 +83,9 @@ _ALAN_ESLEME = {
     "ort_m2_fiyati": "inMarketM2",
     "piyasa_faiz_orani": "inRate",
     "aylik_maliyet": "inMonthlyCost", "tek_seferlik_maliyet": "inOneTimeCost",
+    # YENİ (07.09.2026, Meltem: "satıcının kira geliri de olabilir") —
+    # bekleme süresince kira geliri, maliyetlerin PARALELİNDE ayrı bir alan.
+    "aylik_kira_geliri": "inMonthlyRent",
 }
 
 
