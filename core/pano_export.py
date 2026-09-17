@@ -232,14 +232,37 @@ def _kart_html(v, kayit_tipi, favori_destekli=False, favorili_mi=False):
     kaynak_etiketi = _esc(_kaynak_etiket(v))
     kaynak_sinif = "kart-kaynak kart-kaynak-zeta" if kaynak_etiketi == "Zeta" else "kart-kaynak"
 
+    # DÜZELTME (17.09.2026, Meltem: "uzmanlık bölgelerim favorilerim zeta
+    # portföyleri ve talep ve portföy panosunda da tl sembolü yok"):
+    # bu satırlar ham değeri (v.get("max_butce")/v.get("fiyat")) hiç
+    # işlemeden, TL eki eklemeden doğrudan basıyordu — _pazar_ilan_kart_
+    # html() (FSBO/Startkey İlanları'nın kullandığı, aşağıda) ise AYNI
+    # işi _sayi_formatla(...) + " TL" ile yapıyor, o yüzden orada TL
+    # hep vardı. Danışmanın KENDİ elle girdiği talep/portföy kayıtlarında
+    # bu alan SERBEST METİN (bkz. core/danisman_ortak.py — placeholder
+    # "örn. 4.500.000 TL", danışman isterse TL'yi kendi yazar/yazmaz),
+    # Zeta Portföyleri gibi Revy senkron kayıtlarında ise TEMİZ SAYISAL
+    # bir değer. İkisini AYIRT ETMEDEN Türkçe nokta/virgül temizliği
+    # uygulamak riskli (bkz. yukarıdaki _mt_sayi düzeltmesi — aynı
+    # sınıf hata) — bu yüzden önce _sayi_ayikla ile "bu zaten temiz bir
+    # sayı mı?" diye deneniyor: EVETSE (sayısal/Revy kaynaklı) biçimlenip
+    # " TL" ekleniyor; HAYIRSA (danışmanın serbest metni, örn. içinde
+    # nokta/TL/harf var) hiç dokunulmadan, yazıldığı gibi gösteriliyor —
+    # eskisiyle birebir aynı davranış, geriye dönük hiçbir kayıt bozulmuyor.
     if kayit_tipi == "talep":
-        deger = _esc(v.get("max_butce") or "-")
+        _deger_ham = v.get("max_butce")
         deger_etiket = "Bütçe"
         kaynak_tablo = "alici_talepleri"
     else:
-        deger = _esc(v.get("fiyat") or "-")
+        _deger_ham = v.get("fiyat")
         deger_etiket = "Fiyat"
         kaynak_tablo = "portfoyler"
+
+    _deger_sayisal = _sayi_ayikla(_deger_ham)
+    if _deger_sayisal is not None:
+        deger = _esc(f"{_sayi_formatla(_deger_sayisal)} TL")
+    else:
+        deger = _esc(_deger_ham or "-")
 
     konu = _esc(_html_temizle(v.get("mail_konusu", "")))
     icerik = _esc(_html_temizle(v.get("mail_icerigi", ""))).replace("\n", "<br>")
