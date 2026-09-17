@@ -27,7 +27,7 @@ from core.danisman_ortak import (
     talepleri_cek, portfoyleri_cek, islem_tipi_filtrele,
     favorileri_cek, su_anki_danisman, supabase_anon_secrets, IZMIR_ILCELERI,
     uzmanlik_bolgelerini_cek, uzmanlik_bolgelerini_kaydet, uzmanlik_bolgesi_filtrele,
-    ilce_ile_filtrele, mulk_tipi_filtrele,
+    ilce_ile_filtrele, mulk_tipi_filtrele, pano_sirala, SIRALAMA_SECENEKLERI,
     render_topbar, hide_sidebar_css, _inject_filtre_pill_css, ILAN_PORTAL_DEGERLERI,
 )
 
@@ -170,7 +170,7 @@ def _bolge_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
     # doğal sütun-yığma davranışına bırakıldı (render_pano_icerik'teki
     # aynı yaklaşım, aynı gerekçe).
     with st.container(key=f"ub_filtre_toolbar2_{key_prefix}"):
-        gcol1, gcol2 = st.columns([1, 1])
+        gcol1, gcol2, gcol3 = st.columns([1, 1, 1])
         with gcol1:
             ilce_secim = st.multiselect(
                 "İlçe (uzmanlık bölgelerin içinden)", mevcut_ilceler,
@@ -182,10 +182,17 @@ def _bolge_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
                 horizontal=True, key=f"ub_mulk_{key_prefix}",
                 label_visibility="collapsed",
             )
+        with gcol3:
+            # YENİ (17.09.2026, Meltem: "fsbo ilanlarında bulunan sıralama
+            # filtresini diğer ekranlara da ekleyelim").
+            siralama_secim = st.selectbox(
+                "Sıralama", SIRALAMA_SECENEKLERI, key=f"ub_siralama_{key_prefix}",
+            )
 
     kayitlar = islem_tipi_filtrele(havuz, islem_secim)
     kayitlar = ilce_ile_filtrele(kayitlar, ilce_secim)
     kayitlar = mulk_tipi_filtrele(kayitlar, mulk_secim)
+    kayitlar = pano_sirala(kayitlar, kayit_tipi, siralama_secim)
     if not kayitlar:
         st.info("Bu filtrede uzmanlık bölgelerinde kayıt yok.")
         return
