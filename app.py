@@ -162,7 +162,6 @@ giris = st.Page(
     "pages/giris.py",
     title="Giriş",
     icon=":material/login:",
-    default=True,
 )
 
 ana = st.Page(
@@ -347,10 +346,25 @@ hesap_aktivasyon = st.Page(
 # (Danisman_Pano, render_navbar yok) var — aynı Supabase hesaplarını
 # ve aynı veritabanı tablolarını kullanır, ama görsel olarak Karma
 # App'in kalabalık menüsünden tamamen ayrı, tek amaçlı bir arayüzdür.
+# DÜZELTME (17.09.2026, Meltem: "karma app köküne artık ulaşılmasını
+# istemiyorum... bazı danışmanlar yanlışlıkla danışman panosu yerine
+# oraya giriş yapıyor... sadece danışman pano üzerinden ulaşım
+# sağlansın"): default=True eskiden yukarıdaki "giris" (eski/hantal
+# Karma App admin girişi, pages/giris.py) sayfasındaydı — st.navigation()
+# içinde default=True işaretli sayfa, uygulamanın KÖK adresine (URL'de
+# hiçbir sayfa yolu olmadan, örn. https://startkey-zeta.streamlit.app)
+# gidildiğinde otomatik açılan sayfadır. Artık default=True BURADA,
+# Danışman Girişi'nde — yani kök adrese giden herkes (yanlışlıkla oraya
+# tıklayan danışmanlar dahil) artık doğrudan Danışman Girişi'ni görüyor.
+# Eski Karma App yapısı SİLİNMEDİ — Meltem'in dediği gibi "ana depo
+# niteliğinde", admin/broker tarafı hâlâ kendi doğrudan sayfa adresinden
+# (https://startkey-zeta.streamlit.app/giris) erişebilir, sadece artık
+# kök adresin VARSAYILANI değil.
 danisman_giris = st.Page(
     "pages/Danisman_Giris.py",
     title="Danışman Girişi",
     icon=":material/login:",
+    default=True,
 )
 
 danisman_pano = st.Page(
