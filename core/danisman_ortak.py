@@ -1257,15 +1257,20 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                     st.switch_page("pages/Danisman_SenaryoOlustur.py")
                 # YENİ (17.09.2026, Meltem: "hamburger menüye ofis sayfası
                 # ekleyelim. içinde bu prim hesaplama tablosu da olsun").
-                # pages/Ofis_Panosu.py — pages/Senaryo_Hesaplayici.py ile
-                # AYNI desen: girişsiz, bağımsız bir sayfa (bkz. o dosyanın
-                # docstring'i) — buradaki buton sadece zaten giriş yapmış
-                # danışmanlar için bir kısayol, sayfanın kendisi oturum
-                # gerektirmiyor. "4_Ofis_Paneli.py" (admin, farklı bir
-                # sayfa) ile KARIŞTIRILMASIN diye isim bilerek farklı
-                # tutuldu ("Ofis Panosu" burada, "Ofis Paneli" orada).
+                # DÜZELTME (17.09.2026, 2. TUR — Meltem: "ofis panosunda
+                # sadece senaryo hesaplayıcı olmayacaktı, o bir bölüm
+                # olacaktı ve link oluştur diyerek göndermeyi
+                # düşünüyordum"): Buton artık OTURUMLU HUB sayfasına
+                # (pages/Danisman_OfisPano.py) gidiyor — ileride birden
+                # fazla bölüm/araç barındıracak. Prim Hesaplayıcı'nın
+                # girişsiz/paylaşılabilir kendi sayfası ayrı:
+                # pages/Prim_Hesaplayici.py — hub'daki "🔗 Link Oluştur"
+                # o sayfanın linkini gösteriyor. "4_Ofis_Paneli.py"
+                # (admin, farklı bir sayfa) ile KARIŞTIRILMASIN diye isim
+                # bilerek farklı tutuldu ("Ofis Panosu" burada, "Ofis
+                # Paneli" orada).
                 if st.button("🏢 Ofis Panosu", use_container_width=True, key="dp_menu_ofis_panosu"):
-                    st.switch_page("pages/Ofis_Panosu.py")
+                    st.switch_page("pages/Danisman_OfisPano.py")
                 st.divider()
                 if st.button("🚪 Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
                     cikis_yap()
