@@ -308,6 +308,28 @@ danisman_senaryo_olustur = st.Page(
     icon=":material/edit_calendar:",
 )
 
+# ── Ofis Panosu — YENİ (17.09.2026, Meltem). Senaryo Hesaplayıcı ile AYNI
+# ikili desen: danisman_ofis_pano OTURUM GEREKTİREN hub (hamburger menüden
+# erişilir, ileride birden fazla bölüm/araç barındıracak), prim_hesaplayici
+# ise GİRİŞSİZ/paylaşılabilir tek araç sayfası (hub'daki "Link Oluştur"
+# bu sayfanın linkini gösterir). DÜZELTME: bu iki st.Page + navigation()
+# listesine ekleme İLK PASTE'DE EKSİKTİ — st.navigation() kullanan
+# uygulamalarda dosyanın pages/ altında olması TEK BAŞINA yetmiyor,
+# st.switch_page()'in hedefi bulabilmesi için burada da kayıtlı olması
+# gerekiyor (aksi halde "Could not find page" hatası veriyor — canlıda
+# tam olarak bu hata görüldü).
+danisman_ofis_pano = st.Page(
+    "pages/Danisman_OfisPano.py",
+    title="Ofis Panosu",
+    icon=":material/apartment:",
+)
+
+prim_hesaplayici = st.Page(
+    "pages/Prim_Hesaplayici.py",
+    title="Prim Hesaplayıcı",
+    icon=":material/calculate:",
+)
+
 # ── Hesap Aktivasyonu — Supabase "Invite User" davet linkinin açtığı
 # TEK amaçlı, girişsiz/bağımsız sayfa (bkz. core/auth.py: davet_token_dogrula,
 # davet_sifresi_guncelle). Menüde HİÇ görünmemeli — Pano Görüntüle ve Senaryo
@@ -426,6 +448,8 @@ pg = st.navigation(
             pano_goruntule,
             senaryo_hesaplayici,
             danisman_senaryo_olustur,
+            danisman_ofis_pano,
+            prim_hesaplayici,
             danisman_giris,
             danisman_pano,
             danisman_secim,
