@@ -283,15 +283,15 @@
           <div class="tier-row">
             <div class="tier-item minor">
               <span class="tlabel">Kısa Vade</span>
-              <input type="number" id="inShort" value="16000000" step="100000">
+              <input type="number" id="inShort" value="0" step="100000">
             </div>
             <div class="tier-item major">
               <span class="tlabel">Orta Vade</span>
-              <input type="number" id="inMid" value="17500000" step="100000">
+              <input type="number" id="inMid" value="0" step="100000">
             </div>
             <div class="tier-item minor">
               <span class="tlabel">Uzun Vade</span>
-              <input type="number" id="inLong" value="19000000" step="100000">
+              <input type="number" id="inLong" value="0" step="100000">
             </div>
           </div>
         </div>
@@ -337,7 +337,7 @@
         </div>
         <div class="field">
           <label>En fazla ne kadar indirim yapabilirsiniz?</label>
-          <input type="number" id="inDiscount" value="100000" step="10000" min="0">
+          <input type="number" id="inDiscount" value="0" step="10000" min="0">
           <div class="help">Alıcı pazarlık isterse, razı olacağınız en yüksek indirim.</div>
         </div>
 
@@ -456,7 +456,7 @@
           </div>
           <div class="field">
             <label style="font-size:13.5px; color:var(--ink-soft);">Hiç satamazsanız, aklınızdaki alternatif fiyat</label>
-            <input type="number" id="inFallback" value="17000000" step="100000">
+            <input type="number" id="inFallback" value="0" step="100000">
             <div class="help">Beklediğiniz süre içinde ne hedefe ne de pazarlık fiyatına satamazsanız, düşünebileceğiniz bir rakam.</div>
           </div>
         </div>
@@ -647,6 +647,17 @@
     // kullanıyor (önceden sadece bu metinde vardı, o ikisinde "1 TL"/
     // "0 TL" gibi anlamsız sonuçlar gösteriyorlardı).
     const p1Empty = !inP1.value || inP1.value.trim() === '';
+    // YENİ (17.09.2026, Meltem: eski kayıtlardan otomatik gelen rakamlar
+    // sorunu): Orta/Uzun Vade artık boşken varsayılan olarak 0 geliyor
+    // (önceden 17.500.000 / 19.000.000 gibi ilk örnek müşterinin rakamları
+    // kalıntı olarak duruyordu). mid/long her zaman en az "1"e
+    // yuvarlandığı için (bkz. yukarıdaki Math.max(1, ...)), bu alanlar
+    // doldurulmadığında karşılaştırma metni artık "orta vade
+    // değerlemesinin (1 TL) %9999999 üzerinde" gibi anlamsız bir sonuç
+    // göstermesin diye midEmpty/longEmpty kontrolü eklendi — doldurulmamış
+    // olan taraf cümleden tamamen çıkarılıyor.
+    const midEmpty = !inMid.value || inMid.value.trim() === '' || parseTL(inMid) <= 0;
+    const longEmpty = !inLong.value || inLong.value.trim() === '' || parseTL(inLong) <= 0;
     if(p1Empty){
       tierNote.innerHTML = 'Hedef satış fiyatınızı yukarıya girerek karşılaştırmayı başlatabilirsiniz.';
     } else {
@@ -656,18 +667,18 @@
     const pctLong = long > 0 ? (diffLong/long*100) : 0;
     const dir = (v) => v > 0 ? 'üzerinde' : (v < 0 ? 'altında' : 'ile aynı seviyede');
 
-    let tierTxt = 'Hedef fiyatınızı (<b>' + trMoney(P1) + '</b>), orta vade değerlemesinin (' + trMoney(mid) + ') ';
-    if(diffMid !== 0){
-      tierTxt += '<b>%' + trNum(Math.abs(pctMid),1) + ' ' + dir(diffMid) + '</b>, ';
+    if(midEmpty && longEmpty){
+      tierNote.innerHTML = 'Hedef fiyatınızı (<b>' + trMoney(P1) + '</b>) belirlediniz. Orta ve uzun vade değerlemesi girilmediği için karşılaştırma gösterilemiyor.';
     } else {
-      tierTxt += '<b>ile aynı seviyede</b>, ';
+      const parts = [];
+      if(!midEmpty){
+        parts.push('orta vade değerlemesinin (' + trMoney(mid) + ') ' + (diffMid !== 0 ? ('<b>%' + trNum(Math.abs(pctMid),1) + ' ' + dir(diffMid) + '</b>') : '<b>ile aynı seviyede</b>'));
+      }
+      if(!longEmpty){
+        parts.push('uzun vade değerlemesinin (' + trMoney(long) + ') ' + (diffLong !== 0 ? ('<b>%' + trNum(Math.abs(pctLong),1) + ' ' + dir(diffLong) + '</b>') : '<b>ile aynı seviyede</b>'));
+      }
+      tierNote.innerHTML = 'Hedef fiyatınızı (<b>' + trMoney(P1) + '</b>), ' + parts.join(', ') + ' belirlediniz.';
     }
-    if(diffLong !== 0){
-      tierTxt += 'uzun vade değerlemesinin (' + trMoney(long) + ') <b>%' + trNum(Math.abs(pctLong),1) + ' ' + dir(diffLong) + '</b> belirlediniz.';
-    } else {
-      tierTxt += 'uzun vade değerlemesiyle (' + trMoney(long) + ') <b>aynı seviyede</b> belirlediniz.';
-    }
-    tierNote.innerHTML = tierTxt;
     }
 
     // hedef fiyatın m² karşılığı — piyasa ortalama m² fiyatıyla kıyaslama
@@ -922,6 +933,34 @@
   document.querySelectorAll('.fade-in').forEach(el => io.observe(el));
 
   render();
+
+  // YENİ (07.09.2026, Meltem: "piyasa faiz oranı bölümü kayıp olmuş") —
+  // Streamlit bu HTML'i SABİT yükseklikli (bkz. Senaryo_Hesaplayici.py,
+  // height=2400) bir iframe içine gömüyor. İçerik bu sayıyı aşınca (örn.
+  // "Detaylı İncele" açıldığında, ya da bu sayfaya az önce eklenen "Kira
+  // Geliriniz" bölümü gibi yeni bir alanla), alt kısım artık sadece
+  // iframe'in KENDİ iç kaydırmasıyla görülebiliyordu — mobilde bu iç
+  // kaydırma fark edilmiyor/çalışmıyor gibi hissettiriyor ve "Piyasa Faiz
+  // Oranı" gibi bölümler "kaybolmuş" gibi görünüyordu. Aynı origin'de
+  // olduğumuz için (Streamlit components.html aynı siteden srcdoc ile
+  // gömüyor) window.frameElement'e erişip iframe'i İÇERİĞE göre otomatik
+  // büyütüyoruz — bir daha hiçbir ekleme bu şekilde "kaybolmayacak".
+  function _iframeYuksekliginiAyarla(){
+    try {
+      if (window.frameElement) {
+        window.frameElement.style.height = document.documentElement.scrollHeight + 'px';
+        window.frameElement.removeAttribute('scrolling');
+      }
+    } catch(e) { /* farklı origin vb. — sessizce yoksay, sabit height + scrolling yedek olarak kalır */ }
+  }
+  window.addEventListener('load', _iframeYuksekliginiAyarla);
+  window.addEventListener('resize', _iframeYuksekliginiAyarla);
+  if (window.ResizeObserver) {
+    new ResizeObserver(_iframeYuksekliginiAyarla).observe(document.body);
+  } else {
+    setInterval(_iframeYuksekliginiAyarla, 400);
+  }
+  _iframeYuksekliginiAyarla();
 })();
 </script>
 </body>
