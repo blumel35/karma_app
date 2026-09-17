@@ -196,6 +196,48 @@ def islem_tipi_filtrele(kayitlar, secim):
     return [v for v in kayitlar if _islem_tipi_norm(v) == secim]
 
 
+# ── MÜLK TİPİ FİLTRESİ — YENİ (17.09.2026, Meltem: "danışman pano
+# uygulamasında ... konut/ticari/arsa filtrelerininin eklenmesi") ────────
+# Farklı ekranlar farklı kaynaklardan besleniyor:
+#  - Talep/Portföy Panosu, Zeta Paylaşımları (alici_talepleri/portfoyler,
+#    mail_parser.py'nin AI kategorileştirmesi + Danışman Panosu'ndan elle
+#    giriş — ekle_dialog()): mulk_tipi HER ZAMAN kontrollü bir sözlükten
+#    geliyor — tam olarak "Konut" / "İşyeri" / "Arsa" / "Belirsiz"
+#    (core/mail_parser.py'nin AI prompt'unda sabitlenmiş, admin panelin
+#    "Mülk" filtresiyle de birebir aynı — pages/2_Talep_Tablosu.py,
+#    pages/3_Portfoy_Tablosu.py).
+#  - Zeta Portföyleri (revy_sync.py, kaynak zeta1/zeta2) ve FSBO İlanları
+#    (izmir_pazar_sync.py, izmir_pazar_ilanlar tablosu): mulk_tipi, Revy
+#    export'undaki HAM "Mülk tipi" sütun metni — büyük ihtimalle "Konut"/
+#    "Ticari"/"Arsa" (Revy'nin kendi filtre sözlüğü de bu — bkz.
+#    izmir_pazar_sync.py: filtre_ana["mulk"]) ama garantili DEĞİL.
+# Bu yüzden normalize fonksiyonu anahtar kelime eşleşmesine dayanıyor —
+# _islem_tipi_norm ile AYNI, bu kod tabanında zaten kurulu desen
+# (core/rapor_export.py, pages/2_Talep_Tablosu.py, pages/3_Portfoy_Tablosu.py)
+# — hem kontrollü sözlüğü hem Revy'nin ham metnini TEK bir mantıkla
+# kapsar. "Ticari" arayüz etiketi hem "İşyeri" (kontrollü sözlük) hem
+# "Ticari" (Revy ham metni) değerlerini eşleştirir.
+def _mulk_tipi_norm(v, alan="mulk_tipi"):
+    ham = str(v.get(alan) or "").strip()
+    if not ham:
+        return ""
+    low = _tr_lower(ham)
+    if "arsa" in low:
+        return "Arsa"
+    if ("işyeri" in low or "isyeri" in low or "ticari" in low or "ofis" in low
+            or "dükkan" in low or "dukkan" in low or "mağaza" in low or "magaza" in low):
+        return "Ticari"
+    if "konut" in low or "daire" in low or "villa" in low or "rezidans" in low:
+        return "Konut"
+    return ""
+
+
+def mulk_tipi_filtrele(kayitlar, secim, alan="mulk_tipi"):
+    if secim == "Tümü":
+        return kayitlar
+    return [v for v in kayitlar if _mulk_tipi_norm(v, alan) == secim]
+
+
 def son_24_saat_filtrele(kayitlar):
     esik = datetime.now(timezone.utc) - timedelta(hours=24)
     return [v for v in kayitlar if _tarihte_mi(v.get("kayit_tarihi"), esik)]
@@ -753,6 +795,21 @@ def uzmanlik_bolgesi_filtrele(kayitlar, secili_ilceler):
         return []
     secili_norm = {_ilce_normalize(i) for i in secili_ilceler}
     return [v for v in kayitlar if _kayit_ilcesi_eslesiyor_mu(v, secili_norm)]
+
+
+def ilce_ile_filtrele(kayitlar, secili_ilceler):
+    """Ad-hoc İlçe filtresi — YENİ (17.09.2026, Meltem: "... ilçe
+    filtresinin ... eklenmesi"). uzmanlik_bolgesi_filtrele()'nin "seçim
+    yoksa BOŞ liste dön" davranışından BİLİNÇLİ OLARAK farklı: o davranış,
+    kalıcı 5-ilçe seçiminin HİÇ yapılmadığı durumu ayırt etmek için vardı
+    ("henüz seçim yapmadın" mesajı gösterilsin diye). Burada seçim
+    yapılmamış olması "filtre uygulanmasın, tüm kayıtlar görünsün"
+    anlamına gelir — bir panoyu ilk açtığında hiçbir şey görünmemesi
+    yanlış olurdu. Eşleştirme mantığı (_kayit_ilcesi_eslesiyor_mu) AYNI,
+    tekrar yazılmadı — sadece "seçim yok" durumunun anlamı farklı."""
+    if not secili_ilceler:
+        return kayitlar
+    return uzmanlik_bolgesi_filtrele(kayitlar, secili_ilceler)
 
 
 # ── SUPABASE ANON SIRLARI (kartlardaki ⭐ yıldız JS'i için) ────────────
@@ -1517,6 +1574,24 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
             display: none !important;
         }}
     }}
+
+    /* YENİ (17.09.2026, Meltem: "... ilçe filtresinin ve konut/ticari/arsa
+       filtrelerininin eklenmesi ... mobil sayfa düzeninin bozulmamasına da
+       dikkat"): İkinci filtre satırı (İlçe + Mülk Tipi) — yukarıdaki
+       satırın kendi key'i, kendi CSS'i AYNEN duruyor, hiç dokunulmadı.
+       Bu ikinci satır BİLİNÇLİ OLARAK kendi özel bir mobil grid kuralı
+       TANIMLAMIYOR — Streamlit'in mobildeki DOĞAL sütun-yığma davranışına
+       (stHorizontalBlock varsayılan olarak <480px altında dikey yığılır)
+       güveniliyor, bu da mevcut satırın düzenine hiçbir etkisi olmayan,
+       en düşük riskli yaklaşım. Sadece dikey boşluk masaüstünde biraz
+       sıkılaştırılıyor (üstteki satırla aynı kompakt hissi versin diye). */
+    div[class*="st-key-dp_filtre_toolbar2_{key_prefix}"] {{
+        margin-top: 4px !important;
+        margin-bottom: -8px !important;
+    }}
+    div[class*="st-key-dp_filtre_toolbar2_{key_prefix}"] div[data-testid="stHorizontalBlock"] {{
+        gap: 0.5rem !important;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -1542,11 +1617,29 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
                 favorileri_cek.clear()
                 st.rerun()
 
+    # YENİ (17.09.2026): İlçe + Mülk Tipi — ayrı bir ikinci satırda (bkz.
+    # yukarıdaki CSS notu — mevcut satırın mobil düzenine dokunulmadı).
+    with st.container(key=f"dp_filtre_toolbar2_{key_prefix}"):
+        gcol1, gcol2 = st.columns([1, 1])
+        with gcol1:
+            ilce_secim = st.multiselect(
+                "İlçe", IZMIR_ILCELERI, key=f"dp_ilce_filtre_{key_prefix}",
+                placeholder="Tüm ilçeler",
+            )
+        with gcol2:
+            mulk_secim = st.radio(
+                "Mülk Tipi", ["Tümü", "Konut", "Ticari", "Arsa"],
+                horizontal=True, key=f"dp_mulk_filtre_{key_prefix}",
+                label_visibility="collapsed",
+            )
+
     kayitlar = islem_tipi_filtrele(kayitlar_havuzu, islem_secim)
     if zaman_secim == "Son 24 saat":
         kayitlar = son_24_saat_filtrele(kayitlar)
     elif zaman_secim == "Son 7 gün":
         kayitlar = son_N_gun_filtrele(kayitlar, 7)
+    kayitlar = ilce_ile_filtrele(kayitlar, ilce_secim)
+    kayitlar = mulk_tipi_filtrele(kayitlar, mulk_secim)
 
     if not kayitlar:
         st.info("Bu filtrede kayıt yok.")
