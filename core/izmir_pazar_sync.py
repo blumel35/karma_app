@@ -25,8 +25,27 @@ import pandas as pd
 
 # ── Satır normalize yardımcıları ────────────────────────────────────────
 def _mt_sayi(v):
+    # DÜZELTME (17.09.2026, Meltem: "fsbo ilanlarında 1 sıfır fazla
+    # gösteriyor"): Kök sebep bulundu — bu fonksiyon HER ZAMAN str(v)
+    # üzerinden Türkçe biçim temizliği (".") binlik ayraç kabul edip
+    # siliyordu, "," ondalık kabul edip "."e çeviriyordu) yapıyordu, v
+    # ZATEN sayısal (int/float) olsa bile. Revy'den gelen .xlsx dosyaları
+    # pandas ile okunuyor — "Fiyat" sütununda TEK BİR satırda bile boş
+    # (NaN) değer varsa pandas o sütunun TAMAMINI float64'e çeviriyor;
+    # bu durumda v burada Python float'ı 39000.0 olarak geliyor, str(v)
+    # "39000.0" oluyor, ".replace('.','')" ondalık noktasını da (yanlışlıkla
+    # binlik ayraç sanıp) siliyor -> "390000" -> 10 KAT FAZLA. Sütunda hiç
+    # NaN yoksa pandas int64 kullanıyor ("39000", noktasız) ve bug hiç
+    # tetiklenmiyordu — bu yüzden sorun TUTARSIZ görünüyordu (bazı ilanlar
+    # doğru, bazıları 10 kat fazla). Şimdi v zaten sayısal bir tip ise
+    # (int/float) DOĞRUDAN float(v) dönüyoruz, string manipülasyonuna hiç
+    # girmiyoruz — Türkçe biçim temizliği SADECE v gerçekten bir metin
+    # (örn. Excel hücresi "39.000" gibi metin olarak biçimlenmişse) olduğunda
+    # uygulanıyor.
     if v is None or (isinstance(v, float) and pd.isna(v)) or str(v).strip() in ("", "nan", "None"):
         return None
+    if isinstance(v, (int, float)):
+        return float(v)
     try:
         return float(str(v).replace(".", "").replace(",", "."))
     except Exception:
