@@ -33,7 +33,7 @@ from core.auth import oturum_kontrol
 from core.pano_export import pazar_ilan_pano_html_olustur
 from core.danisman_ortak import (
     su_anki_danisman, IZMIR_ILCELERI, render_topbar, hide_sidebar_css,
-    islem_tipi_filtrele, mulk_tipi_filtrele,
+    islem_tipi_filtrele, mulk_tipi_filtrele, ilce_ile_filtrele,
 )
 from core.bolge_secici import (
     bolgelerini_cek, bolgelerini_kaydet, etkin_ilceler, pazar_ilanlarini_cek,
@@ -134,13 +134,23 @@ def _ilan_tarihi_gun(v):
     except (TypeError, ValueError):
         return None
 
+# YENİ (17.09.2026, 2. tur — Meltem: "fsbo ilanlarına da ilçe seçim
+# butonu ekleyelim"). Bu, sayfanın en üstündeki KALICI+GEÇİCİ bölge
+# seçiminin YERİNE değil, ONUN ÜZERİNE ek bir daraltma: aktif_ilceler
+# zaten çekilen havuzu belirliyor (en fazla ~10 ilçe) — buradaki filtre,
+# o havuzun İÇİNDE "şu an sadece şu ilçe(ler)e bakayım" demeye yarıyor.
+# Uzmanlık Bölgelerim'deki AYNI desen: seçenekler tüm İzmir değil, zaten
+# gösterilen bölgelerle sınırlı.
+ilce_filtre_secim = st.multiselect(
+    "İlçe (gösterilen bölgeler içinden)", aktif_ilceler,
+    key="fsbo_ilce_filtre", placeholder="Tüm gösterilen bölgeler",
+)
+
 # YENİ (17.09.2026, Meltem: "... konut/ticari/arsa filtrelerininin
-# eklenmesi"). İlçe filtresi bu sayfaya EKLENMEDİ — sayfanın en üstünde
-# zaten kendi kalıcı+geçici bölge seçim mekanizması var (yukarıda), ikinci
-# bir ad-hoc İlçe filtresi burada kafa karıştırırdı. Mülk Tipi ise
-# eksikti, mevcut 3'lü sütuna 4. sütun olarak eklendi — mobilde Streamlit'in
-# doğal sütun-yığma davranışı (bu sayfada zaten hiç özel grid CSS'i yok)
-# yeni sütunu da otomatik alt alta diziyor, ayrı bir CSS kuralına gerek yok.
+# eklenmesi"). Mülk Tipi eksikti, mevcut 3'lü sütuna 4. sütun olarak
+# eklendi — mobilde Streamlit'in doğal sütun-yığma davranışı (bu sayfada
+# zaten hiç özel grid CSS'i yok) yeni sütunu da otomatik alt alta diziyor,
+# ayrı bir CSS kuralına gerek yok.
 islem_col, zaman_col, siralama_col, mulk_col = st.columns([1, 1, 1, 1])
 with islem_col:
     islem_secim = st.radio(
@@ -179,6 +189,7 @@ with siralama_col:
 
 ilanlar = islem_tipi_filtrele(ilanlar_ham, islem_secim)
 ilanlar = mulk_tipi_filtrele(ilanlar, mulk_secim)
+ilanlar = ilce_ile_filtrele(ilanlar, ilce_filtre_secim)
 if zaman_secim == "Son 7 Gün":
     esik = date.today() - timedelta(days=7)
     ilanlar = [v for v in ilanlar if (_ilan_tarihi_gun(v) or date.min) >= esik]
