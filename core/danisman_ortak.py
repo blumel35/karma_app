@@ -24,6 +24,7 @@ Mimari (2026-08 revizyonu, 2. güncelleme):
   ile taşınır, query param değil — MPA sayfa geçişlerinde daha güvenilir).
 """
 
+import re
 import uuid
 import time
 import json
@@ -236,6 +237,73 @@ def mulk_tipi_filtrele(kayitlar, secim, alan="mulk_tipi"):
     if secim == "Tümü":
         return kayitlar
     return [v for v in kayitlar if _mulk_tipi_norm(v, alan) == secim]
+
+
+# ── SIRALAMA — YENİ (17.09.2026, Meltem: "fsbo ilanlarında bulunan
+# sıralama filtresini diğer ekranlara da ekleyelim") ────────────────────
+# Danisman_FSBOIlanlari.py'de zaten çalışan Sıralama deseniyle AYNI mantık,
+# tek bir yerde — Talep/Portföy Panosu, Zeta Portföyleri, Zeta Paylaşımları
+# (render_pano_icerik üzerinden) ve Uzmanlık Bölgelerim bunu paylaşacak.
+# Fiyat alanı kayıt tipine göre değişiyor: talep -> max_butce (aranan
+# bütçe), portföy -> fiyat. Tarih: ikisinde de kayit_tarihi (RFC822 metin
+# — dosyanın başındaki kayit_tarihi_dt() ile ayrıştırılıyor, tekrar
+# yazılmadı).
+# NOT: core/pano_export.py:pano_html_olustur() kayıtları İLÇEYE göre A-Z
+# bölümlere ayırıyor — bu sıralama o bölümlerin SIRASINI değiştirmez,
+# her bölümün İÇİNDEKİ kart sırasını belirler. FSBO'daki Sıralama da
+# aynı A-Z gruplu kart düzeninde (pazar_ilan_pano_html_olustur) zaten
+# bu şekilde çalışıyor — burada davranış FARKLI değil, birebir aynı.
+SIRALAMA_SECENEKLERI = ["Varsayılan", "En Yeni", "En Eski", "Fiyat: Düşükten Yükseğe", "Fiyat: Yüksekten Düşüğe"]
+
+
+def _fiyat_sayisal_veya_none(deger):
+    """'5.000.000 TL' gibi serbest metin fiyat/bütçe alanlarını sayıya
+    çevirir — pages/2_Talep_Tablosu.py, 3_Portfoy_Tablosu.py,
+    arsiv_merkezi.py'de zaten kurulu "sadece rakamları al" deseniyle AYNI.
+    Ayrıştırılamazsa/boşsa None döner (bu değer, çağıran tarafta ayrı bir
+    tuple anahtarıyla HER ZAMAN en sona atılıyor — hangi yönde
+    sıralandığından bağımsız)."""
+    if not deger:
+        return None
+    rakamlar = re.sub(r"[^\d]", "", str(deger))
+    try:
+        return float(rakamlar) if rakamlar else None
+    except (TypeError, ValueError):
+        return None
+
+
+def pano_sirala(kayitlar, kayit_tipi, siralama):
+    if siralama in (None, "Varsayılan"):
+        return kayitlar
+    if siralama == "En Yeni":
+        return sorted(
+            kayitlar,
+            key=lambda v: kayit_tarihi_dt(v.get("kayit_tarihi")) or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )
+    if siralama == "En Eski":
+        return sorted(
+            kayitlar,
+            key=lambda v: kayit_tarihi_dt(v.get("kayit_tarihi")) or datetime.max.replace(tzinfo=timezone.utc),
+        )
+    fiyat_alani = "max_butce" if kayit_tipi == "talep" else "fiyat"
+    if siralama == "Fiyat: Düşükten Yükseğe":
+        return sorted(
+            kayitlar,
+            key=lambda v: (
+                _fiyat_sayisal_veya_none(v.get(fiyat_alani)) is None,
+                _fiyat_sayisal_veya_none(v.get(fiyat_alani)) or 0,
+            ),
+        )
+    if siralama == "Fiyat: Yüksekten Düşüğe":
+        return sorted(
+            kayitlar,
+            key=lambda v: (
+                _fiyat_sayisal_veya_none(v.get(fiyat_alani)) is None,
+                -(_fiyat_sayisal_veya_none(v.get(fiyat_alani)) or 0),
+            ),
+        )
+    return kayitlar
 
 
 def son_24_saat_filtrele(kayitlar):
@@ -1187,6 +1255,17 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                     st.switch_page("pages/Danisman_Paylasimlar.py")
                 if st.button("🧮 Senaryo Hesaplayıcı", use_container_width=True, key="dp_menu_senaryo"):
                     st.switch_page("pages/Danisman_SenaryoOlustur.py")
+                # YENİ (17.09.2026, Meltem: "hamburger menüye ofis sayfası
+                # ekleyelim. içinde bu prim hesaplama tablosu da olsun").
+                # pages/Ofis_Panosu.py — pages/Senaryo_Hesaplayici.py ile
+                # AYNI desen: girişsiz, bağımsız bir sayfa (bkz. o dosyanın
+                # docstring'i) — buradaki buton sadece zaten giriş yapmış
+                # danışmanlar için bir kısayol, sayfanın kendisi oturum
+                # gerektirmiyor. "4_Ofis_Paneli.py" (admin, farklı bir
+                # sayfa) ile KARIŞTIRILMASIN diye isim bilerek farklı
+                # tutuldu ("Ofis Panosu" burada, "Ofis Paneli" orada).
+                if st.button("🏢 Ofis Panosu", use_container_width=True, key="dp_menu_ofis_panosu"):
+                    st.switch_page("pages/Ofis_Panosu.py")
                 st.divider()
                 if st.button("🚪 Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
                     cikis_yap()
@@ -1617,10 +1696,11 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
                 favorileri_cek.clear()
                 st.rerun()
 
-    # YENİ (17.09.2026): İlçe + Mülk Tipi — ayrı bir ikinci satırda (bkz.
-    # yukarıdaki CSS notu — mevcut satırın mobil düzenine dokunulmadı).
+    # YENİ (17.09.2026): İlçe + Mülk Tipi + Sıralama — ayrı bir ikinci
+    # satırda (bkz. yukarıdaki CSS notu — mevcut satırın mobil düzenine
+    # dokunulmadı).
     with st.container(key=f"dp_filtre_toolbar2_{key_prefix}"):
-        gcol1, gcol2 = st.columns([1, 1])
+        gcol1, gcol2, gcol3 = st.columns([1, 1, 1])
         with gcol1:
             ilce_secim = st.multiselect(
                 "İlçe", IZMIR_ILCELERI, key=f"dp_ilce_filtre_{key_prefix}",
@@ -1632,6 +1712,10 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
                 horizontal=True, key=f"dp_mulk_filtre_{key_prefix}",
                 label_visibility="collapsed",
             )
+        with gcol3:
+            siralama_secim = st.selectbox(
+                "Sıralama", SIRALAMA_SECENEKLERI, key=f"dp_siralama_{key_prefix}",
+            )
 
     kayitlar = islem_tipi_filtrele(kayitlar_havuzu, islem_secim)
     if zaman_secim == "Son 24 saat":
@@ -1640,6 +1724,7 @@ def render_pano_icerik(kayitlar_havuzu, kayit_tipi, baslik, key_prefix, zaman_va
         kayitlar = son_N_gun_filtrele(kayitlar, 7)
     kayitlar = ilce_ile_filtrele(kayitlar, ilce_secim)
     kayitlar = mulk_tipi_filtrele(kayitlar, mulk_secim)
+    kayitlar = pano_sirala(kayitlar, kayit_tipi, siralama_secim)
 
     if not kayitlar:
         st.info("Bu filtrede kayıt yok.")
