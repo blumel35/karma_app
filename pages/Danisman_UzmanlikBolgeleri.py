@@ -27,6 +27,7 @@ from core.danisman_ortak import (
     talepleri_cek, portfoyleri_cek, islem_tipi_filtrele,
     favorileri_cek, su_anki_danisman, supabase_anon_secrets, IZMIR_ILCELERI,
     uzmanlik_bolgelerini_cek, uzmanlik_bolgelerini_kaydet, uzmanlik_bolgesi_filtrele,
+    ilce_ile_filtrele, mulk_tipi_filtrele,
     render_topbar, hide_sidebar_css, _inject_filtre_pill_css, ILAN_PORTAL_DEGERLERI,
 )
 
@@ -130,6 +131,17 @@ def _bolge_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
             width: auto !important; min-width: 0 !important;
         }}
     }}
+
+    /* YENİ (17.09.2026): İkinci satır (İlçe + Mülk Tipi) — üsttekiyle AYNI
+       gerekçe: kendi özel bir mobil grid kuralı YOK, Streamlit'in doğal
+       sütun-yığma davranışına bırakılıyor, sadece dikey boşluk sıkılaştırılıyor. */
+    div[class*="st-key-ub_filtre_toolbar2_{key_prefix}"] {{
+        margin-top: 4px !important;
+        margin-bottom: -8px !important;
+    }}
+    div[class*="st-key-ub_filtre_toolbar2_{key_prefix}"] div[data-testid="stHorizontalBlock"] {{
+        gap: 0.5rem !important;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -147,7 +159,33 @@ def _bolge_sekme_icerik(havuz, kayit_tipi, key_prefix, baslik_iframe):
                 portfoyleri_cek.clear()
                 st.rerun()
 
+    # YENİ (17.09.2026, Meltem: "... ilçe filtresinin ve konut/ticari/arsa
+    # filtrelerininin eklenmesi"). İlçe seçenekleri BİLİNÇLİ OLARAK tüm
+    # İzmir listesi değil — sadece bu sayfanın en üstünde zaten seçili
+    # olan (kalıcı) Uzmanlık Bölgelerim ilçeleri: Meltem'in netleştirdiği
+    # tercih, burada zaten dar bir bölgeye inilmişken, aynı sayfada İKİNCİ
+    # bir (bu sefer tüm İzmir'i kapsayan) bağımsız ilçe seçici göstermenin
+    # kafa karıştıracağı yönündeydi — "mevcut seçilmiş ilçeler içinden
+    # seçebilsin". Ayrı bir mobil grid kuralı YAZILMADI — Streamlit'in
+    # doğal sütun-yığma davranışına bırakıldı (render_pano_icerik'teki
+    # aynı yaklaşım, aynı gerekçe).
+    with st.container(key=f"ub_filtre_toolbar2_{key_prefix}"):
+        gcol1, gcol2 = st.columns([1, 1])
+        with gcol1:
+            ilce_secim = st.multiselect(
+                "İlçe (uzmanlık bölgelerin içinden)", mevcut_ilceler,
+                key=f"ub_ilce_{key_prefix}", placeholder="Tüm seçili ilçeler",
+            )
+        with gcol2:
+            mulk_secim = st.radio(
+                "Mülk Tipi", ["Tümü", "Konut", "Ticari", "Arsa"],
+                horizontal=True, key=f"ub_mulk_{key_prefix}",
+                label_visibility="collapsed",
+            )
+
     kayitlar = islem_tipi_filtrele(havuz, islem_secim)
+    kayitlar = ilce_ile_filtrele(kayitlar, ilce_secim)
+    kayitlar = mulk_tipi_filtrele(kayitlar, mulk_secim)
     if not kayitlar:
         st.info("Bu filtrede uzmanlık bölgelerinde kayıt yok.")
         return
