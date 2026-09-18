@@ -1,3 +1,47 @@
+<!--
+  DÜZELTME (17.09.2026, Meltem: "eski değerler yazılı geliyor" bulgusu):
+  Bu dosya ilk yüklendiğinde Meltem'in orijinal yüklediği dosyadan OLDUĞU
+  GİBİ alınmıştı (portföy=30, işlem=12, drone=15 gibi sabit örnek
+  rakamlarla) — araç kişiye özel hiçbir veri saklamıyor/hatırlamıyor,
+  ama bu sabit rakamlar her açılışta "eski bir senaryonun kalıntısı"
+  gibi görünüyordu. Senaryo Hesaplayıcı'da (assets/satis_senaryolari_*.
+  html) daha önce aynı sınıf sorun için yapılan düzeltmeyle AYNI mantıkla
+  — portföy/işlem/drone alanları 0'a çekildi, danışman kendi rakamını
+  girsin diye. Ciro kaydırıcısı YAPISAL olarak bir başlangıç pozisyonuna
+  ihtiyaç duyduğu için (slider, "boş" olamaz) dokunulmadı — Meltem'in
+  onayladığı kapsam buydu.
+
+  YENİ (17.09.2026, 2. tur — Meltem: "alternatiflere Sabit planı da
+  ekleyeceğiz, aidat 4000 olacak"): 4. bir plan kartı ("Sabit") eklendi.
+  Kaynak: Meltem'in yüklediği "YENİ PRİM SİSTEMİ 1.xlsx" dosyasının
+  "SON GÜNCEL" sayfası. Sabit'te prim oranı ciro diliminden bağımsız her
+  zaman %60 (Kademeli/Girişimci/MAX gibi kademeli artmıyor), ofis kullanım
+  bedeli 4.000 TL/ay (yıllık 48.000 TL) — Meltem'in "aidat 4000" dediği
+  alan budur; tablodaki ayrı "AİDAT FARKI" kalemi (sadece MAX'ta var)
+  Sabit'te YOK. Revy Kademeli 27 ile aynı (AY X 250 TL, yıllık 3.000 TL).
+  İlan/Drone/Fizbot Sabit'te de Kademeli 27'deki gibi danışmana ayrıca
+  yansıtılmıyor (gider yapısı ck ile birebir aynı, sadece ofis bedeli ve
+  oran farklı — bkz. cs değişkeni, script içinde). .results grid'i
+  3'ten 4 sütuna çıkarıldı (900px altında zaten tek sütuna düşüyor,
+  mobil etkilenmedi). Modal'daki prim oranları tablosu (data-plan="s")
+  ve "en yüksek net" rozeti otomatik olarak 4. planı da kapsıyor.
+
+  YENİ (17.09.2026, 3. tur):
+  1) Meltem: "sıralamada sabit en başta olması daha mantıklı olabilir,
+     oransal dağılım açısından" — Sabit kartı 1. sıraya (Kademeli 27'den
+     önce) taşındı, aksan çubuğu opaklıkları yeni sıraya göre güncellendi.
+     Sadece görsel — id'ler/hesap mantığı DOM sırasından bağımsız.
+  2) Meltem: "ofis yöneticisi Revy kullanımı için bir tercih butonu
+     eklememizi istedi" — yeni 6. soru: "Revy kullanmayı planlıyor
+     musunuz?" (Kullanacağım/Kullanmayacağım chip'leri, id="revy-yes"/
+     "revy-no"). Meltem'in onayladığı davranış: "Kullanmayacağım"
+     seçilirse Revy bedeli (Sabit/Kademeli 27'de yıllık 3.000 TL,
+     Girişimci 27/MAX'ta yıllık 6.000 TL) 4 planın da net kazanç
+     hesabından TAMAMEN çıkarılıyor (useRevy değişkeni, update()
+     içinde revySG/revyGM hesaplanıyor). Varsayılan "Kullanacağım" —
+     önceki (her zaman dahil) davranışla birebir aynı, geriye dönük
+     hiçbir link/senaryo bozulmuyor.
+-->
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -94,7 +138,14 @@ body{
 }
 .chip:hover{border-color:var(--navy);color:var(--navy)}
 .chip:active{transform:translateY(1px)}
-.chip.active{border-color:var(--navy);background:var(--navy);color:#fff;box-shadow:0 4px 10px rgba(28,43,71,.18)}
+/* GÜNCELLEME (18.09.2026, 5. tur — Meltem: "ilk 6 sorudaki seçeneklerde
+   lacivert zemin biraz yorucu gibi geldi", sonra netleşen son karar:
+   "soru 3 cevabım açık/soft lacivert olsun, son kararım"): 6 sorudaki
+   TÜM chip gruplarının (band-btn, ay-btn, drone, revy-yes/no) ortak
+   .chip.active kuralı; dolu lacivert yerine açık/soft lacivert —
+   zaten var olan --navy-tint / --navy-tint-strong token'ları
+   kullanılıyor, yeni renk değişkeni eklenmedi. */
+.chip.active{border-color:var(--navy-tint-strong);background:var(--navy-tint);color:var(--navy);box-shadow:none}
 
 /* Range */
 .range-box{margin-top:14px}
@@ -148,14 +199,15 @@ input[type=number]:focus{border-color:var(--navy);box-shadow:0 0 0 3px var(--nav
 .results-head p{margin:6px 0 0;color:var(--muted);font-size:14px}
 
 /* Result cards */
-.results{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.results{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
 .result-card{position:relative;overflow:hidden;transition:transform .15s ease, box-shadow .15s ease}
 .result-card::before{
   content:"";position:absolute;top:0;left:0;right:0;height:4px;
   background:var(--navy);opacity:.85;
 }
-#card-g::before{opacity:.55}
-#card-m::before{opacity:.3}
+#card-k::before{opacity:.6}
+#card-g::before{opacity:.4}
+#card-m::before{opacity:.2}
 .badge{
   display:none;width:max-content;max-width:100%;
   align-items:center;gap:6px;
@@ -170,9 +222,44 @@ input[type=number]:focus{border-color:var(--navy);box-shadow:0 0 0 3px var(--nav
 .plan-desc{margin:6px 0 0;font-size:12.5px;color:var(--muted);line-height:1.5;min-height:32px}
 .net{font-size:33px;font-weight:800;letter-spacing:-.02em;margin:16px 0 18px;color:var(--navy)}
 .result-card.best .net{color:var(--gold-text)}
+/* GÜNCELLEME (18.09.2026, 6. tur — Meltem: "kartlardan karlılık
+   rakamlarını çıkaralım en altta ... grafik ... alternatif c cubuksuz
+   sade liste olsun"): mini-grid içindeki 3. hücre (diffmini, "En
+   karlıya göre") TAMAMEN KALDIRILDI — kart artık sadece kendi rakamını
+   gösteriyor (Yıllık prim kazancı / Toplam yıllık maliyet), 2 sütuna
+   geri döndü. Karşılaştırma/fark bilgisi artık kartların ALTINDA, tek
+   bir listede (bkz. aşağıda "Seçenekler arasındaki fark" bölümü ve
+   .diff-list / .diff-row kuralları, ayrıca update() içindeki ranked
+   döngüsü). */
 .mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:13px}
 .mini-grid span{display:block;color:var(--muted);font-size:12px;margin-bottom:4px}
 .mini-grid strong{font-size:14.5px}
+
+/* Bölüm: kartların altındaki "Seçenekler arasındaki fark" listesi
+   (bar/sütun grafik yerine — Meltem: "cubuksuz sade liste olsun ama
+   2 rakam yan yana çok kalabalık yapıyor, en karlı seçenege göre durum
+   parantez içinde daha küçük puntolarla"). Sıralama en karlıdan en az
+   karlıya, JS'te her satırın CSS order'ı ile ayarlanıyor (DOM sırası
+   sabit kalıyor, id'ler karışmıyor). */
+.diff-list{display:flex;flex-direction:column}
+.diff-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 4px;border-bottom:1px solid var(--border)}
+.diff-row:last-child{border-bottom:none}
+.diff-plan{display:flex;align-items:center;gap:9px;font-size:14px;color:var(--text)}
+.diff-plan.best{font-weight:700}
+.diff-arrow{font-size:12px;width:14px;text-align:center}
+.diff-right{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.diff-value{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--text)}
+.diff-sub{font-size:11.5px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+.diff-sub.best{color:var(--gold-text);font-weight:700}
+
+/* Bölüm: "Kendi rakamlarımla / başka bir ofisle karşılaştır" — normalde
+   kapalı, isteyince açılan panel (Meltem: "sadece maliyetler bölümünde
+   zetanın sponsorlu rakamı ayrıca gösterilsin" fikri şova benzediği için
+   TERK EDİLDİ; onun yerine 4 Zeta kartına hiç dokunulmuyor, bu ayrı ve
+   normalde gizli panelde kişi kendi ciro/prim oranı/maliyet rakamlarını
+   giriyor, Zeta rakamları sadece bilgi amaçlı yanında duruyor). */
+.alt-calc-summary{padding:16px 22px;font-size:14px;font-weight:700;color:var(--navy)}
+.alt-calc-body{padding:2px 22px 22px;border-top:1px solid var(--border)}
 
 /* Details */
 details{margin-top:18px;border-top:1px solid var(--border);padding-top:14px}
@@ -185,14 +272,10 @@ details[open] summary::after{transform:rotate(180deg)}
 .service-row span:first-child{color:var(--muted)}
 .free{font-weight:800;color:var(--positive)}
 
-/* Diff */
-.diff-wrap{margin-top:18px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px}
-.diff-wrap h3{margin:0;font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:18px}
-.diff-wrap p{color:var(--muted);font-size:12.5px;margin:5px 0 0}
-.diff-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
-.diff-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius-sm);padding:15px}
-.diff-card small{display:block;color:var(--muted);line-height:1.45;font-size:12px}
-.diff-value{font-size:21px;font-weight:800;margin-top:9px}
+/* Diff (18.09.2026: eski ayrı ".diff-wrap" bölümünün kart-içi
+   ".mini-diff" satırlarıyla değiştirilmesiyle bu bölümün kendi kutu/
+   başlık/grid kuralları kaldırıldı — .positive/.negative hâlâ
+   kullanılıyor, korunuyor.) */
 .positive{color:var(--positive)}
 .negative{color:var(--negative)}
 
@@ -203,7 +286,7 @@ details[open] summary::after{transform:rotate(180deg)}
 .hidden{display:none!important}
 .small-input{width:110px!important}
 
-@media(max-width:900px){.results,.diff-grid{grid-template-columns:1fr}.result-card.best{transform:none}}
+@media(max-width:900px){.results{grid-template-columns:1fr}.result-card.best{transform:none}}
 @media(max-width:680px){
   .wrap{width:min(100% - 18px,1180px);margin-top:14px}
   .card,.result-card{padding:18px}
@@ -251,7 +334,7 @@ details[open] summary::after{transform:rotate(180deg)}
     <div class="hero-text">
       <span class="eyebrow eyebrow-light">Startkey Zeta</span>
       <h1>Prim Sistemi Senaryo Hesaplayıcı</h1>
-      <p>Önümüzdeki 12 ay için öngördüğünüz çalışma senaryosunu girin; Kademeli 27, Girişimci 27 ve MAX modellerinde oluşabilecek yıllık net kazancınızı karşılaştırın.</p>
+      <p>Önümüzdeki 12 ay için öngördüğünüz çalışma senaryosunu girin; Sponsorlu Sabit, Sponsorlu Kademeli, Girişimci Kademeli ve Maximum Kademeli modellerinde oluşabilecek yıllık net kazancınızı karşılaştırın.</p>
     </div>
   </div>
 </header>
@@ -277,13 +360,36 @@ details[open] summary::after{transform:rotate(180deg)}
 </div>
 
 <div class="grid-2">
-<div><label for="portfoy">2. Önümüzdeki 12 ayda yaklaşık kaç portföy alabileceğinizi düşünüyorsunuz?</label><input id="portfoy" type="number" min="0" max="500" step="1" value="30"></div>
-<div><label for="islem">3. Bunların yaklaşık kaçı işleme dönüşebilir?</label><input id="islem" type="number" min="0" max="500" step="1" value="12"><div class="helper">Bu bilgi prim hesabını değiştirmez; öngördüğünüz çalışma hacmini ve dönüşüm oranını görmenize yardımcı olur.</div></div>
+<div><label for="portfoy">2. Önümüzdeki 12 ayda yaklaşık kaç portföy alabileceğinizi düşünüyorsunuz?</label><input id="portfoy" type="number" min="0" max="500" step="1" value="0"></div>
+<div><label for="islem">3. Bunların yaklaşık kaçı işleme dönüşebilir?</label><input id="islem" type="number" min="0" max="500" step="1" value="0"><div class="helper">Bu bilgi prim hesabını değiştirmez; öngördüğünüz çalışma hacmini ve dönüşüm oranını görmenize yardımcı olur.</div></div>
 </div>
 
 <div><div class="section-title">4. Bir ilanın ortalama kaç ay yayında kalabileceğini öngörüyorsunuz?</div><div class="inline-row"><button type="button" class="chip ay-btn" data-ay="1">1 ay</button><button type="button" class="chip ay-btn active" data-ay="3">3 ay</button><button type="button" class="chip ay-btn" data-ay="6">6 ay</button><input id="ilan-ay" class="small-input" type="number" min="0" max="12" step="0.5" value="3"></div></div>
 
-<div><div class="section-title">5. Yaklaşık kaç portföyde drone çekimi kullanabileceğinizi düşünüyorsunuz?</div><div class="inline-row"><button type="button" id="dr-none" class="chip">Hiç</button><button type="button" id="dr-half" class="chip">Yaklaşık yarısı</button><button type="button" id="dr-all" class="chip">Tümü</button><input id="drone" class="small-input" type="number" min="0" max="500" step="1" value="15"></div></div>
+<div><div class="section-title">5. Yaklaşık kaç portföyde drone çekimi kullanabileceğinizi düşünüyorsunuz?</div><div class="inline-row"><button type="button" id="dr-none" class="chip">Hiç</button><button type="button" id="dr-half" class="chip">Yaklaşık yarısı</button><button type="button" id="dr-all" class="chip">Tümü</button><input id="drone" class="small-input" type="number" min="0" max="500" step="1" value="0"></div></div>
+
+<!-- YENİ (17.09.2026, 3. tur — Meltem: "ofis yöneticisi Revy kullanımı
+     için bir tercih butonu eklememizi istedi"). Genel/tüm planları
+     etkileyen bir tercih — Revy bedeli (Sabit/Kademeli 27'de aylık 250 TL,
+     Girişimci 27/MAX'ta aylık 500 TL) portföy/işlem/drone gibi diğer
+     girdilerden bağımsız, HER ZAMAN otomatik gidere ekleniyordu.
+     "Kullanmayacağım" seçilirse Revy bedeli 4 planın da net kazanç
+     hesabından TAMAMEN çıkarılıyor (bkz. update() içinde useRevy). Varsayılan
+     "Kullanacağım" — önceki davranışla (her zaman dahil) birebir aynı,
+     geriye dönük hiçbir link/senaryo bozulmuyor. -->
+<div><div class="section-title">6. Revy kullanmayı planlıyor musunuz?</div><div class="inline-row"><button type="button" id="revy-yes" class="chip active">Kullanacağım</button><button type="button" id="revy-no" class="chip">Kullanmayacağım</button></div></div>
+
+<!-- YENİ (18.09.2026, 8. tur — Meltem: "revy yanısıra endeksa yı da
+     ekle zeta ücreti 500 tl olacak"): Revy ile birebir aynı desende
+     yeni bir soru/tercih. Endeksa bedeli Revy gibi plana göre
+     kademeli DEĞİL — tüm planlarda sabit 500 TL/ay (yıllık 6.000 TL).
+     Revy'den farklı olarak varsayılan "Kullanmayacağım" seçili
+     bırakıldı: Revy'nin varsayılanı "Kullanacağım" olmasının nedeni
+     o bedelin toggle eklenmeden ÖNCE de her zaman hesaba dahil olması
+     (geriye dönük uyumluluk) — Endeksa için böyle bir geçmiş yok,
+     yeni bir bedel, o yüzden danışman kendi seçsin diye kapalı
+     başlıyor. bkz. useEndeksa değişkeni, update() içinde. -->
+<div><div class="section-title">7. Endeksa kullanmayı planlıyor musunuz?</div><div class="inline-row"><button type="button" id="endeksa-yes" class="chip">Kullanacağım</button><button type="button" id="endeksa-no" class="chip active">Kullanmayacağım</button></div></div>
 <div id="warning" class="warn" role="status"></div>
 </section>
 
@@ -292,35 +398,137 @@ details[open] summary::after{transform:rotate(180deg)}
 <div class="results-head"><h2>Tahmini yıllık net kazanç</h2><p>Girdiğiniz varsayımlara göre oluşabilecek yıllık prim kazancından tahmini yıllık maliyetler düşülmüştür.</p></div>
 
 <section class="results">
+<!-- DÜZELTME (17.09.2026, 3. tur — Meltem: "sıralamada sabit en başta
+     olması daha mantıklı olabilir, oransal dağılım açısından"): Sabit
+     kartı 4. sıradan (MAX'tan sonra) 1. sıraya (Kademeli 27'den önce)
+     taşındı. Sadece görsel/sıralama değişikliği — id'ler, hesap mantığı,
+     modal/best-rozet mantığı değişmedi (hepsi id'ye göre çalışıyor,
+     DOM sırasına bağımlı değil). Kart aksan çubuğu opaklığı (#card-*
+     ::before) da yeni soldan-sağa sıraya göre güncellendi: Sabit (yeni
+     1.) artık varsayılan/en koyu, MAX (yeni son) en açık. -->
+<article id="card-s" class="result-card">
+  <div class="badge"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 1.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L1.3 7.8l6.1-.7L10 1.5z"/></svg><span>En karlı seçenek</span></div>
+  <div class="plan-title-row"><h3>Sponsorlu Sabit</h3><button type="button" class="rate-btn" data-plan="s" aria-haspopup="dialog"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.7"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="10" cy="6" r="1" fill="currentColor"/></svg><span>Prim oranları</span></button></div>
+  <p class="plan-desc">Ciro dilimi ne olursa olsun aynı %60 prim oranı uygulanır; aylık ofis bedeli diğer modellere göre daha düşüktür.</p>
+  <div id="net-s" class="net"></div>
+  <div class="mini-grid"><div><span>Yıllık prim kazancı</span><strong id="prim-s"></strong></div><div><span>Toplam yıllık maliyet</span><strong id="gider-s"></strong></div></div>
+  <details><summary>Sağlanan hizmetler ve yıllık maliyetler</summary><div class="services"><div class="service-row"><span>Ofis kullanımı (12 aylık)</span><span id="s-ofis"></span></div><div class="service-row"><span>Revy (12 aylık)</span><span id="s-revy"></span></div><div class="service-row"><span>Endeksa (12 aylık)</span><span id="s-endeksa"></span></div><div class="service-row"><span>Sahibinden ilan</span><span class="free">Ücretsiz</span></div><div class="service-row"><span>Drone çekimi</span><span class="free">Ücretsiz</span></div><div class="service-row"><span>Fizbot</span><span class="free">Ücretsiz</span></div><div class="service-row"><span>Zeta CRM</span><span class="free">Ücretsiz</span></div></div></details>
+</article>
+
 <article id="card-k" class="result-card">
-  <div class="badge"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 1.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L1.3 7.8l6.1-.7L10 1.5z"/></svg><span>Bu varsayıma göre en yüksek net</span></div>
-  <div class="plan-title-row"><h3>Kademeli 27</h3><button type="button" class="rate-btn" data-plan="k" aria-haspopup="dialog"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.7"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="10" cy="6" r="1" fill="currentColor"/></svg><span>Prim oranları</span></button></div>
+  <div class="badge"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 1.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L1.3 7.8l6.1-.7L10 1.5z"/></svg><span>En karlı seçenek</span></div>
+  <div class="plan-title-row"><h3>Sponsorlu Kademeli</h3><button type="button" class="rate-btn" data-plan="k" aria-haspopup="dialog"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.7"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="10" cy="6" r="1" fill="currentColor"/></svg><span>Prim oranları</span></button></div>
   <p class="plan-desc">Bu modelde Sahibinden ilan ve drone çekimi ücretsiz dahil; yıllık maliyet yapısı daha sabit öngörülebilir.</p>
   <div id="net-k" class="net"></div>
   <div class="mini-grid"><div><span>Yıllık prim kazancı</span><strong id="prim-k"></strong></div><div><span>Toplam yıllık maliyet</span><strong id="gider-k"></strong></div></div>
-  <details><summary>Sağlanan hizmetler ve yıllık maliyetler</summary><div class="services"><div class="service-row"><span>Ofis kullanımı (12 aylık)</span><span id="k-ofis"></span></div><div class="service-row"><span>Revy (12 aylık)</span><span id="k-revy"></span></div><div class="service-row"><span>Sahibinden ilan</span><span class="free">Ücretsiz</span></div><div class="service-row"><span>Drone çekimi</span><span class="free">Ücretsiz</span></div><div class="service-row"><span>Fizbot</span><span class="free">Ücretsiz</span></div><div class="service-row"><span>Zeta CRM</span><span class="free">Ücretsiz</span></div></div></details>
+  <details><summary>Sağlanan hizmetler ve yıllık maliyetler</summary><div class="services"><div class="service-row"><span>Ofis kullanımı (12 aylık)</span><span id="k-ofis"></span></div><div class="service-row"><span>Revy (12 aylık)</span><span id="k-revy"></span></div><div class="service-row"><span>Endeksa (12 aylık)</span><span id="k-endeksa"></span></div><div class="service-row"><span>Sahibinden ilan</span><span class="free">Ücretsiz</span></div><div class="service-row"><span>Drone çekimi</span><span class="free">Ücretsiz</span></div><div class="service-row"><span>Fizbot</span><span class="free">Ücretsiz</span></div><div class="service-row"><span>Zeta CRM</span><span class="free">Ücretsiz</span></div></div></details>
 </article>
 
 <article id="card-g" class="result-card">
-  <div class="badge"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 1.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L1.3 7.8l6.1-.7L10 1.5z"/></svg><span>Bu varsayıma göre en yüksek net</span></div>
-  <div class="plan-title-row"><h3>Girişimci 27</h3><button type="button" class="rate-btn" data-plan="g" aria-haspopup="dialog"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.7"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="10" cy="6" r="1" fill="currentColor"/></svg><span>Prim oranları</span></button></div>
+  <div class="badge"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 1.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L1.3 7.8l6.1-.7L10 1.5z"/></svg><span>En karlı seçenek</span></div>
+  <div class="plan-title-row"><h3>Girişimci Kademeli</h3><button type="button" class="rate-btn" data-plan="g" aria-haspopup="dialog"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.7"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="10" cy="6" r="1" fill="currentColor"/></svg><span>Prim oranları</span></button></div>
   <p class="plan-desc">İlan ve drone maliyeti öngörülen kullanıma göre oluşur; sabit maliyet daha düşük, kullanım yapısı daha esnektir.</p>
   <div id="net-g" class="net"></div>
   <div class="mini-grid"><div><span>Yıllık prim kazancı</span><strong id="prim-g"></strong></div><div><span>Toplam yıllık maliyet</span><strong id="gider-g"></strong></div></div>
-  <details><summary>Sağlanan hizmetler ve yıllık maliyetler</summary><div class="services"><div class="service-row"><span>Ofis kullanımı (12 aylık)</span><span id="g-ofis"></span></div><div class="service-row"><span>Sahibinden ilan (yıllık kullanım)</span><span id="g-ilan"></span></div><div class="service-row"><span>Drone çekimi (yıllık kullanım)</span><span id="g-drone"></span></div><div class="service-row"><span>Revy (12 aylık)</span><span id="g-revy"></span></div><div class="service-row"><span>Fizbot</span><span class="free">Ücretsiz</span></div><div class="service-row"><span>Zeta CRM</span><span class="free">Ücretsiz</span></div></div></details>
+  <details><summary>Sağlanan hizmetler ve yıllık maliyetler</summary><div class="services"><div class="service-row"><span>Ofis kullanımı (12 aylık)</span><span id="g-ofis"></span></div><div class="service-row"><span>Sahibinden ilan (yıllık kullanım)</span><span id="g-ilan"></span></div><div class="service-row"><span>Drone çekimi (yıllık kullanım)</span><span id="g-drone"></span></div><div class="service-row"><span>Revy (12 aylık)</span><span id="g-revy"></span></div><div class="service-row"><span>Endeksa (12 aylık)</span><span id="g-endeksa"></span></div><div class="service-row"><span>Fizbot</span><span class="free">Ücretsiz</span></div><div class="service-row"><span>Zeta CRM</span><span class="free">Ücretsiz</span></div></div></details>
 </article>
 
 <article id="card-m" class="result-card">
-  <div class="badge"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 1.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L1.3 7.8l6.1-.7L10 1.5z"/></svg><span>Bu varsayıma göre en yüksek net</span></div>
-  <div class="plan-title-row"><h3>MAX</h3><button type="button" class="rate-btn" data-plan="m" aria-haspopup="dialog"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.7"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="10" cy="6" r="1" fill="currentColor"/></svg><span>Prim oranları</span></button></div>
+  <div class="badge"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 1.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L1.3 7.8l6.1-.7L10 1.5z"/></svg><span>En karlı seçenek</span></div>
+  <div class="plan-title-row"><h3>Maximum Kademeli</h3><button type="button" class="rate-btn" data-plan="m" aria-haspopup="dialog"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.7"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="10" cy="6" r="1" fill="currentColor"/></svg><span>Prim oranları</span></button></div>
   <p class="plan-desc">Daha yüksek prim oranları; ek aidat farkıyla birlikte ciro yükseldikçe daha yüksek kazanç potansiyeli sunabilir.</p>
   <div id="net-m" class="net"></div>
   <div class="mini-grid"><div><span>Yıllık prim kazancı</span><strong id="prim-m"></strong></div><div><span>Toplam yıllık maliyet</span><strong id="gider-m"></strong></div></div>
-  <details><summary>Sağlanan hizmetler ve yıllık maliyetler</summary><div class="services"><div class="service-row"><span>Ofis kullanımı (12 aylık)</span><span id="m-ofis"></span></div><div class="service-row"><span>Sahibinden ilan (yıllık kullanım)</span><span id="m-ilan"></span></div><div class="service-row"><span>Drone çekimi (yıllık kullanım)</span><span id="m-drone"></span></div><div class="service-row"><span>Revy (12 aylık)</span><span id="m-revy"></span></div><div class="service-row"><span>Aidat farkı (12 aylık)</span><span id="m-aidat"></span></div><div class="service-row"><span>Fizbot</span><span class="free">Ücretsiz</span></div><div class="service-row"><span>Zeta CRM</span><span class="free">Ücretsiz</span></div></div></details>
+  <details><summary>Sağlanan hizmetler ve yıllık maliyetler</summary><div class="services"><div class="service-row"><span>Ofis kullanımı (12 aylık)</span><span id="m-ofis"></span></div><div class="service-row"><span>Sahibinden ilan (yıllık kullanım)</span><span id="m-ilan"></span></div><div class="service-row"><span>Drone çekimi (yıllık kullanım)</span><span id="m-drone"></span></div><div class="service-row"><span>Revy (12 aylık)</span><span id="m-revy"></span></div><div class="service-row"><span>Endeksa (12 aylık)</span><span id="m-endeksa"></span></div><div class="service-row"><span>Aidat farkı (12 aylık)</span><span id="m-aidat"></span></div><div class="service-row"><span>Fizbot</span><span class="free">Ücretsiz</span></div><div class="service-row"><span>Zeta CRM</span><span class="free">Ücretsiz</span></div></div></details>
 </article>
 </section>
 
-<section class="diff-wrap"><h3>Varsayımlara göre net kazanç farkı</h3><p>Pozitif tutar diğer modele göre daha yüksek, negatif tutar daha düşük tahmini net kazancı gösterir.</p><div class="diff-grid"><div class="diff-card"><small>Girişimci 27'nin Kademeli 27'ye göre farkı</small><div id="diff-gk" class="diff-value"></div></div><div class="diff-card"><small>MAX'ın Girişimci 27'ye göre farkı</small><div id="diff-mg" class="diff-value"></div></div><div class="diff-card"><small>MAX'ın Kademeli 27'ye göre farkı</small><div id="diff-mk" class="diff-value"></div></div></div></section>
+<div class="results-head" style="margin-top:8px"><h2 style="font-size:19px">Seçenekler arasındaki fark</h2><p>4 planın net kazancı, en karlı (varsayımlarınıza göre tüm planlar zararlıysa en az zararlı) seçeneğe göre büyükten küçüğe sıralanmıştır.</p></div>
+<div class="card" style="padding:6px 22px">
+<div class="diff-list">
+<div class="diff-row" id="diff-row-s"><div class="diff-plan" id="diff-plan-s"><span class="diff-arrow" id="diff-arrow-s"></span>Sponsorlu Sabit</div><div class="diff-right"><span class="diff-value" id="diff-value-s"></span><span class="diff-sub" id="diff-sub-s"></span></div></div>
+<div class="diff-row" id="diff-row-k"><div class="diff-plan" id="diff-plan-k"><span class="diff-arrow" id="diff-arrow-k"></span>Sponsorlu Kademeli</div><div class="diff-right"><span class="diff-value" id="diff-value-k"></span><span class="diff-sub" id="diff-sub-k"></span></div></div>
+<div class="diff-row" id="diff-row-g"><div class="diff-plan" id="diff-plan-g"><span class="diff-arrow" id="diff-arrow-g"></span>Girişimci Kademeli</div><div class="diff-right"><span class="diff-value" id="diff-value-g"></span><span class="diff-sub" id="diff-sub-g"></span></div></div>
+<div class="diff-row" id="diff-row-m"><div class="diff-plan" id="diff-plan-m"><span class="diff-arrow" id="diff-arrow-m"></span>Maximum Kademeli</div><div class="diff-right"><span class="diff-value" id="diff-value-m"></span><span class="diff-sub" id="diff-sub-m"></span></div></div>
+</div>
+</div>
+
+<!-- YENİ (18.09.2026, 7. tur — Meltem: "Zeta harici kâr/zarar hesaplayıcı
+     ayrıca koymalıyız ... bahse konu paketler zetaya ait mantıklı bir
+     karşılaştırma olmaz", sonra: "sadece maliyetler bölümünde zetanın
+     sponsorlu rakamı ayrıca gösterilsin" fikri de "şov gibi olur" diye
+     TERK EDİLDİ). Son karar: 4 Zeta kartına hiç dokunulmuyor; bunun
+     yerine, normalde kapalı başlayan, isteyince açılan ayrı bir panel.
+     İçeride kişi kendi ciro/prim oranı/maliyet rakamlarını giriyor
+     (ciro/portföy/ilan-ay/drone adedi yukarıdaki senaryoyla ORTAK —
+     tekrar sorulmuyor), Zeta'nın rakamları sağda küçük punto ile sadece
+     bilgi amaçlı. "İlk bir deneyelim, gerekirse sadece maliyet
+     karşılaştıran bir alana revize ederiz" (Meltem) — bkz. altUpdate()
+     fonksiyonu, aşağıdaki <script>. -->
+<div class="card" style="margin-top:18px;padding:0;overflow:hidden">
+<details id="alt-calc">
+<summary class="alt-calc-summary">Başka bir ofisle karşılaştır</summary>
+<div class="alt-calc-body">
+<p class="helper" style="margin:14px 0 16px">Zeta dışında çalışsanız ya da değerlendirdiğiniz başka bir teklif varsa, kendi rakamlarınızla yaklaşık net kazancınızı görebilirsiniz. Yukarıda girdiğiniz ciro, portföy, ilan süresi ve drone adedi burada da kullanılır; Zeta'nın rakamları sağda sadece bilgi amaçlıdır, hesaba karışmaz.</p>
+<div class="grid-2">
+<div><label for="alt-oran">Prim oranı (%)</label><input id="alt-oran" type="number" min="0" max="100" step="1" placeholder="ör. 70"></div>
+<div><label for="alt-ilan">İlan ücreti (TL / portföy / ay)</label><input id="alt-ilan" type="number" min="0" step="50" placeholder="ör. 2.150"><div class="helper">Zeta sponsorlu (Girişimci/Maximum Kademeli): 1.500 TL — Sponsorlu Sabit/Kademeli'de ücretsiz</div></div>
+<div><label for="alt-drone">Drone çekimi (TL / adet)</label><input id="alt-drone" type="number" min="0" step="50" placeholder="ör. 900"><div class="helper">Zeta sponsorlu (Girişimci/Maximum Kademeli): 2.000 TL — Sponsorlu Sabit/Kademeli'de ücretsiz</div></div>
+<div><label for="alt-aidat">Ofis kullanımı / aidat (TL / ay)</label><input id="alt-aidat" type="number" min="0" step="100" placeholder="ör. 1.200"><div class="helper">Zeta: plana göre 4.000–15.000 TL/ay</div></div>
+<div><label for="alt-uygulama">Uygulama ücretleri (TL / ay)</label><input id="alt-uygulama" type="number" min="0" step="50" placeholder="ör. 500"><div class="helper">Zeta CRM: ücretsiz</div></div>
+</div>
+<div class="panel spacer-top">
+<div class="range-head"><span>Bu rakamlarla tahmini yıllık net kazanç</span><strong id="alt-net" style="font-size:22px"></strong></div>
+<div class="helper" id="alt-diff" style="margin-top:8px"></div>
+</div>
+</div>
+</details>
+</div>
+
+<!-- TARİHÇE — "Varsayımlara göre net kazanç farkı" ayrı bölümünün geçmişi:
+     17.09.2026 (Meltem: "...bölümüne sabit'i eklememişsin"): Sabit
+     eklendiğinde bu bölüm unutulmuştu, sonra Sabit'i de içeren 3 fark
+     daha eklenip toplam 6 ikili kombinasyon gösterilir olmuştu.
+     18.09.2026, 1. tur (Meltem: "net kazanç farkı biraz fazla mı
+     kalabalık ... sadece en karlı seçeneğe göre farkını belirlesek"):
+     6 sabit kombinasyon yerine, bu varsayımda en yüksek net kazancı
+     veren planı REFERANS alıp diğer 3 planın sadece ONA göre farkını
+     gösteren 3 dinamik karta indirildi.
+     18.09.2026, 2. tur (Meltem: "onları seçeneklerin içine ... ayrı
+     bölüm yerine"): Bu AYRI BÖLÜM TAMAMEN KALDIRILDI — aynı bilgi artık
+     her kartın içinde (id="diffmini-s/k/g/m") küçük bir not olarak
+     gösteriliyor; hangi kartın en karlı olduğu ve diğerlerinin ona göre
+     farkı JS'te update() içinde (nets/bestKey, aşağıdaki <script>) tek
+     bir döngüyle hesaplanıp yazılıyor — plan adı artık metinde tekrar
+     edilmiyor ("en karlı seçeneğe göre" yeterli, çünkü zaten hangi
+     kartın içinde olduğu belli).
+     18.09.2026 — bu notun kart İÇİNDEKİ tam yeri üç kez daha değişti:
+     "toplam yıllık maliyetin yanında olsa" (mini-grid'in "Toplam yıllık
+     maliyet" hücresine düştü, ama ALTINA yazılmış oldu) -> "ana rakamın
+     yanında küçük puntolarla olsa" (.net'in yanına taşındı) -> "bu da
+     olmamış ... toplam yıllık maliyetin yanına, altına değil, ayrıca
+     gösterim" — SON HALİ: mini-grid ÜÇÜNCÜ, kendi başına bir hücre
+     oldu ("Yıllık prim kazancı" / "Toplam yıllık maliyet" ile aynı
+     satırda, aynı görsel ağırlıkta, id="diffmini-s/k/g/m", bkz.
+     yukarıdaki 4 <article>). Bu turda ayrıca üst rozetin metni de
+     değişti: "Bu varsayıma göre en yüksek net" (Meltem: "kötü bir
+     ifade") -> "En karlı seçenek".
+
+     18.09.2026, 6. tur — SON DURUM (Meltem: "kartlardan karlılık
+     rakamlarını çıkaralım en altta ... grafik ... alternatif c cubuksuz
+     sade liste olsun ama 2 rakam yan yana çok kalabalık, en karlı
+     seçenege göre durum parantez içinde daha küçük puntolarla"):
+     diffmini kart içinden TEKRAR kaldırıldı (bu sefer geri de
+     konmayacak) — mini-grid yeniden 2 sütun. Karşılaştırma artık
+     kartların ALTINDA, "Seçenekler arasındaki fark" başlıklı tek bir
+     listede (.diff-list/.diff-row, yukarıda .results'tan hemen sonra):
+     her satırda plan adı + yön oku (▲/▼, nets[key] işaretine göre) +
+     NET rakamı + parantez içinde küçük punto ile durum — en karlı
+     satırda "(En karlı seçenek)" ya da TÜM planlar zararlıysa
+     "(En az zararlı seçenek)", diğerlerinde "(en karlıya göre fark)".
+     Sıralama en karlıdan en az karlıya; DOM sırası sabit kalıyor,
+     JS'te her satırın CSS order'ı ayarlanıyor (bkz. update() içindeki
+     ranked/forEach, aşağıdaki <script>). -->
 <p style="margin:12px 2px 0;color:var(--muted);font-size:11.5px;line-height:1.5;">Bu çalışma, girilen varsayımlara dayalı bir senaryo karşılaştırmasıdır; gerçekleşen ciro, işlem hacmi ve kullanım maliyetlerine göre sonuçlar değişebilir.</p>
 
 <div id="rate-modal-overlay" class="rate-modal-overlay hidden" aria-hidden="true">
@@ -343,10 +551,11 @@ details[open] summary::after{transform:rotate(180deg)}
 
 </main>
 <script>
-(()=>{const $=id=>document.getElementById(id),fmt=new Intl.NumberFormat('tr-TR',{maximumFractionDigits:0}),money=n=>fmt.format(Math.round(n))+' TL',signed=n=>(n>0?'+':n<0?'−':'')+money(Math.abs(n));const limits=[750000,1500000,2250000,3000000,4000000,5000000],rates={k:[.60,.60,.65,.70,.75,.80],g:[.65,.70,.75,.80,.80,.80],m:[.70,.75,.80,.80,.90,.90]};let custom=false;const num=id=>{const v=Number($(id).value);return Number.isFinite(v)?Math.max(0,v):0},prog=(c,rs)=>{let t=0,p=0;for(let i=0;i<limits.length;i++){const a=Math.max(0,Math.min(c,limits[i])-p);t+=a*rs[i];p=limits[i];if(c<=limits[i])break}return t},short=n=>n===0?'0':n<1e6?(n/1e3).toLocaleString('tr-TR',{maximumFractionDigits:0})+' bin':(n/1e6).toLocaleString('tr-TR',{maximumFractionDigits:2})+' M',current=()=>Math.min(custom?num('ciro-custom'):num('ciro-exact'),5e6);
-function activeBand(btn){document.querySelectorAll('.band-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active')}function activeAy(v){document.querySelectorAll('.ay-btn').forEach(b=>b.classList.toggle('active',Number(b.dataset.ay)===Number(v)))}function diff(id,v){const e=$(id);e.textContent=signed(v);e.classList.remove('positive','negative');if(v>0)e.classList.add('positive');if(v<0)e.classList.add('negative')}
-function update(){const raw=custom?num('ciro-custom'):num('ciro-exact'),ciro=Math.min(raw,5e6),p=Math.floor(num('portfoy'));let i=Math.floor(num('islem')),ay=Math.min(num('ilan-ay'),12),d=Math.floor(num('drone'));const w=[];if(raw>5e6)w.push('Sayfa 5 oranları 5.000.000 TL’ye kadar tanımlı olduğu için hesap 5.000.000 TL ile sınırlandı.');if(i>p){i=p;w.push('İşleme dönen portföy sayısı toplam portföyü aşamayacağı için hesapta toplam portföy adedi kabul edildi.')}if(d>p){d=p;w.push('Drone kullanılan portföy sayısı toplam portföyü aşamayacağı için hesapta toplam portföy adedi kabul edildi.')}const warn=$('warning');warn.style.display=w.length?'block':'none';warn.textContent=w.join(' ');const conv=p?Math.round(i/p*100):0;$('summary').textContent=`Öngörü: ${money(ciro)} yıllık ciro • ${p} portföy • ${i} işleme dönüşebilecek portföy (%${conv}) • Ortalama ${ay.toLocaleString('tr-TR')} ay ilan süresi • ${d} drone çekimi`;const ilan=p*ay*1500,drone=d*2000,pk=prog(ciro,rates.k),pg=prog(ciro,rates.g),pm=prog(ciro,rates.m),ck={ofis:60000,revy:3000},cg={ofis:60000,revy:6000,ilan,drone},cm={ofis:180000,revy:6000,ilan,drone,aidat:120000},gk=ck.ofis+ck.revy,gg=cg.ofis+cg.revy+ilan+drone,gm=cm.ofis+cm.revy+ilan+drone+cm.aidat,nk=pk-gk,ng=pg-gg,nm=pm-gm;[['k',pk,gk,nk],['g',pg,gg,ng],['m',pm,gm,nm]].forEach(([x,pv,gv,nv])=>{$('prim-'+x).textContent=money(pv);$('gider-'+x).textContent=money(gv);$('net-'+x).textContent=money(nv)});$('k-ofis').textContent=money(ck.ofis);$('k-revy').textContent=money(ck.revy);$('g-ofis').textContent=money(cg.ofis);$('g-ilan').textContent=money(cg.ilan);$('g-drone').textContent=money(cg.drone);$('g-revy').textContent=money(cg.revy);$('m-ofis').textContent=money(cm.ofis);$('m-ilan').textContent=money(cm.ilan);$('m-drone').textContent=money(cm.drone);$('m-revy').textContent=money(cm.revy);$('m-aidat').textContent=money(cm.aidat);diff('diff-gk',ng-nk);diff('diff-mg',nm-ng);diff('diff-mk',nm-nk);['card-k','card-g','card-m'].forEach(id=>$(id).classList.remove('best'));[['card-k',nk],['card-g',ng],['card-m',nm]].sort((a,b)=>b[1]-a[1])&&$([['card-k',nk],['card-g',ng],['card-m',nm]].sort((a,b)=>b[1]-a[1])[0][0]).classList.add('best')}
-document.querySelectorAll('.band-btn').forEach(btn=>btn.addEventListener('click',()=>{activeBand(btn);custom=btn.dataset.custom==='1';$('range-box').classList.toggle('hidden',custom);$('custom-box').classList.toggle('hidden',!custom);if(!custom){const min=+btn.dataset.min,max=+btn.dataset.max,def=+btn.dataset.default;$('ciro-slider').min=min;$('ciro-slider').max=max;$('ciro-slider').value=def;$('ciro-exact').value=def;$('ciro-big').textContent=money(def);$('range-min').textContent=short(min);$('range-max').textContent=short(max)}update()}));$('ciro-slider').addEventListener('input',()=>{const v=+$('ciro-slider').value;$('ciro-exact').value=v;$('ciro-big').textContent=money(v);update()});$('ciro-exact').addEventListener('input',()=>{const v=num('ciro-exact');$('ciro-big').textContent=money(v);const s=$('ciro-slider');if(v>=+s.min&&v<=+s.max)s.value=v;update()});$('ciro-custom').addEventListener('input',update);['portfoy','islem','ilan-ay','drone'].forEach(id=>$(id).addEventListener('input',update));document.querySelectorAll('.ay-btn').forEach(btn=>btn.addEventListener('click',()=>{$('ilan-ay').value=btn.dataset.ay;activeAy(btn.dataset.ay);update()}));$('ilan-ay').addEventListener('input',()=>activeAy(num('ilan-ay')));$('dr-none').addEventListener('click',()=>{$('drone').value=0;update()});$('dr-half').addEventListener('click',()=>{$('drone').value=Math.round(num('portfoy')/2);update()});$('dr-all').addEventListener('click',()=>{$('drone').value=Math.floor(num('portfoy'));update()});update()})();
+(()=>{const $=id=>document.getElementById(id),fmt=new Intl.NumberFormat('tr-TR',{maximumFractionDigits:0}),money=n=>fmt.format(Math.round(n))+' TL',signed=n=>(n>0?'+':n<0?'−':'')+money(Math.abs(n));const limits=[750000,1500000,2250000,3000000,4000000,5000000],rates={k:[.60,.60,.65,.70,.75,.80],g:[.65,.70,.75,.80,.80,.80],m:[.70,.75,.80,.80,.90,.90],s:[.60,.60,.60,.60,.60,.60]};let custom=false;let useRevy=true;let useEndeksa=false;let nets={k:0,g:0,m:0,s:0},bestKey='s';const num=id=>{const v=Number($(id).value);return Number.isFinite(v)?Math.max(0,v):0},prog=(c,rs)=>{let t=0,p=0;for(let i=0;i<limits.length;i++){const a=Math.max(0,Math.min(c,limits[i])-p);t+=a*rs[i];p=limits[i];if(c<=limits[i])break}return t},short=n=>n===0?'0':n<1e6?(n/1e3).toLocaleString('tr-TR',{maximumFractionDigits:0})+' bin':(n/1e6).toLocaleString('tr-TR',{maximumFractionDigits:2})+' M',current=()=>Math.min(custom?num('ciro-custom'):num('ciro-exact'),5e6);
+function activeBand(btn){document.querySelectorAll('.band-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active')}function activeAy(v){document.querySelectorAll('.ay-btn').forEach(b=>b.classList.toggle('active',Number(b.dataset.ay)===Number(v)))}
+function update(){const raw=custom?num('ciro-custom'):num('ciro-exact'),ciro=Math.min(raw,5e6),p=Math.floor(num('portfoy'));let i=Math.floor(num('islem')),ay=Math.min(num('ilan-ay'),12),d=Math.floor(num('drone'));const w=[];if(raw>5e6)w.push('Sayfa 5 oranları 5.000.000 TL’ye kadar tanımlı olduğu için hesap 5.000.000 TL ile sınırlandı.');if(i>p){i=p;w.push('İşleme dönen portföy sayısı toplam portföyü aşamayacağı için hesapta toplam portföy adedi kabul edildi.')}if(d>p){d=p;w.push('Drone kullanılan portföy sayısı toplam portföyü aşamayacağı için hesapta toplam portföy adedi kabul edildi.')}const warn=$('warning');warn.style.display=w.length?'block':'none';warn.textContent=w.join(' ');const conv=p?Math.round(i/p*100):0;$('summary').textContent=`Öngörü: ${money(ciro)} yıllık ciro • ${p} portföy • ${i} işleme dönüşebilecek portföy (%${conv}) • Ortalama ${ay.toLocaleString('tr-TR')} ay ilan süresi • ${d} drone çekimi • Revy: ${useRevy?'kullanılacak':'kullanılmayacak'} • Endeksa: ${useEndeksa?'kullanılacak':'kullanılmayacak'}`;const ilan=p*ay*1500,drone=d*2000,pk=prog(ciro,rates.k),pg=prog(ciro,rates.g),pm=prog(ciro,rates.m),ps=prog(ciro,rates.s),revySG=useRevy?250*12:0,revyGM=useRevy?500*12:0,endeksaCost=useEndeksa?500*12:0,ck={ofis:60000,revy:revySG,endeksa:endeksaCost},cg={ofis:60000,revy:revyGM,endeksa:endeksaCost,ilan,drone},cm={ofis:180000,revy:revyGM,endeksa:endeksaCost,ilan,drone,aidat:120000},cs={ofis:48000,revy:revySG,endeksa:endeksaCost},gk=ck.ofis+ck.revy+ck.endeksa,gg=cg.ofis+cg.revy+cg.endeksa+ilan+drone,gm=cm.ofis+cm.revy+cm.endeksa+ilan+drone+cm.aidat,gs=cs.ofis+cs.revy+cs.endeksa,nk=pk-gk,ng=pg-gg,nm=pm-gm,ns=ps-gs;[['k',pk,gk,nk],['g',pg,gg,ng],['m',pm,gm,nm],['s',ps,gs,ns]].forEach(([x,pv,gv,nv])=>{$('prim-'+x).textContent=money(pv);$('gider-'+x).textContent=money(gv);$('net-'+x).textContent=money(nv)});$('k-ofis').textContent=money(ck.ofis);$('k-revy').textContent=money(ck.revy);$('k-endeksa').textContent=money(ck.endeksa);$('g-ofis').textContent=money(cg.ofis);$('g-ilan').textContent=money(cg.ilan);$('g-drone').textContent=money(cg.drone);$('g-revy').textContent=money(cg.revy);$('g-endeksa').textContent=money(cg.endeksa);$('m-ofis').textContent=money(cm.ofis);$('m-ilan').textContent=money(cm.ilan);$('m-drone').textContent=money(cm.drone);$('m-revy').textContent=money(cm.revy);$('m-endeksa').textContent=money(cm.endeksa);$('m-aidat').textContent=money(cm.aidat);$('s-ofis').textContent=money(cs.ofis);$('s-revy').textContent=money(cs.revy);$('s-endeksa').textContent=money(cs.endeksa);nets={k:nk,g:ng,m:nm,s:ns};const order=['s','k','g','m'];bestKey=order.reduce((a,b)=>nets[b]>nets[a]?b:a);['card-k','card-g','card-m','card-s'].forEach(id=>$(id).classList.remove('best'));$('card-'+bestKey).classList.add('best');const ranked=order.slice().sort((a,b)=>nets[b]-nets[a]);ranked.forEach((key,idx)=>{const row=$('diff-row-'+key);if(row)row.style.order=idx;const arrow=$('diff-arrow-'+key),val=$('diff-value-'+key),sub=$('diff-sub-'+key),planEl=$('diff-plan-'+key);if(!arrow||!val||!sub||!planEl)return;arrow.classList.remove('positive','negative');val.classList.remove('negative');sub.classList.remove('best');planEl.classList.toggle('best',key===bestKey);if(nets[key]>=0){arrow.textContent='▲';arrow.classList.add('positive')}else{arrow.textContent='▼';arrow.classList.add('negative');val.classList.add('negative')}val.textContent=signed(nets[key]);if(key===bestKey){sub.textContent='('+(nets[bestKey]>=0?'En karlı seçenek':'En az zararlı seçenek')+')';sub.classList.add('best')}else{sub.textContent='('+signed(nets[key]-nets[bestKey])+')'}});altUpdate()}
+function altUpdate(){const elNet=$('alt-net'),elDiff=$('alt-diff');if(!elNet||!elDiff)return;const oranRaw=$('alt-oran').value;if(oranRaw===''){elNet.textContent='—';elDiff.textContent='Rakamlarınızı girin.';return}const ciro=current(),p=Math.floor(num('portfoy')),ay=Math.min(num('ilan-ay'),12),d=Math.floor(num('drone')),oran=num('alt-oran'),ilanU=num('alt-ilan'),droneU=num('alt-drone'),aidatU=num('alt-aidat'),uygU=num('alt-uygulama');const primKazanci=ciro*(oran/100),maliyet=ilanU*p*ay+droneU*d+aidatU*12+uygU*12,net=primKazanci-maliyet;elNet.textContent=signed(net);const zetaBest=nets[bestKey];if(typeof zetaBest!=='number'){elDiff.textContent='';return}const fark=net-zetaBest;elDiff.textContent="Zeta'nın "+(zetaBest>=0?'en karlı':'en az zararlı')+' seçeneğine göre '+signed(fark)+(fark>=0?' daha fazla':' daha az')}
+document.querySelectorAll('.band-btn').forEach(btn=>btn.addEventListener('click',()=>{activeBand(btn);custom=btn.dataset.custom==='1';$('range-box').classList.toggle('hidden',custom);$('custom-box').classList.toggle('hidden',!custom);if(!custom){const min=+btn.dataset.min,max=+btn.dataset.max,def=+btn.dataset.default;$('ciro-slider').min=min;$('ciro-slider').max=max;$('ciro-slider').value=def;$('ciro-exact').value=def;$('ciro-big').textContent=money(def);$('range-min').textContent=short(min);$('range-max').textContent=short(max)}update()}));$('ciro-slider').addEventListener('input',()=>{const v=+$('ciro-slider').value;$('ciro-exact').value=v;$('ciro-big').textContent=money(v);update()});$('ciro-exact').addEventListener('input',()=>{const v=num('ciro-exact');$('ciro-big').textContent=money(v);const s=$('ciro-slider');if(v>=+s.min&&v<=+s.max)s.value=v;update()});$('ciro-custom').addEventListener('input',update);['portfoy','islem','ilan-ay','drone'].forEach(id=>$(id).addEventListener('input',update));document.querySelectorAll('.ay-btn').forEach(btn=>btn.addEventListener('click',()=>{$('ilan-ay').value=btn.dataset.ay;activeAy(btn.dataset.ay);update()}));$('ilan-ay').addEventListener('input',()=>activeAy(num('ilan-ay')));$('dr-none').addEventListener('click',()=>{$('drone').value=0;update()});$('dr-half').addEventListener('click',()=>{$('drone').value=Math.round(num('portfoy')/2);update()});$('dr-all').addEventListener('click',()=>{$('drone').value=Math.floor(num('portfoy'));update()});$('revy-yes').addEventListener('click',()=>{useRevy=true;$('revy-yes').classList.add('active');$('revy-no').classList.remove('active');update()});$('revy-no').addEventListener('click',()=>{useRevy=false;$('revy-no').classList.add('active');$('revy-yes').classList.remove('active');update()});$('endeksa-yes').addEventListener('click',()=>{useEndeksa=true;$('endeksa-yes').classList.add('active');$('endeksa-no').classList.remove('active');update()});$('endeksa-no').addEventListener('click',()=>{useEndeksa=false;$('endeksa-no').classList.add('active');$('endeksa-yes').classList.remove('active');update()});['alt-oran','alt-ilan','alt-drone','alt-aidat','alt-uygulama'].forEach(id=>{const el=$(id);if(el)el.addEventListener('input',altUpdate)});update()})();
 </script>
 
 <script>
@@ -371,9 +580,10 @@ document.querySelectorAll('.band-btn').forEach(btn=>btn.addEventListener('click'
     { min: 4000000, max: 5000000, label: '4.000.000 – 5.000.000 TL' }
   ];
   const plans = {
-    k: { name: 'Kademeli 27', rates: [60,60,65,70,75,80] },
-    g: { name: 'Girişimci 27', rates: [65,70,75,80,80,80] },
-    m: { name: 'MAX', rates: [70,75,80,80,90,90] }
+    k: { name: 'Sponsorlu Kademeli', rates: [60,60,65,70,75,80] },
+    g: { name: 'Girişimci Kademeli', rates: [65,70,75,80,80,80] },
+    m: { name: 'Maximum Kademeli', rates: [70,75,80,80,90,90] },
+    s: { name: 'Sponsorlu Sabit', rates: [60,60,60,60,60,60] }
   };
   let activePlan = null;
   let lastFocus = null;
