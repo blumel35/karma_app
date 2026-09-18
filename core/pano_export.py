@@ -37,11 +37,19 @@ from core.rapor_export import (
 
 TURK_ALFABE = list("ABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZ")
 
-# İlan Vitrini uygulamasının paletinden ilham alındı (krem zemin, navy/
-# gold/sage vurgular, Montserrat+Inter yazı ikilisi) — Karma App'in Excel
-# çıktısındaki navy/gold kimliğiyle de uyumlu, ama daha sıcak ve ferah.
-CREAM = "#FBF7F0"
-CREAM_2 = "#F5EFE4"
+# İlan Vitrini uygulamasının paletinden ilham alındı (navy/gold/sage
+# vurgular, Montserrat+Inter yazı ikilisi) — Karma App'in Excel
+# çıktısındaki navy/gold kimliğiyle de uyumlu.
+# GÜNCELLEME (18.09.2026, Meltem: "arka fon ... gri tonlarda olsun" +
+# "iç kısımlar krem sarı kalmış"): bu dosya, Danışman Panosu'nun
+# components.html ile GÖMÜLÜ AYRI bir HTML belgesi ürettiği için
+# core/danisman_ortak.py'deki zemin değişikliği buraya hiç yansımıyordu
+# — CREAM/CREAM_2/BORDER/BORDER_STRONG eskiden sıcak krem-tonlarıydı,
+# artık o değişiklikle aynı nötr gri aileye çekildi. NAVY/GOLD/SAGE/RED
+# (rozetler, başlıklar, vurgular — asıl "sıcaklık") BİLİNÇLİ OLARAK
+# değişmedi.
+CREAM = "#F3F4F6"
+CREAM_2 = "#EAEDF1"
 CARD_BG = "#FFFFFF"
 INK = "#2B271F"
 MUTED = "#8A8271"
@@ -50,8 +58,8 @@ NAVY_SOFT = "#4B5A76"
 RED = "#C23B32"
 GOLD = "#B98A2C"
 SAGE = "#5F8266"
-BORDER = "#E7DFCF"
-BORDER_STRONG = "#D8CDB4"
+BORDER = "#E1E4E9"
+BORDER_STRONG = "#C9CED6"
 
 SATILIK_BG = "#EFE6DA"
 SATILIK_FG = GOLD
@@ -580,7 +588,7 @@ function favoriToggle(el) {{
   }}
   nav.harfler {{
     position: sticky; top: 0; z-index: 10;
-    background: rgba(251,247,240,0.92); backdrop-filter: blur(6px);
+    background: rgba(243,244,246,0.92); backdrop-filter: blur(6px);
     border-bottom: 1px solid var(--border);
     padding: 10px 26px; display: flex; flex-wrap: wrap; gap: 4px;
   }}
@@ -927,7 +935,7 @@ def pazar_ilan_pano_html_olustur(kayitlar, pano_basligi, baslik_goster=False):
   }}
   nav.harfler {{
     position: sticky; top: 0; z-index: 10;
-    background: rgba(251,247,240,0.92); backdrop-filter: blur(6px);
+    background: rgba(243,244,246,0.92); backdrop-filter: blur(6px);
     border-bottom: 1px solid var(--border);
     padding: 10px 26px; display: flex; flex-wrap: wrap; gap: 4px;
   }}
