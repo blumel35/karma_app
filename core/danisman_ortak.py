@@ -1340,12 +1340,20 @@ def hide_sidebar_css():
     /* ── TEMA (2026-08): mockup ile uyumlu sıcak kırık beyaz zemin,
        beyaz kart yüzeyleri, Segoe UI, navy başlıklar, yumuşak gri
        ikincil metin. Yalnızca CSS/tema katmanı — düzen, buton
-       konumu, veri akışı DEĞİŞMEDİ. ── */
+       konumu, veri akışı DEĞİŞMEDİ. ──
+       GÜNCELLEME (18.09.2026, Meltem: "arka fon önerdiğin gri
+       tonlarda olsun. sıcaklık kaybolmadan daha okunaklı hale
+       getirelim"): sadece ARKA FON (sayfa zemini + ona en yakın
+       "Son 24 saat" kutusu) sıcak kremden nötr griye çevrildi —
+       kartların beyazı, navy başlıklar, gold avatar/rozet vurguları
+       (sıcaklığı taşıyan asıl unsurlar) ve tüm buton/kart tasarımı
+       BİLİNÇLİ OLARAK dokunulmadan kaldı; sadece bu iki zemin rengi
+       değişti. */
 
     .stApp,
     [data-testid="stAppViewContainer"],
     [data-testid="stMain"] {
-        background-color: #f6f5f2 !important;
+        background-color: #f3f4f6 !important;
     }
     /* Font Segoe UI: KASITLI olarak *, !important VE testid tahmini
        KULLANMIYORUZ. Doğal CSS kalıtımına güveniyoruz — .stApp üzerinde
@@ -1425,12 +1433,15 @@ def hide_sidebar_css():
     }
 
     /* Aktivite kutusu ("Son 24 saat") — diğer kartlardan farklı, sayfa
-       zeminine yakın soft bej (mockup: #f8f7f4) — "öne çıkan panel"
-       değil "sayfanın devamı" hissi için. Yukarıdaki genel beyaz kart
-       kuralını, daha spesifik bu seçiciyle eziyoruz. */
+       zeminine yakın soft ton — "öne çıkan panel" değil "sayfanın
+       devamı" hissi için. Yukarıdaki genel beyaz kart kuralını, daha
+       spesifik bu seçiciyle eziyoruz.
+       GÜNCELLEME (18.09.2026): sayfa zemini griye döndüğü için bu
+       kutu da AYNI aileden (nötr, zemine yakın) bir tona çekildi —
+       eski sıcak bej (#f8f7f4/#ecebe5) yeni zeminle uyuşmuyordu. */
     div[class*="st-key-dp_activity_box"] div[data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #f8f7f4 !important;
-        border-color: #ecebe5 !important;
+        background-color: #f7f8fa !important;
+        border-color: #e5e7eb !important;
     }
 
     /* NOT (2. tur — regresyon giderme): Bu ekranda daha önce burada
