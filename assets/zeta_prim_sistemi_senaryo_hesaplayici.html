@@ -51,6 +51,29 @@
      içinde revySG/revyGM hesaplanıyor). Varsayılan "Kullanacağım" —
      önceki (her zaman dahil) davranışla birebir aynı, geriye dönük
      hiçbir link/senaryo bozulmuyor.
+
+  YENİ (20.09.2026, 9. tur — Meltem: "oran kıyaslaması yapmak istiyorum
+  eskisinin üzerine yazmayalım geçici olarak 2 senaryoyu da görebilir
+  miyiz", ardından: "şöyle canlı hesaplayıcıda geçici 2 alternatif
+  görmek lazım broker a linkleri oradan gönderiyorum o hesaplama
+  yapacak"): Maximum Kademeli'nin ESKİ prim oranları (750.000 TL'lik
+  dilimlerle %70/%75/%80/%80/%90/%90 — bkz. yukarıdaki 20.09.2026 tarihli
+  not) ayrı bir standalone araçta (oran_kiyaslama_max.html) kıyaslanmıştı;
+  bu turda Meltem bu kıyaslamayı CANLI hesaplayıcının kendisine, GEÇİCİ
+  5. bir kart olarak eklememizi istedi — çünkü broker/GD adaylarına
+  gönderdiği link bu sayfa, kıyaslamayı ayrı bir araçta değil burada
+  yapmaları gerekiyor. Eklenen: id="card-mo" ("Maximum Kademeli (Eski
+  Oran)") — maliyet yapısı (ofis/ilan/drone/aidat farkı/Revy/Endeksa)
+  güncel Maximum Kademeli (cm) ile TAMAMEN AYNI, SADECE prim oranı eski
+  (%70/%75/%80/%80/%90/%90, standart 750k dilimlerle — bkz. rates.mo,
+  prog() zaten varsayılan olarak bu dilimleri kullanıyor, limitsM'ye
+  ihtiyaç yok). "En karlı seçenek" rozetine ve alttaki "Seçenekler
+  arasındaki fark" listesine diğer 4 kart gibi dahil edildi (nets/order
+  dizilerine 'mo' eklendi). Kart üzerinde "Geçici karşılaştırma"
+  etiketi (.temp-tag) ve kesikli kenarlık ile diğer 4 kalıcı planla
+  görsel olarak ayrıştırıldı. Meltem eski/yeni oran kararını
+  netleştirdiğinde bu kart (ve ilgili tüm CSS/JS/HTML parçaları)
+  KALDIRILMALI — kod içinde "GEÇİCİ" ibaresiyle işaretlendi.
 -->
 <!DOCTYPE html>
 <html lang="tr">
@@ -209,7 +232,14 @@ input[type=number]:focus{border-color:var(--navy);box-shadow:0 0 0 3px var(--nav
 .results-head p{margin:6px 0 0;color:var(--muted);font-size:14px}
 
 /* Result cards */
-.results{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+/* GÜNCELLEME (20.09.2026, 9. tur — geçici "Maximum Kademeli (Eski Oran)"
+   5. kartı, bkz. dosya başındaki yorum): sabit 4 sütun, 5. kart için
+   auto-fit/minmax'e çevrildi — masaüstünde 5 kart tek satırda kalıyor,
+   dar ekranlarda kendiliğinden 2-3 sütuna kırılıyor; 900px altındaki
+   medya sorgusu zaten tek sütuna düşürüyor, o değişmedi. Bu satır
+   Meltem eski/yeni oran kararını verip geçici kart kaldırıldığında
+   repeat(4,1fr)'e geri alınmalı. */
+.results{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px}
 .result-card{position:relative;overflow:hidden;transition:transform .15s ease, box-shadow .15s ease}
 .result-card::before{
   content:"";position:absolute;top:0;left:0;right:0;height:4px;
@@ -218,6 +248,13 @@ input[type=number]:focus{border-color:var(--navy);box-shadow:0 0 0 3px var(--nav
 #card-k::before{opacity:.6}
 #card-g::before{opacity:.4}
 #card-m::before{opacity:.2}
+/* GEÇİCİ (20.09.2026): "Maximum Kademeli (Eski Oran)" kartı diğer 4
+   kalıcı planla karışmasın diye kesikli kenarlık + soluk aksan çubuğu
+   ile ayrıştırıldı. Karar netleştiğinde bu kart tamamen kaldırılacağı
+   için bu kural da kaldırılmalı. */
+#card-mo{border-style:dashed;border-color:var(--navy-tint-strong)}
+#card-mo::before{opacity:.15}
+.temp-tag{display:inline-block;background:var(--navy-tint);color:var(--navy);border-radius:999px;padding:4px 11px;font-size:10.5px;font-weight:800;letter-spacing:.02em;margin-bottom:12px}
 .badge{
   display:none;width:max-content;max-width:100%;
   align-items:center;gap:6px;
@@ -467,15 +504,35 @@ details[open] summary::after{transform:rotate(180deg)}
   <div class="mini-grid"><div><span>Yıllık prim kazancı</span><strong id="prim-m"></strong></div><div><span>Toplam yıllık maliyet</span><strong id="gider-m"></strong></div></div>
   <details><summary>Sağlanan hizmetler ve yıllık maliyetler</summary><div class="services"><div class="service-row"><span>Ofis kullanımı (12 aylık)</span><span id="m-ofis"></span></div><div class="service-row"><span>Sahibinden ilan (yıllık kullanım)</span><span id="m-ilan"></span></div><div class="service-row"><span>Drone çekimi (yıllık kullanım)</span><span id="m-drone"></span></div><div class="service-row"><span>Aidat farkı (12 aylık)</span><span id="m-aidat"></span></div><div class="service-row"><span>Revy (12 aylık)</span><span id="m-revy"></span></div><div class="service-row"><span>Endeksa (12 aylık)</span><span id="m-endeksa"></span></div><div class="service-row"><span>Fizbot</span><span class="free">Ücretsiz</span></div><div class="service-row"><span>Zeta CRM</span><span class="free">Ücretsiz</span></div></div></details>
 </article>
+
+<!-- GEÇİCİ (20.09.2026, 9. tur — Meltem: "şöyle canlı hesaplayıcıda
+     geçici 2 alternatif görmek lazım broker a linkleri oradan
+     gönderiyorum o hesaplama yapacak"): Maximum Kademeli'nin ESKİ prim
+     oranlarıyla (750.000 TL'lik dilimler, %70/%75/%80/%80/%90/%90)
+     hesaplanan geçici karşılaştırma kartı. Maliyet yapısı (ofis/ilan/
+     drone/aidat farkı/Revy/Endeksa) güncel Maximum Kademeli ile
+     BİREBİR AYNI — sadece prim oranı farklı (bkz. rates.mo, update()).
+     Karar netleşince bu <article> tamamen kaldırılmalı. -->
+<article id="card-mo" class="result-card">
+  <span class="temp-tag">Geçici karşılaştırma</span>
+  <div class="badge"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 1.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L1.3 7.8l6.1-.7L10 1.5z"/></svg><span>En karlı seçenek</span></div>
+  <div class="plan-title-row"><h3>Maximum Kademeli (Eski Oran)</h3><button type="button" class="rate-btn" data-plan="mo" aria-haspopup="dialog"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.7"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="10" cy="6" r="1" fill="currentColor"/></svg><span>Prim oranları</span></button></div>
+  <p class="plan-desc">Geçici kıyaslama: 750.000 TL'lik dilimlerle uygulanan eski Maximum Kademeli prim oranlarıyla hesaplanır; diğer tüm maliyetler (ofis, ilan, drone, aidat farkı, Revy, Endeksa) güncel Maximum Kademeli ile aynıdır.</p>
+  <div id="net-mo" class="net"></div>
+  <div class="mini-grid"><div><span>Yıllık prim kazancı</span><strong id="prim-mo"></strong></div><div><span>Toplam yıllık maliyet</span><strong id="gider-mo"></strong></div></div>
+  <details><summary>Sağlanan hizmetler ve yıllık maliyetler</summary><div class="services"><div class="service-row"><span>Ofis kullanımı (12 aylık)</span><span id="mo-ofis"></span></div><div class="service-row"><span>Sahibinden ilan (yıllık kullanım)</span><span id="mo-ilan"></span></div><div class="service-row"><span>Drone çekimi (yıllık kullanım)</span><span id="mo-drone"></span></div><div class="service-row"><span>Aidat farkı (12 aylık)</span><span id="mo-aidat"></span></div><div class="service-row"><span>Revy (12 aylık)</span><span id="mo-revy"></span></div><div class="service-row"><span>Endeksa (12 aylık)</span><span id="mo-endeksa"></span></div><div class="service-row"><span>Fizbot</span><span class="free">Ücretsiz</span></div><div class="service-row"><span>Zeta CRM</span><span class="free">Ücretsiz</span></div></div></details>
+</article>
 </section>
 
-<div class="results-head" style="margin-top:8px"><h2 style="font-size:19px">Seçenekler arasındaki fark</h2><p>4 planın net kazancı, en karlı (varsayımlarınıza göre tüm planlar zararlıysa en az zararlı) seçeneğe göre büyükten küçüğe sıralanmıştır.</p></div>
+<div class="results-head" style="margin-top:8px"><h2 style="font-size:19px">Seçenekler arasındaki fark</h2><p>Planların net kazancı, en karlı (varsayımlarınıza göre tüm planlar zararlıysa en az zararlı) seçeneğe göre büyükten küçüğe sıralanmıştır.</p></div>
 <div class="card" style="padding:6px 22px">
 <div class="diff-list">
 <div class="diff-row" id="diff-row-s"><div class="diff-plan" id="diff-plan-s"><span class="diff-arrow" id="diff-arrow-s"></span>Sponsorlu Sabit</div><div class="diff-right"><span class="diff-value" id="diff-value-s"></span><span class="diff-sub" id="diff-sub-s"></span></div></div>
 <div class="diff-row" id="diff-row-k"><div class="diff-plan" id="diff-plan-k"><span class="diff-arrow" id="diff-arrow-k"></span>Sponsorlu Kademeli</div><div class="diff-right"><span class="diff-value" id="diff-value-k"></span><span class="diff-sub" id="diff-sub-k"></span></div></div>
 <div class="diff-row" id="diff-row-g"><div class="diff-plan" id="diff-plan-g"><span class="diff-arrow" id="diff-arrow-g"></span>Girişimci Kademeli</div><div class="diff-right"><span class="diff-value" id="diff-value-g"></span><span class="diff-sub" id="diff-sub-g"></span></div></div>
 <div class="diff-row" id="diff-row-m"><div class="diff-plan" id="diff-plan-m"><span class="diff-arrow" id="diff-arrow-m"></span>Maximum Kademeli</div><div class="diff-right"><span class="diff-value" id="diff-value-m"></span><span class="diff-sub" id="diff-sub-m"></span></div></div>
+<!-- GEÇİCİ (20.09.2026, 9. tur) — bkz. yukarıdaki card-mo yorumu -->
+<div class="diff-row" id="diff-row-mo"><div class="diff-plan" id="diff-plan-mo"><span class="diff-arrow" id="diff-arrow-mo"></span>Maximum Kademeli (Eski Oran)</div><div class="diff-right"><span class="diff-value" id="diff-value-mo"></span><span class="diff-sub" id="diff-sub-mo"></span></div></div>
 </div>
 </div>
 
@@ -503,8 +560,8 @@ details[open] summary::after{transform:rotate(180deg)}
 <div class="grid-2">
 <div><label for="alt-oran">Prim oranı (%)</label><input id="alt-oran" type="number" min="0" max="100" step="1" placeholder="ör. 70"></div>
 <div><label for="alt-ilan">İlan ücreti (TL / portföy / ay)</label><input id="alt-ilan" type="number" min="0" step="50" placeholder="ör. 2.150"><div class="helper">Zeta sponsorlu (Girişimci/Maximum Kademeli): 1.500 TL — Sponsorlu Sabit/Kademeli'de ücretsiz</div></div>
-<div><label for="alt-drone">Drone çekimi (TL / adet)</label><input id="alt-drone" type="number" min="0" step="50" placeholder="ör. 900"><div class="helper">Zeta sponsorlu (Girişimci/Maximum Kademeli): 2.000 TL — Sponsorlu Sabit/Kademeli'de ücretsiz</div></div>
-<div><label for="alt-aidat">Ofis kullanımı / aidat (TL / ay)</label><input id="alt-aidat" type="number" min="0" step="100" placeholder="ör. 1.200"><div class="helper">Zeta: plana göre 4.000–15.000 TL/ay</div></div>
+<div><label for="alt-drone">Drone çekimi (TL / adet)</label><input id="alt-drone" type="number" min="0" step="50" placeholder="ör. 3.000"><div class="helper">Zeta sponsorlu (Girişimci/Maximum Kademeli): 2.000 TL — Sponsorlu Sabit/Kademeli'de ücretsiz</div></div>
+<div><label for="alt-aidat">Ofis kullanımı / aidat (TL / ay)</label><input id="alt-aidat" type="number" min="0" step="100" placeholder="ör. 10.000"><div class="helper">Zeta: plana göre 4.000–15.000 TL/ay</div></div>
 <div><label for="alt-uygulama">Uygulama ücretleri (TL, yıllık toplam)</label><input id="alt-uygulama" type="number" min="0" step="100" placeholder="ör. 6.000"><div class="helper">Zeta CRM: ücretsiz</div></div>
 </div>
 <div class="panel spacer-top">
@@ -581,9 +638,9 @@ details[open] summary::after{transform:rotate(180deg)}
 
 </main>
 <script>
-(()=>{const $=id=>document.getElementById(id),fmt=new Intl.NumberFormat('tr-TR',{maximumFractionDigits:0}),money=n=>fmt.format(Math.round(n))+' TL',signed=n=>(n>0?'+':n<0?'−':'')+money(Math.abs(n));const limits=[750000,1500000,2250000,3000000,4000000,5000000],rates={k:[.60,.60,.65,.70,.75,.80],g:[.65,.70,.75,.80,.80,.80],m:[.70,.75,.80,.80,.90,.90],s:[.55,.60,.60,.60,.60,.60]};let custom=false;let useRevy=true;let useEndeksa=false;let nets={k:0,g:0,m:0,s:0},bestKey='s';const num=id=>{const v=Number($(id).value);return Number.isFinite(v)?Math.max(0,v):0},prog=(c,rs)=>{let t=0,p=0;for(let i=0;i<limits.length;i++){const a=Math.max(0,Math.min(c,limits[i])-p);t+=a*rs[i];p=limits[i];if(c<=limits[i])break}return t},short=n=>n===0?'0':n<1e6?(n/1e3).toLocaleString('tr-TR',{maximumFractionDigits:0})+' bin':(n/1e6).toLocaleString('tr-TR',{maximumFractionDigits:2})+' M',current=()=>Math.min(custom?num('ciro-custom'):num('ciro-exact'),5e6);
+(()=>{const $=id=>document.getElementById(id),fmt=new Intl.NumberFormat('tr-TR',{maximumFractionDigits:0}),money=n=>fmt.format(Math.round(n))+' TL',signed=n=>(n>0?'+':n<0?'−':'')+money(Math.abs(n));const limits=[750000,1500000,2250000,3000000,4000000,5000000],limitsM=[1000000,2000000,3000000,4000000,5000000],rates={k:[.60,.60,.65,.70,.75,.80],g:[.65,.70,.75,.80,.80,.80],m:[.70,.80,.85,.90,.90],s:[.55,.60,.60,.60,.60,.60],mo:[.70,.75,.80,.80,.90,.90]};/* GEÇİCİ (20.09.2026): rates.mo — Maximum Kademeli'nin ESKİ oranı, standart limits (750k) dizisiyle; bkz. dosya başındaki 9. tur yorumu */let custom=false;let useRevy=true;let useEndeksa=false;let nets={k:0,g:0,m:0,s:0,mo:0},bestKey='s';const num=id=>{const v=Number($(id).value);return Number.isFinite(v)?Math.max(0,v):0},prog=(c,rs,lims=limits)=>{let t=0,p=0;for(let i=0;i<lims.length;i++){const a=Math.max(0,Math.min(c,lims[i])-p);t+=a*rs[i];p=lims[i];if(c<=lims[i])break}return t},short=n=>n===0?'0':n<1e6?(n/1e3).toLocaleString('tr-TR',{maximumFractionDigits:0})+' bin':(n/1e6).toLocaleString('tr-TR',{maximumFractionDigits:2})+' M',current=()=>Math.min(custom?num('ciro-custom'):num('ciro-exact'),5e6);
 function activeBand(btn){document.querySelectorAll('.band-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active')}function activeAy(v){document.querySelectorAll('.ay-btn').forEach(b=>b.classList.toggle('active',Number(b.dataset.ay)===Number(v)))}
-function update(){const raw=custom?num('ciro-custom'):num('ciro-exact'),ciro=Math.min(raw,5e6),p=Math.floor(num('portfoy'));let i=Math.floor(num('islem')),ay=Math.min(num('ilan-ay'),12),d=Math.floor(num('drone'));const w=[];if(raw>5e6)w.push('Sayfa 5 oranları 5.000.000 TL’ye kadar tanımlı olduğu için hesap 5.000.000 TL ile sınırlandı.');if(i>p){i=p;w.push('İşleme dönen portföy sayısı toplam portföyü aşamayacağı için hesapta toplam portföy adedi kabul edildi.')}if(d>p){d=p;w.push('Drone kullanılan portföy sayısı toplam portföyü aşamayacağı için hesapta toplam portföy adedi kabul edildi.')}const warn=$('warning');warn.style.display=w.length?'block':'none';warn.textContent=w.join(' ');const conv=p?Math.round(i/p*100):0;$('summary').textContent=`Öngörü: ${money(ciro)} yıllık ciro • ${p} portföy • ${i} işleme dönüşebilecek portföy (%${conv}) • Ortalama ${ay.toLocaleString('tr-TR')} ay ilan süresi • ${d} drone çekimi • Revy: ${useRevy?'kullanılacak':'kullanılmayacak'} • Endeksa: ${useEndeksa?'kullanılacak':'kullanılmayacak'}`;const ilan=p*ay*1500,drone=d*2000,pk=prog(ciro,rates.k),pg=prog(ciro,rates.g),pm=prog(ciro,rates.m),ps=prog(ciro,rates.s),revySG=useRevy?250*12:0,revyGM=useRevy?500*12:0,endeksaGM=useEndeksa?500*12:0,ck={ofis:60000,revy:revySG},cg={ofis:60000,revy:revyGM,endeksa:endeksaGM,ilan,drone},cm={ofis:180000,revy:revyGM,endeksa:endeksaGM,ilan,drone,aidat:120000},cs={ofis:48000,revy:revySG},gk=ck.ofis+ck.revy,gg=cg.ofis+cg.revy+cg.endeksa+ilan+drone,gm=cm.ofis+cm.revy+cm.endeksa+ilan+drone+cm.aidat,gs=cs.ofis+cs.revy,nk=pk-gk,ng=pg-gg,nm=pm-gm,ns=ps-gs;[['k',pk,gk,nk],['g',pg,gg,ng],['m',pm,gm,nm],['s',ps,gs,ns]].forEach(([x,pv,gv,nv])=>{$('prim-'+x).textContent=money(pv);$('gider-'+x).textContent=money(gv);$('net-'+x).textContent=money(nv)});$('k-ofis').textContent=money(ck.ofis);$('k-revy').textContent=money(ck.revy);$('g-ofis').textContent=money(cg.ofis);$('g-ilan').textContent=money(cg.ilan);$('g-drone').textContent=money(cg.drone);$('g-revy').textContent=money(cg.revy);$('g-endeksa').textContent=money(cg.endeksa);$('m-ofis').textContent=money(cm.ofis);$('m-ilan').textContent=money(cm.ilan);$('m-drone').textContent=money(cm.drone);$('m-revy').textContent=money(cm.revy);$('m-endeksa').textContent=money(cm.endeksa);$('m-aidat').textContent=money(cm.aidat);$('s-ofis').textContent=money(cs.ofis);$('s-revy').textContent=money(cs.revy);nets={k:nk,g:ng,m:nm,s:ns};const order=['s','k','g','m'];bestKey=order.reduce((a,b)=>nets[b]>nets[a]?b:a);['card-k','card-g','card-m','card-s'].forEach(id=>$(id).classList.remove('best'));$('card-'+bestKey).classList.add('best');const ranked=order.slice().sort((a,b)=>nets[b]-nets[a]);ranked.forEach((key,idx)=>{const row=$('diff-row-'+key);if(row)row.style.order=idx;const arrow=$('diff-arrow-'+key),val=$('diff-value-'+key),sub=$('diff-sub-'+key),planEl=$('diff-plan-'+key);if(!arrow||!val||!sub||!planEl)return;arrow.classList.remove('positive','negative');val.classList.remove('negative');sub.classList.remove('best');planEl.classList.toggle('best',key===bestKey);if(nets[key]>=0){arrow.textContent='▲';arrow.classList.add('positive')}else{arrow.textContent='▼';arrow.classList.add('negative');val.classList.add('negative')}val.textContent=signed(nets[key]);if(key===bestKey){sub.textContent='('+(nets[bestKey]>=0?'En karlı seçenek':'En az zararlı seçenek')+')';sub.classList.add('best')}else{sub.textContent='('+signed(nets[key]-nets[bestKey])+')'}});altUpdate()}
+function update(){const raw=custom?num('ciro-custom'):num('ciro-exact'),ciro=Math.min(raw,5e6),p=Math.floor(num('portfoy'));let i=Math.floor(num('islem')),ay=Math.min(num('ilan-ay'),12),d=Math.floor(num('drone'));const w=[];if(raw>5e6)w.push('Sayfa 5 oranları 5.000.000 TL’ye kadar tanımlı olduğu için hesap 5.000.000 TL ile sınırlandı.');if(i>p){i=p;w.push('İşleme dönen portföy sayısı toplam portföyü aşamayacağı için hesapta toplam portföy adedi kabul edildi.')}if(d>p){d=p;w.push('Drone kullanılan portföy sayısı toplam portföyü aşamayacağı için hesapta toplam portföy adedi kabul edildi.')}const warn=$('warning');warn.style.display=w.length?'block':'none';warn.textContent=w.join(' ');const conv=p?Math.round(i/p*100):0;$('summary').textContent=`Öngörü: ${money(ciro)} yıllık ciro • ${p} portföy • ${i} işleme dönüşebilecek portföy (%${conv}) • Ortalama ${ay.toLocaleString('tr-TR')} ay ilan süresi • ${d} drone çekimi • Revy: ${useRevy?'kullanılacak':'kullanılmayacak'} • Endeksa: ${useEndeksa?'kullanılacak':'kullanılmayacak'}`;const ilan=p*ay*1500,drone=d*2000,pk=prog(ciro,rates.k),pg=prog(ciro,rates.g),pm=prog(ciro,rates.m,limitsM),ps=prog(ciro,rates.s),pmo=prog(ciro,rates.mo),revySG=useRevy?250*12:0,revyGM=useRevy?500*12:0,endeksaGM=useEndeksa?500*12:0,ck={ofis:60000,revy:revySG},cg={ofis:60000,revy:revyGM,endeksa:endeksaGM,ilan,drone},cm={ofis:180000,revy:revyGM,endeksa:endeksaGM,ilan,drone,aidat:120000},cs={ofis:48000,revy:revySG},gk=ck.ofis+ck.revy,gg=cg.ofis+cg.revy+cg.endeksa+ilan+drone,gm=cm.ofis+cm.revy+cm.endeksa+ilan+drone+cm.aidat,gs=cs.ofis+cs.revy,nk=pk-gk,ng=pg-gg,nm=pm-gm,ns=ps-gs,nmo=pmo-gm;/* GEÇİCİ (20.09.2026): 'mo' (Maximum Kademeli — Eski Oran) maliyet yapısı cm/gm ile BİREBİR AYNI, sadece prim (pmo) eski oranla hesaplanıyor */[['k',pk,gk,nk],['g',pg,gg,ng],['m',pm,gm,nm],['s',ps,gs,ns],['mo',pmo,gm,nmo]].forEach(([x,pv,gv,nv])=>{$('prim-'+x).textContent=money(pv);$('gider-'+x).textContent=money(gv);$('net-'+x).textContent=money(nv)});$('k-ofis').textContent=money(ck.ofis);$('k-revy').textContent=money(ck.revy);$('g-ofis').textContent=money(cg.ofis);$('g-ilan').textContent=money(cg.ilan);$('g-drone').textContent=money(cg.drone);$('g-revy').textContent=money(cg.revy);$('g-endeksa').textContent=money(cg.endeksa);$('m-ofis').textContent=money(cm.ofis);$('m-ilan').textContent=money(cm.ilan);$('m-drone').textContent=money(cm.drone);$('m-revy').textContent=money(cm.revy);$('m-endeksa').textContent=money(cm.endeksa);$('m-aidat').textContent=money(cm.aidat);$('s-ofis').textContent=money(cs.ofis);$('s-revy').textContent=money(cs.revy);$('mo-ofis').textContent=money(cm.ofis);$('mo-ilan').textContent=money(cm.ilan);$('mo-drone').textContent=money(cm.drone);$('mo-revy').textContent=money(cm.revy);$('mo-endeksa').textContent=money(cm.endeksa);$('mo-aidat').textContent=money(cm.aidat);nets={k:nk,g:ng,m:nm,s:ns,mo:nmo};const order=['s','k','g','m','mo'];bestKey=order.reduce((a,b)=>nets[b]>nets[a]?b:a);['card-k','card-g','card-m','card-s','card-mo'].forEach(id=>$(id).classList.remove('best'));$('card-'+bestKey).classList.add('best');const ranked=order.slice().sort((a,b)=>nets[b]-nets[a]);ranked.forEach((key,idx)=>{const row=$('diff-row-'+key);if(row)row.style.order=idx;const arrow=$('diff-arrow-'+key),val=$('diff-value-'+key),sub=$('diff-sub-'+key),planEl=$('diff-plan-'+key);if(!arrow||!val||!sub||!planEl)return;arrow.classList.remove('positive','negative');val.classList.remove('negative');sub.classList.remove('best');planEl.classList.toggle('best',key===bestKey);if(nets[key]>=0){arrow.textContent='▲';arrow.classList.add('positive')}else{arrow.textContent='▼';arrow.classList.add('negative');val.classList.add('negative')}val.textContent=signed(nets[key]);if(key===bestKey){sub.textContent='('+(nets[bestKey]>=0?'En karlı seçenek':'En az zararlı seçenek')+')';sub.classList.add('best')}else{sub.textContent='('+signed(nets[key]-nets[bestKey])+')'}});altUpdate()}
 function altUpdate(){const elNet=$('alt-net'),elDiff=$('alt-diff');if(!elNet||!elDiff)return;const oranRaw=$('alt-oran').value;if(oranRaw===''){elNet.textContent='—';elDiff.textContent='Rakamlarınızı girin.';return}const ciro=current(),p=Math.floor(num('portfoy')),ay=Math.min(num('ilan-ay'),12),d=Math.floor(num('drone')),oran=num('alt-oran'),ilanU=num('alt-ilan'),droneU=num('alt-drone'),aidatU=num('alt-aidat'),uygU=num('alt-uygulama');const primKazanci=ciro*(oran/100),maliyet=ilanU*p*ay+droneU*d+aidatU*12+uygU,net=primKazanci-maliyet;elNet.textContent=signed(net);const zetaBest=nets[bestKey];if(typeof zetaBest!=='number'){elDiff.textContent='';return}const fark=net-zetaBest;elDiff.textContent="Zeta'nın "+(zetaBest>=0?'en karlı':'en az zararlı')+' seçeneğine göre '+signed(fark)+(fark>=0?' daha fazla':' daha az')}
 document.querySelectorAll('.band-btn').forEach(btn=>btn.addEventListener('click',()=>{activeBand(btn);custom=btn.dataset.custom==='1';$('range-box').classList.toggle('hidden',custom);$('custom-box').classList.toggle('hidden',!custom);if(!custom){const min=+btn.dataset.min,max=+btn.dataset.max,def=+btn.dataset.default;$('ciro-slider').min=min;$('ciro-slider').max=max;$('ciro-slider').value=def;$('ciro-exact').value=def;$('ciro-big').textContent=money(def);$('range-min').textContent=short(min);$('range-max').textContent=short(max)}update()}));$('ciro-slider').addEventListener('input',()=>{const v=+$('ciro-slider').value;$('ciro-exact').value=v;$('ciro-big').textContent=money(v);update()});$('ciro-exact').addEventListener('input',()=>{const v=num('ciro-exact');$('ciro-big').textContent=money(v);const s=$('ciro-slider');if(v>=+s.min&&v<=+s.max)s.value=v;update()});$('ciro-custom').addEventListener('input',update);['portfoy','islem','ilan-ay','drone'].forEach(id=>$(id).addEventListener('input',update));document.querySelectorAll('.ay-btn').forEach(btn=>btn.addEventListener('click',()=>{$('ilan-ay').value=btn.dataset.ay;activeAy(btn.dataset.ay);update()}));$('ilan-ay').addEventListener('input',()=>activeAy(num('ilan-ay')));$('dr-none').addEventListener('click',()=>{$('drone').value=0;update()});$('dr-half').addEventListener('click',()=>{$('drone').value=Math.round(num('portfoy')/2);update()});$('dr-all').addEventListener('click',()=>{$('drone').value=Math.floor(num('portfoy'));update()});$('revy-yes').addEventListener('click',()=>{useRevy=true;$('revy-yes').classList.add('active');$('revy-no').classList.remove('active');update()});$('revy-no').addEventListener('click',()=>{useRevy=false;$('revy-no').classList.add('active');$('revy-yes').classList.remove('active');update()});$('endeksa-yes').addEventListener('click',()=>{useEndeksa=true;$('endeksa-yes').classList.add('active');$('endeksa-no').classList.remove('active');update()});$('endeksa-no').addEventListener('click',()=>{useEndeksa=false;$('endeksa-no').classList.add('active');$('endeksa-yes').classList.remove('active');update()});['alt-oran','alt-ilan','alt-drone','alt-aidat','alt-uygulama'].forEach(id=>{const el=$(id);if(el)el.addEventListener('input',altUpdate)});update()})();
 </script>
@@ -609,11 +666,30 @@ document.querySelectorAll('.band-btn').forEach(btn=>btn.addEventListener('click'
     { min: 3000000, max: 4000000, label: '3.000.000 – 4.000.000 TL' },
     { min: 4000000, max: 5000000, label: '4.000.000 – 5.000.000 TL' }
   ];
+  /* GÜNCELLEME (20.09.2026 — Meltem, Maximum Kademeli oranlarını
+     1'er milyonluk dilimlerle verdi: 0-1M %70, 1-2M %80, 2-3M %85,
+     3-4M %90, 4-5M %90). Bu dilim sınırları diğer 3 planın kullandığı
+     750.000'lik dilimlerden FARKLI, o yüzden Maximum için ayrı bir
+     dilim tablosu (tiersM) ve hesaplamada ayrı bir limits dizisi
+     (limitsM, yukarıdaki ilk <script>) eklendi — k/g/s'nin dilimleri
+     değişmedi. */
+  const tiersM = [
+    { min: 0,       max: 1000000, label: '0 – 1.000.000 TL' },
+    { min: 1000000, max: 2000000, label: '1.000.000 – 2.000.000 TL' },
+    { min: 2000000, max: 3000000, label: '2.000.000 – 3.000.000 TL' },
+    { min: 3000000, max: 4000000, label: '3.000.000 – 4.000.000 TL' },
+    { min: 4000000, max: 5000000, label: '4.000.000 – 5.000.000 TL' }
+  ];
   const plans = {
     k: { name: 'Sponsorlu Kademeli', rates: [60,60,65,70,75,80] },
     g: { name: 'Girişimci Kademeli', rates: [65,70,75,80,80,80] },
-    m: { name: 'Maximum Kademeli', rates: [70,75,80,80,90,90] },
-    s: { name: 'Sponsorlu Sabit', rates: [55,60,60,60,60,60] }
+    m: { name: 'Maximum Kademeli', rates: [70,80,85,90,90] },
+    s: { name: 'Sponsorlu Sabit', rates: [55,60,60,60,60,60] },
+    /* GEÇİCİ (20.09.2026, 9. tur) — 'mo' özel işlenmiyor, render()'da
+       sadece planKey==='m' tiersM kullanıyor; 'mo' otomatik olarak
+       varsayılan tiers'i (750k dilimler) kullanır — eski oranlar da
+       zaten 750k dilimliydi, bu doğru. */
+    mo: { name: 'Maximum Kademeli (Eski Oran)', rates: [70,75,80,80,90,90] }
   };
   let activePlan = null;
   let lastFocus = null;
@@ -634,8 +710,9 @@ document.querySelectorAll('.band-btn').forEach(btn=>btn.addEventListener('click'
     subtitle.textContent = 'Yıllık ciro kademelerine göre uygulanan prim oranları';
     currentBox.textContent = 'Seçili senaryonuz: ' + money(ciro) + ' yıllık ciro';
     tbody.innerHTML = '';
+    const planTiers = planKey === 'm' ? tiersM : tiers;
 
-    tiers.forEach((tier, index) => {
+    planTiers.forEach((tier, index) => {
       const tr = document.createElement('tr');
       const used = ciro > tier.min;
       const current = ciro > 0 && ciro > tier.min && ciro <= tier.max;
