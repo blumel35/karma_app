@@ -1269,8 +1269,17 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                 # (admin, farklı bir sayfa) ile KARIŞTIRILMASIN diye isim
                 # bilerek farklı tutuldu ("Ofis Panosu" burada, "Ofis
                 # Paneli" orada).
-                if st.button("🏢 Ofis Panosu", use_container_width=True, key="dp_menu_ofis_panosu"):
-                    st.switch_page("pages/Danisman_OfisPano.py")
+                # YETKİ KONTROLÜ (21.09.2026 — Meltem: "danısman panosunda
+                # ofis panosu ekranını sadece admin ve yönetici ve
+                # brokerlara açık hale getirir misin"): Asıl erişim engeli
+                # hedef sayfada (pages/Danisman_OfisPano.py, aynı tarihli
+                # değişiklik) olsa da, menüdeki bu link de aynı 3 rolle
+                # sınırlandırıldı — yetkisi olmayan bir danışmanın tıklayıp
+                # "yetkin yok" mesajıyla karşılaşacağı ölü bir link
+                # görmesini istemiyoruz.
+                if st.session_state.get("kullanici", {}).get("rol", "") in ("admin", "broker", "yonetici"):
+                    if st.button("🏢 Ofis Panosu", use_container_width=True, key="dp_menu_ofis_panosu"):
+                        st.switch_page("pages/Danisman_OfisPano.py")
                 st.divider()
                 if st.button("🚪 Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
                     cikis_yap()
