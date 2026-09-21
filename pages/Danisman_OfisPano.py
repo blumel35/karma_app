@@ -41,6 +41,26 @@ if not oturum_kontrol():
 
 hide_sidebar_css()
 render_topbar("Ofis Panosu", ikon="🏢", geri_hedefi="pages/Danisman_Secim.py")
+
+# YETKİ KONTROLÜ (21.09.2026 — Meltem: "danısman panosunda ofis panosu
+# ekranını sadece admin ve yönetici ve brokerlara açık hale getirir
+# misin"). DESEN: core/danisman_ortak.py'deki senaryolari_cek()
+# docstring'inde belirtildiği gibi bu kod tabanında yetki kontrolü
+# MERKEZİ bir helper'da değil, HER SAYFANIN KENDİSİNDE yapılıyor — burada
+# da pages/5_Mail_Islem.py'de kullanılan AYNI desen izlendi:
+# st.session_state["kullanici"] sözlüğündeki "rol" alanı okunup izinli
+# roller listesiyle karşılaştırılıyor. render_topbar() BİLİNÇLİ OLARAK bu
+# kontrolden ÖNCE çağrılıyor — yetkisi olmayan biri "yetkin yok" mesajını
+# görse bile üst bar (ve "← Panoya Dön" butonu) çizili kalsın, boş/çıkışsız
+# bir sayfada mahsur kalmasın diye (5_Mail_Islem.py'deki aynı gerekçe).
+_rol = st.session_state.get("kullanici", {}).get("rol", "")
+if _rol not in ("admin", "broker", "yonetici"):
+    st.error(
+        "Bu sayfaya erişim yetkiniz yok — Ofis Panosu yalnızca admin, "
+        "yönetici ve broker rolleri içindir."
+    )
+    st.stop()
+
 st.caption("Ofis genelinde kullanılan araçlar — paylaşılabilir linkleriyle birlikte.")
 
 # Uygulamanın canlı adresi — Senaryo Hesaplayıcı linklerinde de kullanılan
