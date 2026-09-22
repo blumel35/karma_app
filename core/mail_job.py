@@ -21,6 +21,18 @@ Faz 2.6 (mail sağlayıcı geçişi sonrası tek seferlik ihtiyaç):
   Verildiğinde, sadece kayit_tarihi bu tarihten SONRA olan raw kayıtlar
   bu çalıştırmada işlenir; öncekiler raw olarak kalmaya devam eder
   (kaybolmaz, sadece bu turda atlanır).
+
+Faz 2.7 (22.09.2026 — Meltem: "başka yolu yok mu github üzerinden", AI
+kredisinin bir süre bitmiş olması nedeniyle GitHub Actions'taki otomatik
+"posta-cek" işi tekrar tekrar exit code 2 ile başarısız oluyordu):
+- AI kredisi/API hatası yüzünden parse_status='failed' olarak işaretlenmiş
+  kayıtları Supabase'e elle SQL yazmadan, uygulama içinden tek butonla
+  tekrar 'raw' durumuna çevirebilmek için reset_basarisiz_kayitlar()
+  eklendi (bkz. pages/5_Mail_Islem.py'deki "3. Kredi Hatası Yüzünden
+  Başarısız Olanları Sıfırla" bölümü). SADECE verilen hata metniyle
+  BAŞLAYAN kayıtları etkiler — varsayılan filtre "BadRequestError: Error
+  code: 400" olduğu için portföy duplicate hatası gibi BAŞKA sebeplerden
+  'failed' olmuş kayıtlara dokunmaz.
 """
 
 from datetime import datetime, timezone
@@ -387,6 +399,62 @@ def run_pending_ai_parse_job(limit=50, durum_callback=None, max_workers=3, basla
         "sure_saniye": sure,
         "kalan": kalan,
     }
+
+
+def reset_basarisiz_kayitlar(hata_filtresi="BadRequestError: Error code: 400", durum_callback=None):
+    """
+    parse_status='failed' olan ve parse_error'ı `hata_filtresi` ile
+    BAŞLAYAN kayıtları tekrar 'raw' durumuna döndürür (parse_error ve
+    ai_processed_at temizlenir). Böylece bir sonraki
+    run_pending_ai_parse_job çalıştırması (UI butonu veya otomasyon) bu
+    kayıtları normal 'raw' kayıtlar gibi tekrar dener.
+
+    Varsayılan filtre "BadRequestError: Error code: 400" — Anthropic API
+    kredisi/bakiyesi bittiğinde alınan hatanın imzası. Bilerek SADECE bu
+    filtreyle başlayan kayıtları etkiler; portföy duplicate hatası gibi
+    BAŞKA sebeplerden 'failed' olmuş kayıtlara dokunmaz, onlar 'failed'
+    olarak kalmaya devam eder.
+
+    Döner: 'raw'a çevrilen kayıt sayısı (int).
+    """
+    supabase = get_client()
+
+    resp = (
+        supabase.table("alici_talepleri")
+        .select("id")
+        .eq("parse_status", "failed")
+        .like("parse_error", f"{hata_filtresi}%")
+        .execute()
+    )
+    id_listesi = [r["id"] for r in (resp.data or [])]
+
+    if not id_listesi:
+        if durum_callback:
+            durum_callback("Sıfırlanacak kayıt bulunamadı.")
+        return 0
+
+    if durum_callback:
+        durum_callback(f"{len(id_listesi)} kayıt bulundu, 'raw' durumuna çevriliyor...")
+
+    guncellenen = 0
+    parca_boyutu = 500  # PostgREST'e tek seferde çok büyük .in_() listesi göndermemek için
+    for i in range(0, len(id_listesi), parca_boyutu):
+        parca = id_listesi[i:i + parca_boyutu]
+        try:
+            supabase.table("alici_talepleri").update({
+                "parse_status": "raw",
+                "parse_error": None,
+                "ai_processed_at": None,
+            }).in_("id", parca).execute()
+            guncellenen += len(parca)
+        except Exception as e:
+            if durum_callback:
+                durum_callback(f"Bir parça güncellenirken hata: {e}")
+
+    if durum_callback:
+        durum_callback(f"✅ {guncellenen} kayıt 'raw' durumuna çevrildi.")
+
+    return guncellenen
 
 
 def run_full_mail_job(ai_enabled=True, ai_limit=20, durum_callback=None):
