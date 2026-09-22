@@ -8,7 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from datetime import datetime, timezone, timedelta
 
-from core.mail_job import run_mail_fetch_job, run_pending_ai_parse_job
+from core.mail_job import run_mail_fetch_job, run_pending_ai_parse_job, reset_basarisiz_kayitlar
 
 from core.auth import oturum_kontrol
 
@@ -178,3 +178,51 @@ with col2:
             st.error(f"Hata: {type(e).__name__}: {e}")
             import traceback
             st.code(traceback.format_exc())
+
+st.divider()
+
+# 22.09.2026 — Meltem: "başka yolu yok mu github üzerinden" (AI kredisi
+# bir süre bitmişti, bu yüzden GitHub Actions'taki otomatik "posta-cek"
+# işi tekrar tekrar hata veriyordu — bkz. core/mail_job.py'deki Faz 2.7
+# notu). O dönemde AI kategorize adımında hata alıp parse_status='failed'
+# olarak işaretlenmiş kayıtları Supabase'e elle SQL yazmadan, buradan tek
+# butonla tekrar 'raw'a çevirip normal akışla yeniden işlenmelerini
+# sağlamak için eklendi.
+st.subheader("3. Kredi Hatası Yüzünden Başarısız Olanları Sıfırla")
+st.caption(
+    "AI kredisi/bakiyesi bittiği dönemlerde \"AI ile Kategorize Et\" adımında "
+    "hata alıp parse_status='failed' olarak işaretlenmiş kayıtları bulur ve "
+    "tekrar 'raw' durumuna çevirir — böylece bir sonraki \"AI ile Kategorize "
+    "Et\" çalıştırmasında (yukarıdan veya otomasyondan) normal şekilde "
+    "yeniden denenirler. Sadece kredi/API hatasından (\"BadRequestError: "
+    "Error code: 400\" ile başlayan) etkilenmiş kayıtlara dokunur — başka "
+    "bir sebepten 'failed' olmuş kayıtlara (örn. portföy paylaşımı "
+    "tekrarı) dokunmaz, onlar 'failed' olarak kalmaya devam eder."
+)
+
+if st.button("Kredi Hatası Alan Kayıtları 'raw'a Döndür", use_container_width=True):
+    durum3 = st.status("Kayıtlar sıfırlanıyor...", expanded=True)
+
+    try:
+        def guncelle3(mesaj):
+            durum3.write(mesaj)
+
+        sayi = reset_basarisiz_kayitlar(durum_callback=guncelle3)
+
+        if sayi == 0:
+            durum3.update(label="Sıfırlanacak kayıt yok", state="complete")
+            st.info("Kredi hatasından etkilenmiş 'failed' kayıt bulunamadı.")
+        else:
+            durum3.update(label=f"✅ {sayi} kayıt 'raw' durumuna çevrildi", state="complete")
+            st.success(
+                f"✅ {sayi} kayıt tekrar 'raw' durumuna çevrildi. Şimdi yukarıdaki "
+                "\"AI ile Kategorize Et\" butonuna basarak bunları işleyebilirsin "
+                "— kayıt sayısı fazlaysa \"en fazla kaç kayıt işlensin\" kutusunu "
+                "artırman ve birkaç kez art arda basman gerekebilir."
+            )
+
+    except Exception as e:
+        durum3.update(label="❌ Hata oluştu", state="error")
+        st.error(f"Hata: {type(e).__name__}: {e}")
+        import traceback
+        st.code(traceback.format_exc())
