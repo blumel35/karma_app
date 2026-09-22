@@ -1,474 +1,228 @@
-"""
-Mail çekme ve AI kategorize etme işlerini orkestre eden ortak katman.
+import streamlit as st
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+from core.ui_helpers import render_navbar, render_page_header
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-Hem pages/5_Mail_Islem.py (manuel buton) hem de scripts/mail_auto_job.py
-(GitHub Actions üzerinden otomatik çalışan zamanlanmış iş) bu modüldeki
-fonksiyonları çağırır — mantık tek yerde, iki farklı tetikleyici var.
+from datetime import datetime, timezone, timedelta
 
-Faz 1 (veri bütünlüğü) ve Faz 2.5 (otomasyon) revizeleri burada toplandı:
-- "İşlendi mi?" artık bolge_mahalle değil, parse_status alanı ile anlaşılıyor.
-- Portföye taşımada satır SİLİNMİYOR; parse_status="moved_to_portfoy" +
-  linked_portfoy_id yazılıyor. Geçmiş kaybolmuyor, hata olursa iz sürülebiliyor.
-- Sabit 5 gün yerine mail_fetch_state tablosundaki son başarılı çekim
-  zamanına göre since_date hesaplanıyor.
-- Her çalıştırma mail_fetch_log tablosuna özet olarak yazılıyor
-  (UI'da ve otomasyonda aynı rapor kullanılabiliyor).
+from core.mail_job import run_mail_fetch_job, run_pending_ai_parse_job, reset_basarisiz_kayitlar
 
-Faz 2.6 (mail sağlayıcı geçişi sonrası tek seferlik ihtiyaç):
-- run_pending_ai_parse_job'a opsiyonel baslangic_tarihi parametresi
-  eklendi. Verilmezse davranış tamamen eskisi gibidir (tüm raw kayıtlar
-  limit sırasına göre işlenir) — otomasyon ve UI butonu etkilenmez.
-  Verildiğinde, sadece kayit_tarihi bu tarihten SONRA olan raw kayıtlar
-  bu çalıştırmada işlenir; öncekiler raw olarak kalmaya devam eder
-  (kaybolmaz, sadece bu turda atlanır).
+from core.auth import oturum_kontrol
 
-Faz 2.7 (22.09.2026 — Meltem: "başka yolu yok mu github üzerinden", AI
-kredisinin bir süre bitmiş olması nedeniyle GitHub Actions'taki otomatik
-"posta-cek" işi tekrar tekrar exit code 2 ile başarısız oluyordu):
-- AI kredisi/API hatası yüzünden parse_status='failed' olarak işaretlenmiş
-  kayıtları Supabase'e elle SQL yazmadan, uygulama içinden tek butonla
-  tekrar 'raw' durumuna çevirebilmek için reset_basarisiz_kayitlar()
-  eklendi (bkz. pages/5_Mail_Islem.py'deki "3. Kredi Hatası Yüzünden
-  Başarısız Olanları Sıfırla" bölümü). SADECE verilen hata metniyle
-  BAŞLAYAN kayıtları etkiler — varsayılan filtre "BadRequestError: Error
-  code: 400" olduğu için portföy duplicate hatası gibi BAŞKA sebeplerden
-  'failed' olmuş kayıtlara dokunmaz.
-"""
+if not oturum_kontrol():
+    st.switch_page("pages/giris.py")
 
-from datetime import datetime, timezone
-import time
+# NOT: render_navbar() bilerek rol kontrolünden ÖNCE çağrılıyor — erişimi
+# olmayan biri "yetkin yok" mesajını görse bile sidebar çizili kalsın diye,
+# aksi halde boş bir sayfada mahsur kalıyor.
+render_navbar(
+    user_role=st.session_state.get("user_role", "danisan"),
+    user_name=st.session_state.get("user_name", ""),
+    user_initials=st.session_state.get("user_initials", ""),
+)
 
-from core.supabase_client import get_client
-from core.mail_fetcher import mailleri_cek, DEFAULT_LOOKBACK_DAYS
-from core.mail_parser import mailleri_isle
+_rol = st.session_state.get("kullanici", {}).get("rol", "")
+if _rol not in ("admin", "broker", "yonetici", "ofis_asistani"):
+    st.error("Bu sayfaya erişim yetkiniz yok.")
+    st.stop()
+st.title("Mail İşlem")
 
-FETCH_KLASORLERI = ["INBOX", "1_Alici_Depo"]
+st.caption(
+    "Not: Bu ekran manuel çalıştırma içindir. Aynı işlemler artık GitHub Actions "
+    "üzerinden otomatik olarak da periyodik çalışıyor (bkz. scripts/mail_auto_job.py)."
+)
 
+col1, col2 = st.columns(2)
 
-def _mevcut_kimlikleri_cek(supabase):
-    """alici_talepleri + portfoyler tablolarındaki mevcut message_id ve
-    fallback_hash değerlerini çeker (dedupe için).
+with col1:
+    st.subheader("1. Mailleri Çek")
+    st.caption("INBOX ve 1_Alici_Depo klasörlerinden, son başarılı çekimden bu yana gelen mailleri çeker")
 
-    ÖNEMLİ: Supabase/PostgREST varsayılan olarak tek sorguda en fazla 1000
-    satır döndürür. Tablo 1000 satırı geçtiğinde .range() ile sayfalama
-    yapılmazsa bazı eski kayıtlar "yokmuş" gibi görünür ve tekrar tekrar
-    çekilmeye çalışılır (portfoyler tablosunda unique constraint'e takılıp
-    'failed' olarak işaretlenmesine yol açan sorun buydu). Bu yüzden burada
-    tüm satırlar bitene kadar sayfa sayfa okunuyor.
-    """
-    message_idler = set()
-    fallback_hashler = set()
+    if st.button("Mailleri Çek", use_container_width=True, type="primary"):
+        durum = st.status("Mailler çekiliyor...", expanded=True)
 
-    for tablo in ("alici_talepleri", "portfoyler"):
         try:
-            sayfa_boyutu = 1000
-            baslangic = 0
-            while True:
-                resp = (
-                    supabase.table(tablo)
-                    .select("message_id, fallback_hash")
-                    .range(baslangic, baslangic + sayfa_boyutu - 1)
-                    .execute()
+            def guncelle(mesaj):
+                durum.write(mesaj)
+
+            sonuc = run_mail_fetch_job(durum_callback=guncelle)
+
+            if sonuc["yeni_kayit"] == 0 and sonuc["hata_sayisi"] == 0:
+                durum.update(label="Yeni mail bulunamadı", state="complete")
+                st.info("Yeni mail yok.")
+            else:
+                durum.update(
+                    label=f"✅ {sonuc['yeni_kayit']} yeni mail kaydedildi!",
+                    state="complete" if sonuc["hata_sayisi"] == 0 else "error",
                 )
-                satirlar = resp.data or []
-                for row in satirlar:
-                    if row.get("message_id"):
-                        message_idler.add(row["message_id"])
-                    if row.get("fallback_hash"):
-                        fallback_hashler.add(row["fallback_hash"])
-                if len(satirlar) < sayfa_boyutu:
-                    break
-                baslangic += sayfa_boyutu
+                st.success(f"✅ {sonuc['yeni_kayit']} yeni mail kaydedildi!")
+
+                with st.expander("Çekim özeti", expanded=sonuc["hata_sayisi"] > 0):
+                    st.markdown(f"""
+- **Bulunan mail:** {sonuc['bulunan']}
+- **Yeni kaydedilen:** {sonuc['yeni_kayit']}
+- **Hata sayısı:** {sonuc['hata_sayisi']}
+- **Süre:** {sonuc['sure_saniye']} sn
+""")
+                    for klasor, k_ozet in sonuc.get("ozet_klasor", {}).items():
+                        st.write(f"- `{klasor}`: {k_ozet['bulunan']} mail, {k_ozet['hata']} hata")
+
+                    if sonuc["hata_sayisi"] > 0:
+                        st.warning("Bazı mailler okunamadı, detaylar:")
+                        for h in sonuc["hata_log"][:20]:
+                            st.write(f"- [{h.get('klasor')}] uid={h.get('uid')}: {h.get('hata')}")
+
         except Exception as e:
-            # fallback_hash kolonu migration uygulanmadan önce yoksa da
-            # sistem çökmesin — sadece message_id ile devam eder.
-            print(f"{tablo} kimlik listesi çekilirken uyarı: {e}")
+            durum.update(label="❌ Hata oluştu", state="error")
+            st.error(f"Hata: {type(e).__name__}: {e}")
+            import traceback
+            st.code(traceback.format_exc())
 
-    return message_idler, fallback_hashler
+with col2:
+    st.subheader("2. AI ile Kategorize Et")
+    st.caption("Mailleri Claude AI ile analiz eder — alıcı talebi mi, portföy paylaşımı mı ayırır")
 
-
-def _since_date_hesapla(supabase, lookback_days_override=None):
-    """
-    mail_fetch_state tablosundaki en eski 'last_successful_fetch_at' baz
-    alınarak IMAP SINCE formatında tarih üretir. Hiç kayıt yoksa (ilk
-    çalıştırma) DEFAULT_LOOKBACK_DAYS / override kullanılır.
-    """
-    if lookback_days_override:
-        from datetime import timedelta
-        return (datetime.now() - timedelta(days=lookback_days_override)).strftime("%d-%b-%Y"), None
-
-    try:
-        resp = supabase.table("mail_fetch_state").select("klasor, last_successful_fetch_at").execute()
-        zamanlar = [r["last_successful_fetch_at"] for r in (resp.data or []) if r.get("last_successful_fetch_at")]
-    except Exception as e:
-        print(f"mail_fetch_state okunamadı, varsayılan pencere kullanılacak: {e}")
-        zamanlar = []
-
-    if not zamanlar:
-        from datetime import timedelta
-        since = datetime.now() - timedelta(days=DEFAULT_LOOKBACK_DAYS)
-        return since.strftime("%d-%b-%Y"), None
-
-    en_eski = min(zamanlar)
-    try:
-        en_eski_dt = datetime.fromisoformat(en_eski.replace("Z", "+00:00"))
-    except Exception:
-        from datetime import timedelta
-        en_eski_dt = datetime.now(timezone.utc) - timedelta(days=DEFAULT_LOOKBACK_DAYS)
-
-    # Küçük bir güvenlik payı: son çekimden 1 saat öncesinden itibaren tara
-    # (saat dilimi/IMAP gecikme farklarına karşı).
-    from datetime import timedelta
-    guvenli_since = en_eski_dt - timedelta(hours=1)
-    return guvenli_since.strftime("%d-%b-%Y"), en_eski_dt
-
-
-def _fetch_state_guncelle(supabase, klasor, zaman):
-    try:
-        supabase.table("mail_fetch_state").upsert({
-            "klasor": klasor,
-            "last_successful_fetch_at": zaman.isoformat(),
-        }).execute()
-    except Exception as e:
-        print(f"mail_fetch_state güncellenemedi ({klasor}): {e}")
-
-
-def _log_yaz(supabase, is_tipi, klasor=None, bulunan=0, yeni_kayit=0,
-             zaten_var=0, filtrelenen=0, hata_sayisi=0, hata_detay=None, sure_saniye=None):
-    try:
-        supabase.table("mail_fetch_log").insert({
-            "is_tipi": is_tipi,
-            "klasor": klasor,
-            "bulunan": bulunan,
-            "yeni_kayit": yeni_kayit,
-            "zaten_var": zaten_var,
-            "filtrelenen": filtrelenen,
-            "hata_sayisi": hata_sayisi,
-            "hata_detay": hata_detay,
-            "sure_saniye": sure_saniye,
-        }).execute()
-    except Exception as e:
-        print(f"mail_fetch_log yazılamadı: {e}")
-
-
-def run_mail_fetch_job(durum_callback=None, lookback_days=None):
-    """
-    Mailleri çeker, dedupe eder, Supabase'e parse_status='raw' olarak
-    kaydeder. UI'daki "Mailleri Çek" butonu ve otomasyon script'i bu
-    fonksiyonu çağırır.
-
-    Döner: özet dict (bulunan, yeni_kayit, zaten_var, hata_sayisi, ...)
-    """
-    baslangic = time.time()
-    supabase = get_client()
-
-    message_idler, fallback_hashler = _mevcut_kimlikleri_cek(supabase)
-    since_date, referans_zaman = _since_date_hesapla(supabase, lookback_days)
-
-    sonuc = mailleri_cek(
-        durum_callback=durum_callback,
-        since_date=since_date,
-        mevcut_message_idler=message_idler,
-        mevcut_fallback_hashler=fallback_hashler,
-    )
-    veriler = sonuc["veriler"]
-    hata_log = sonuc["hata_log"]
-
-    kayit_sayisi = 0
-    for kayit in veriler:
-        try:
-            supabase.table("alici_talepleri").insert(kayit).execute()
-            kayit_sayisi += 1
-        except Exception as e:
-            hata_log.append({"klasor": kayit.get("kaynak_klasor"), "uid": None,
-                              "hata": f"Insert hatası: {e}"})
-
-    simdi = datetime.now(timezone.utc)
-    for klasor in FETCH_KLASORLERI:
-        _fetch_state_guncelle(supabase, klasor, simdi)
-
-    sure = round(time.time() - baslangic, 1)
-    _log_yaz(
-        supabase, is_tipi="fetch",
-        bulunan=len(veriler), yeni_kayit=kayit_sayisi,
-        hata_sayisi=len(hata_log), hata_detay=hata_log or None,
-        sure_saniye=sure,
+    tarih_filtresi_ac = st.checkbox(
+        "Sadece belirli bir tarihten sonraki kayıtları işle",
+        value=True,
+        help="Kapatırsan, parse_status='raw' olan TÜM kayıtlar (eski dahil) "
+             "sıraya göre işlenir. Migration sonrası eski kayıtları bilerek "
+             "işlemeden bırakmak istiyorsan bunu açık tut.",
     )
 
-    if durum_callback:
-        durum_callback(f"✅ Çekim tamamlandı: {kayit_sayisi} yeni kayıt, {len(hata_log)} hata ({sure}sn)")
+    baslangic_tarihi = None
+    if tarih_filtresi_ac:
+        varsayilan_tarih = (datetime.now() - timedelta(days=15)).date()
+        secilen_tarih = st.date_input(
+            "Bu tarihten SONRAKİ kayıtlar işlensin",
+            value=varsayilan_tarih,
+            help="Mailin kendi tarihi (kayit_tarihi) bu tarihten önceyse bu "
+                 "çalıştırmada atlanır, raw olarak kalmaya devam eder.",
+        )
+        baslangic_tarihi = datetime(
+            secilen_tarih.year, secilen_tarih.month, secilen_tarih.day,
+            tzinfo=timezone.utc,
+        )
 
-    return {
-        "bulunan": len(veriler),
-        "yeni_kayit": kayit_sayisi,
-        "hata_sayisi": len(hata_log),
-        "hata_log": hata_log,
-        "sure_saniye": sure,
-        "ozet_klasor": sonuc["ozet"],
-    }
-
-
-def run_pending_ai_parse_job(limit=50, durum_callback=None, max_workers=3, baslangic_tarihi=None):
-    """
-    parse_status='raw' olan kayıtları AI ile işler.
-    - alici_talebi / diger -> aynı satır güncellenir, parse_status='parsed'/'ignored'
-    - portfoy_paylasimi -> portfoyler tablosuna yeni satır eklenir; ham satır
-      SİLİNMEZ, parse_status='moved_to_portfoy' + linked_portfoy_id yazılır.
-    - hata alan kayıtlar -> parse_status='failed' + parse_error
-
-    baslangic_tarihi: verilirse (datetime, tz-aware veya naive), sadece
-    kayit_tarihi bu tarihten SONRA olan 'raw' kayıtlar işlenir. Daha eski
-    kayıtlar bu turda atlanır, raw olarak kalmaya devam eder (kaybolmaz).
-    Verilmezse eski davranış aynen sürer (tüm raw kayıtlar limit sırasına
-    göre işlenir) — UI butonu ve otomasyon bu parametreyi vermediği için
-    etkilenmez.
-
-    UI'daki "AI ile Kategorize Et" butonu ve otomasyon script'i bu
-    fonksiyonu çağırır.
-    """
-    baslangic = time.time()
-    supabase = get_client()
-
-    resp = supabase.table("alici_talepleri").select("*").eq("parse_status", "raw").limit(limit).execute()
-    kayitlar = resp.data or []
-
-    if baslangic_tarihi is not None:
-        from email.utils import parsedate_to_datetime
-        esik = baslangic_tarihi
-        if esik.tzinfo is None:
-            esik = esik.replace(tzinfo=timezone.utc)
-        filtreli = []
-        for k in kayitlar:
-            tarih_str = k.get("kayit_tarihi", "") or ""
-            try:
-                mail_tarihi = parsedate_to_datetime(tarih_str)
-                if mail_tarihi.tzinfo is None:
-                    mail_tarihi = mail_tarihi.replace(tzinfo=timezone.utc)
-                if mail_tarihi >= esik:
-                    filtreli.append(k)
-            except Exception:
-                # Tarih parse edilemiyorsa güvenli tarafta kal, bu turda
-                # atla (parse_status='raw' olarak kalmaya devam eder).
-                continue
-        kayitlar = filtreli
-
-    if not kayitlar:
-        if durum_callback:
-            durum_callback("İşlenecek yeni kayıt yok.")
-        return {"islenen": 0, "alici": 0, "portfoy": 0, "hatali": 0, "sure_saniye": 0, "kalan": 0}
-
-    if durum_callback:
-        durum_callback(f"{len(kayitlar)} kayıt AI ile işlenecek...")
-
-    alici_sonuclar, portfoy_sonuclar, hatali_kayitlar = mailleri_isle(
-        kayitlar, durum_callback=durum_callback, max_workers=max_workers
+    islenecek_limit = st.number_input(
+        "Bu çalıştırmada en fazla kaç kayıt işlensin?",
+        min_value=10, max_value=1000, value=100, step=10,
     )
 
-    simdi_iso = datetime.now(timezone.utc).isoformat()
+    if st.button("AI ile Kategorize Et", use_container_width=True, type="primary"):
+        durum2 = st.status("Mailler işleniyor...", expanded=True)
 
-    # alici_talebi / diger sonuçları güncelle
-    for kayit in alici_sonuclar:
-        guncelleme = {
-            "kategori": kayit.get("kategori", "diger"),
-            "ozet": kayit.get("ozet", ""),
-            "islem_tipi": kayit.get("islem_tipi", ""),
-            "mulk_tipi": kayit.get("mulk_tipi", ""),
-            "il": kayit.get("il", ""),
-            "ilce": kayit.get("ilce", ""),
-            "ilceler": kayit.get("ilceler", []),
-            "bolge_mahalle": kayit.get("bolge_mahalle", ""),
-            "oda_sayisi_m2": kayit.get("oda_sayisi_m2", ""),
-            "max_butce": kayit.get("max_butce", ""),
-            "ozel_kriterler": kayit.get("ozel_kriterler", ""),
-            "iletisim_not": kayit.get("iletisim_not", ""),
-            "parse_status": kayit.get("parse_status", "parsed"),
-            "ai_processed_at": simdi_iso,
-        }
         try:
-            supabase.table("alici_talepleri").update(guncelleme).eq("id", kayit["id"]).execute()
-        except Exception as e:
-            hatali_kayitlar.append({"kayit": kayit, "hata": f"Update hatası: {e}"})
+            def guncelle2(mesaj):
+                durum2.write(mesaj)
 
-    # portfoy_paylasimi sonuçları: insert + kaynak satırı GÜVENLİ şekilde işaretle
-    portfoy_basarili = 0
-    for portfoy in portfoy_sonuclar:
-        source_id = portfoy.pop("_source_alici_id", None)
-        try:
-            insert_resp = supabase.table("portfoyler").insert(portfoy).execute()
-            yeni_portfoy_id = (insert_resp.data or [{}])[0].get("id")
+            sonuc = run_pending_ai_parse_job(
+                limit=int(islenecek_limit),
+                durum_callback=guncelle2,
+                baslangic_tarihi=baslangic_tarihi,
+            )
 
-            if source_id is not None:
-                supabase.table("alici_talepleri").update({
-                    "parse_status": "moved_to_portfoy",
-                    "linked_portfoy_id": yeni_portfoy_id,
-                    "ai_processed_at": simdi_iso,
-                }).eq("id", source_id).execute()
-
-            portfoy_basarili += 1
-        except Exception as e:
-            hata_metni = str(e)
-            # Bu mail (message_id) daha önce zaten portfoyler tablosuna
-            # eklenmiş demektir (unique constraint tetiklendi). Bu gerçek
-            # bir hata değil — dedupe'un kaçırdığı bir kayıt. 'failed'
-            # yazmak yerine mevcut portföy kaydını bulup doğru şekilde
-            # bağlıyoruz.
-            if "portfoyler_message_id_key" in hata_metni and portfoy.get("message_id"):
-                try:
-                    mevcut = (
-                        supabase.table("portfoyler")
-                        .select("id")
-                        .eq("message_id", portfoy["message_id"])
-                        .limit(1)
-                        .execute()
+            if sonuc["islenen"] == 0:
+                durum2.update(label="İşlenecek yeni kayıt yok", state="complete")
+                if tarih_filtresi_ac:
+                    st.info(
+                        "Seçilen tarihten sonra işlenecek raw kayıt yok. "
+                        "(Daha eski raw kayıtlar olabilir, filtre kapalıyken görünür.)"
                     )
-                    mevcut_id = (mevcut.data or [{}])[0].get("id")
-                    if source_id is not None:
-                        supabase.table("alici_talepleri").update({
-                            "parse_status": "moved_to_portfoy",
-                            "linked_portfoy_id": mevcut_id,
-                            "ai_processed_at": simdi_iso,
-                            "parse_error": None,
-                        }).eq("id", source_id).execute()
-                    portfoy_basarili += 1
-                    continue
-                except Exception as e2:
-                    hatali_kayitlar.append({"kayit": portfoy, "hata": f"Duplicate çözümleme hatası: {e2}"})
-                    continue
+                else:
+                    st.info("Tüm kayıtlar zaten işlenmiş.")
+            else:
+                durum2.update(
+                    label=f"✅ {sonuc['alici']} alıcı/diğer, {sonuc['portfoy']} portföy işlendi!",
+                    state="complete" if sonuc["hatali"] == 0 else "error",
+                )
+                st.success(
+                    f"✅ {sonuc['alici']} alıcı talebi/diğer, {sonuc['portfoy']} portföy paylaşımı ayrıştırıldı!"
+                )
 
-            hatali_kayitlar.append({"kayit": portfoy, "hata": f"Portföy insert/link hatası: {e}"})
-            if source_id is not None:
-                try:
-                    supabase.table("alici_talepleri").update({
-                        "parse_status": "failed",
-                        "parse_error": f"Portföy taşıma hatası: {e}",
-                    }).eq("id", source_id).execute()
-                except Exception:
-                    pass
+                kalan = sonuc.get("kalan", 0)
+                if kalan > 0:
+                    st.info(
+                        f"📋 Hâlâ **{kalan}** kayıt (parse_status='raw') var — "
+                        "bir kısmı tarih filtresi nedeniyle bilerek atlanmış olabilir."
+                    )
+                else:
+                    st.success("🎉 Bekleyen kayıt kalmadı, hepsi işlendi!")
 
-    # AI çağrısı veya sonrasında hata alan kayıtları işaretle
-    for hata_kayit in hatali_kayitlar:
-        kayit = hata_kayit.get("kayit") or {}
-        kayit_id = kayit.get("id")
-        if kayit_id is None:
-            continue
-        try:
-            supabase.table("alici_talepleri").update({
-                "parse_status": "failed",
-                "parse_error": str(hata_kayit.get("hata"))[:500],
-            }).eq("id", kayit_id).execute()
+                with st.expander("AI işleme özeti", expanded=sonuc["hatali"] > 0):
+                    filtre_metni = (
+                        f"Açık, {baslangic_tarihi.date()} sonrası"
+                        if baslangic_tarihi else "Kapalı (tüm raw kayıtlar)"
+                    )
+                    st.markdown(f"""
+- **İşlenen kayıt:** {sonuc['islenen']}
+- **Alıcı talebi / diğer:** {sonuc['alici']}
+- **Portföy paylaşımı:** {sonuc['portfoy']}
+- **Hatalı (parse_status='failed'):** {sonuc['hatali']}
+- **Kalan (parse_status='raw'):** {kalan}
+- **Tarih filtresi:** {filtre_metni}
+- **Süre:** {sonuc['sure_saniye']} sn
+""")
+                    if sonuc["hatali"] > 0:
+                        st.warning(
+                            "Hatalı kayıtlar silinmedi, `alici_talepleri` tablosunda "
+                            "`parse_status='failed'` olarak işaretlendi — `parse_error` "
+                            "kolonundan sebebini görebilirsin."
+                        )
+
         except Exception as e:
-            print(f"Hatalı kayıt işaretlenemedi (id={kayit_id}): {e}")
+            durum2.update(label="❌ Hata oluştu", state="error")
+            st.error(f"Hata: {type(e).__name__}: {e}")
+            import traceback
+            st.code(traceback.format_exc())
 
-    sure = round(time.time() - baslangic, 1)
-    _log_yaz(
-        supabase, is_tipi="ai_parse",
-        bulunan=len(kayitlar),
-        yeni_kayit=len(alici_sonuclar) + portfoy_basarili,
-        hata_sayisi=len(hatali_kayitlar),
-        hata_detay=[{"hata": h["hata"]} for h in hatali_kayitlar] or None,
-        sure_saniye=sure,
-    )
+st.divider()
 
-    # Kalan işlenmemiş (raw) kayıt sayısını sorgula — kullanıcıya "daha
-    # kaç tur kaldı" bilgisini net vermek için. Supabase count sorgusu
-    # satırların kendisini çekmeden sadece sayıyı döndürür (hafif sorgu).
-    kalan = 0
+# 22.09.2026 — Meltem: "başka yolu yok mu github üzerinden" (AI kredisi
+# bir süre bitmişti, bu yüzden GitHub Actions'taki otomatik "posta-cek"
+# işi tekrar tekrar hata veriyordu — bkz. core/mail_job.py'deki Faz 2.7
+# notu). O dönemde AI kategorize adımında hata alıp parse_status='failed'
+# olarak işaretlenmiş kayıtları Supabase'e elle SQL yazmadan, buradan tek
+# butonla tekrar 'raw'a çevirip normal akışla yeniden işlenmelerini
+# sağlamak için eklendi.
+st.subheader("3. Kredi Hatası Yüzünden Başarısız Olanları Sıfırla")
+st.caption(
+    "AI kredisi/bakiyesi bittiği dönemlerde \"AI ile Kategorize Et\" adımında "
+    "hata alıp parse_status='failed' olarak işaretlenmiş kayıtları bulur ve "
+    "tekrar 'raw' durumuna çevirir — böylece bir sonraki \"AI ile Kategorize "
+    "Et\" çalıştırmasında (yukarıdan veya otomasyondan) normal şekilde "
+    "yeniden denenirler. Sadece kredi/API hatasından (\"BadRequestError: "
+    "Error code: 400\" ile başlayan) etkilenmiş kayıtlara dokunur — başka "
+    "bir sebepten 'failed' olmuş kayıtlara (örn. portföy paylaşımı "
+    "tekrarı) dokunmaz, onlar 'failed' olarak kalmaya devam eder."
+)
+
+if st.button("Kredi Hatası Alan Kayıtları 'raw'a Döndür", use_container_width=True):
+    durum3 = st.status("Kayıtlar sıfırlanıyor...", expanded=True)
+
     try:
-        kalan_resp = (
-            supabase.table("alici_talepleri")
-            .select("id", count="exact")
-            .eq("parse_status", "raw")
-            .execute()
-        )
-        kalan = kalan_resp.count or 0
+        def guncelle3(mesaj):
+            durum3.write(mesaj)
+
+        sayi = reset_basarisiz_kayitlar(durum_callback=guncelle3)
+
+        if sayi == 0:
+            durum3.update(label="Sıfırlanacak kayıt yok", state="complete")
+            st.info("Kredi hatasından etkilenmiş 'failed' kayıt bulunamadı.")
+        else:
+            durum3.update(label=f"✅ {sayi} kayıt 'raw' durumuna çevrildi", state="complete")
+            st.success(
+                f"✅ {sayi} kayıt tekrar 'raw' durumuna çevrildi. Şimdi yukarıdaki "
+                "\"AI ile Kategorize Et\" butonuna basarak bunları işleyebilirsin "
+                "— kayıt sayısı fazlaysa \"en fazla kaç kayıt işlensin\" kutusunu "
+                "artırman ve birkaç kez art arda basman gerekebilir."
+            )
+
     except Exception as e:
-        print(f"Kalan kayıt sayısı sorgulanamadı: {e}")
-
-    if durum_callback:
-        durum_callback(
-            f"✅ AI işleme bitti: {len(alici_sonuclar)} alıcı/diğer, "
-            f"{portfoy_basarili} portföy, {len(hatali_kayitlar)} hatalı ({sure}sn). "
-            f"Hâlâ {kalan} kayıt bekliyor."
-        )
-
-    return {
-        "islenen": len(kayitlar),
-        "alici": len(alici_sonuclar),
-        "portfoy": portfoy_basarili,
-        "hatali": len(hatali_kayitlar),
-        "sure_saniye": sure,
-        "kalan": kalan,
-    }
-
-
-def reset_basarisiz_kayitlar(hata_filtresi="BadRequestError: Error code: 400", durum_callback=None):
-    """
-    parse_status='failed' olan ve parse_error'ı `hata_filtresi` ile
-    BAŞLAYAN kayıtları tekrar 'raw' durumuna döndürür (parse_error ve
-    ai_processed_at temizlenir). Böylece bir sonraki
-    run_pending_ai_parse_job çalıştırması (UI butonu veya otomasyon) bu
-    kayıtları normal 'raw' kayıtlar gibi tekrar dener.
-
-    Varsayılan filtre "BadRequestError: Error code: 400" — Anthropic API
-    kredisi/bakiyesi bittiğinde alınan hatanın imzası. Bilerek SADECE bu
-    filtreyle başlayan kayıtları etkiler; portföy duplicate hatası gibi
-    BAŞKA sebeplerden 'failed' olmuş kayıtlara dokunmaz, onlar 'failed'
-    olarak kalmaya devam eder.
-
-    Döner: 'raw'a çevrilen kayıt sayısı (int).
-    """
-    supabase = get_client()
-
-    resp = (
-        supabase.table("alici_talepleri")
-        .select("id")
-        .eq("parse_status", "failed")
-        .like("parse_error", f"{hata_filtresi}%")
-        .execute()
-    )
-    id_listesi = [r["id"] for r in (resp.data or [])]
-
-    if not id_listesi:
-        if durum_callback:
-            durum_callback("Sıfırlanacak kayıt bulunamadı.")
-        return 0
-
-    if durum_callback:
-        durum_callback(f"{len(id_listesi)} kayıt bulundu, 'raw' durumuna çevriliyor...")
-
-    guncellenen = 0
-    parca_boyutu = 500  # PostgREST'e tek seferde çok büyük .in_() listesi göndermemek için
-    for i in range(0, len(id_listesi), parca_boyutu):
-        parca = id_listesi[i:i + parca_boyutu]
-        try:
-            supabase.table("alici_talepleri").update({
-                "parse_status": "raw",
-                "parse_error": None,
-                "ai_processed_at": None,
-            }).in_("id", parca).execute()
-            guncellenen += len(parca)
-        except Exception as e:
-            if durum_callback:
-                durum_callback(f"Bir parça güncellenirken hata: {e}")
-
-    if durum_callback:
-        durum_callback(f"✅ {guncellenen} kayıt 'raw' durumuna çevrildi.")
-
-    return guncellenen
-
-
-def run_full_mail_job(ai_enabled=True, ai_limit=20, durum_callback=None):
-    """
-    Otomasyon (GitHub Actions) tarafından çağrılan tam iş: önce çekim,
-    sonra (istenirse) AI kategorize etme.
-
-    Faz 2.5 kararı gereği: otomatik çekim ilk etapta AI'sız (ai_enabled=False)
-    çalıştırılmalı; bir süre sorunsuz işledikten sonra ai_enabled=True yapılır.
-    """
-    fetch_sonuc = run_mail_fetch_job(durum_callback=durum_callback)
-
-    parse_sonuc = None
-    if ai_enabled:
-        parse_sonuc = run_pending_ai_parse_job(limit=ai_limit, durum_callback=durum_callback)
-
-    return {"fetch": fetch_sonuc, "ai_parse": parse_sonuc}
+        durum3.update(label="❌ Hata oluştu", state="error")
+        st.error(f"Hata: {type(e).__name__}: {e}")
+        import traceback
+        st.code(traceback.format_exc())
