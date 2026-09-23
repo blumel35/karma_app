@@ -26,7 +26,14 @@ st.markdown("""
     padding-top: 0 !important;
     max-width: 100% !important;
 }
-.stApp { background: #FBF7F0; }
+/* DÜZELTME (23.09.2026 — Meltem: "danışman pano giriş sf sı hala krem
+   tonlarda onu düzeltelim"): core/danisman_ortak.py'deki hide_sidebar_css()
+   18.09.2026'da tüm Danışman Panosu ekranlarının zeminini sıcak kremden
+   (#FBF7F0 idi) nötr griye (#f3f4f6) çevirmişti, ama bu sayfa (giriş
+   ekranı) kendi AYRI/bağımsız CSS bloğunu kullandığı için o güncellemeyi
+   almamış, eski krem tonunda kalmıştı. Aynı #f3f4f6 zeminine + aynı
+   ikincil metin rengine (#5b6478, eski #8A8271 yerine) çekildi. */
+.stApp { background: #f3f4f6; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -55,13 +62,13 @@ with center:
                     display:flex;align-items:center;justify-content:center;
                     font-size:18px;font-weight:800;color:#fff;">Z</div>
         <div style="text-align:left;">
-          <div style="font-size:11px;color:#8A8271;letter-spacing:.12em;
+          <div style="font-size:11px;color:#5b6478;letter-spacing:.12em;
                       text-transform:uppercase;">Startkey Zeta</div>
           <div style="font-size:20px;font-weight:700;color:#1C2B47;letter-spacing:-.03em;">
                       Danışman Panosu</div>
         </div>
       </div>
-      <div style="font-size:14px;color:#8A8271;margin-top:12px;">
+      <div style="font-size:14px;color:#5b6478;margin-top:12px;">
         Talep ve portföyleri takip edin, hızlıca yenilerini ekleyin.
       </div>
     </div>
