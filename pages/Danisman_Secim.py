@@ -490,7 +490,13 @@ with st.container(border=True, key="dp_page_frame"):
     # ölçekli yeniden düzenlenmesi (FSBO'nun birincil karta terfi etmesi)
     # onaylanmış ayrı bir mockup işi, henüz başlanmadı; bu sadece ekranı
     # gerçek kullanıma açan minimum adım.
-    col_fsbo, _col_fsbo_bos = st.columns([1, 1])
+    # ── Startkey İlanları — YENİ (23.09.2026), FSBO İlanları ile AYNI
+    # "buton + canlı bölge sayısı rozeti" deseni, FSBO'nun yanına (aynı
+    # satırda) eklendi. Meltem: "startkey ilanlarının da seçilen max 5
+    # bölge dahilinde fsbo ilanları gibi otomatik çekilmesi" — kendi ayrı
+    # bölge tablosu (startkey_ilan_bolgeleri), FSBO'dan/Uzmanlık
+    # Bölgelerim'den BAĞIMSIZ (bkz. pages/Danisman_StartkeyIlanlari.py).
+    col_fsbo, col_startkey = st.columns([1, 1])
     with col_fsbo:
         fsbo_btn_col, fsbo_sayi_col = st.columns([3, 1])
         with fsbo_btn_col:
@@ -501,6 +507,18 @@ with st.container(border=True, key="dp_page_frame"):
             if fsbo_bolge_sayisi:
                 st.markdown(
                     f"<div class='dp-bolge-sayisi'>{fsbo_bolge_sayisi} bölge</div>",
+                    unsafe_allow_html=True,
+                )
+    with col_startkey:
+        startkey_btn_col, startkey_sayi_col = st.columns([3, 1])
+        with startkey_btn_col:
+            if st.button("Startkey İlanları", key="dp_startkey_btn", use_container_width=True):
+                st.switch_page("pages/Danisman_StartkeyIlanlari.py")
+        with startkey_sayi_col:
+            startkey_bolge_sayisi = len(bolgelerini_cek("startkey_ilan_bolgeleri", su_anki_danisman()))
+            if startkey_bolge_sayisi:
+                st.markdown(
+                    f"<div class='dp-bolge-sayisi'>{startkey_bolge_sayisi} bölge</div>",
                     unsafe_allow_html=True,
                 )
 
