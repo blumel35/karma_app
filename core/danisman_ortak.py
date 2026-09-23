@@ -35,6 +35,10 @@ import streamlit as st
 
 from core.supabase_client import get_client
 from core.pano_export import _ilce_normalize, _islem_tipi_norm, _TR_BUYUK_HARF
+# YENİ (23.09.2026 — bildirim sistemi FAZ 1, A+D): yeni talep/portföy
+# eklendiğinde Uzmanlık Bölgesi eşleşenlere + Zeta Etkileşimleri olarak
+# herkese push bildirimi — bkz. core/bildirim_tetikleyici.py modül üstü not.
+from core.bildirim_tetikleyici import talep_portfoy_bildirim_gonder
 
 supabase = get_client()
 
@@ -736,6 +740,13 @@ def ekle_dialog(varsayilan_tip="Talep"):
                     st.success("✅ Kaydedildi! Talep/Portföy Merkezi'nde ve panoda görünecek.")
                     talepleri_cek.clear()
                     portfoyleri_cek.clear()
+                    # YENİ (23.09.2026): bildirim sistemi FAZ 1 (A+D) —
+                    # kaydı ekleyen HARİÇ, ilgili danışmanlara push
+                    # bildirimi. Best-effort: hata olursa asıl kayıt
+                    # akışını ETKİLEMEZ (bkz. bildirim_tetikleyici.py).
+                    talep_portfoy_bildirim_gonder(
+                        kayit_tipi_secim, f_ilceler, danisman_adi, islem_tipi=f_islem,
+                    )
                     st.rerun()
                 except Exception as e:
                     st.error(f"Kaydedilemedi: {e}")
