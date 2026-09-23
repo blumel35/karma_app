@@ -419,6 +419,19 @@ danisman_fsbo_ilanlari = st.Page(
     icon=":material/sell:",
 )
 
+# ── Startkey İlanları — FSBO İlanları ile BİREBİR AYNI iskelet, KENDİ
+# tablosunda (startkey_ilan_bolgeleri) ve izmir_pazar_ilanlar'dan
+# marka='startkey' ile beslenen (23.09.2026). Bu dosyanın st.navigation()
+# listesine eklenmesi UNUTULURSA sayfa "Could not find page" hatası
+# verir — bu kod tabanında FSBO/Senaryo Hesaplayıcı/Ofis Panosu
+# eklenirken de aynı hata bir kez daha yaşanmış (bkz. yukarıdaki
+# danisman_ofis_pano notu), o yüzden bilerek buraya not düşüldü.
+danisman_startkey_ilanlari = st.Page(
+    "pages/Danisman_StartkeyIlanlari.py",
+    title="Startkey İlanları",
+    icon=":material/home_work:",
+)
+
 danisman_kayitlarim = st.Page(
     "pages/Danisman_Kayitlarim.py",
     title="Kendi Kayıtlarım",
@@ -472,6 +485,7 @@ pg = st.navigation(
             danisman_favoriler,
             danisman_uzmanlik_bolgeleri,
             danisman_fsbo_ilanlari,
+            danisman_startkey_ilanlari,
             danisman_kayitlarim,
             danisman_paylasimlar,
             danisman_zeta_portfoyleri,
