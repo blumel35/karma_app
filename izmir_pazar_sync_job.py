@@ -37,6 +37,7 @@ for p in (ROOT_DIR, CORE_DIR):
 from revy_sync import ayarlari_oku, get_supabase  # noqa: E402
 from core.danisman_ortak import aktif_uzmanlik_bolgeleri  # noqa: E402
 from core.izmir_pazar_sync import senkronize  # noqa: E402
+from core.bolge_secici import aktif_bolgeler  # noqa: E402
 
 
 def _progress_cb(msg):
@@ -47,7 +48,22 @@ def main():
     ayarlar = ayarlari_oku()
     supa = get_supabase()
 
-    hedef_ilceler = aktif_uzmanlik_bolgeleri()
+    # GÜNCELLEME (23.09.2026 — Meltem: "fsbo bölgesi ile startkey ilan
+    # bölgesi aynı olmak zorunda değil... ben balçovada çalışırım ama bir
+    # müşterim için karşıyaka da kiralık arayabilirim"): taranacak kapsam
+    # artık SADECE Uzmanlık Bölgelerim değil, Uzmanlık Bölgelerim + FSBO
+    # bölgeleri + Startkey ilgi bölgelerinin BİRLEŞİMİ. core/bolge_secici.py
+    # bunu zaten "bir sonraki adım" olarak not etmişti (aktif_bolgeler()) —
+    # Danışman Startkey İlanları ekranı eklenince (bkz.
+    # pages/Danisman_StartkeyIlanlari.py) bu adım da tamamlandı. Sebep: bir
+    # danışman sadece FSBO veya sadece Startkey ilgi alanı olarak, Uzmanlık
+    # Bölgelerim'de HİÇ olmayan bir ilçe seçerse, o ilçe hiç taranmazsa o
+    # ekran o danışman için hep boş/bayat kalırdı.
+    hedef_ilceler = sorted(set(
+        aktif_uzmanlik_bolgeleri()
+        + aktif_bolgeler("fsbo_bolgeleri")
+        + aktif_bolgeler("startkey_ilan_bolgeleri")
+    ))
     if not hedef_ilceler:
         print(
             "ℹ️ Hiçbir danışmanın seçili Uzmanlık Bölgesi yok — "
