@@ -600,10 +600,15 @@ with st.container(border=True, key="dp_page_frame"):
                     st.warning("Henüz kayıtlı bir bildirim aboneliğin yok — önce yukarıdan 'Bildirimleri Aç'a bas.")
                 # YENİ (26.09.2026, masaüstü teşhisi): hata varsa sebebini
                 # de göster — teşhis için bana kopyalayıp yapıştırabilir.
+                # DÜZELTME (aynı gün): st.expander burada ZATEN bir
+                # expander'ın (🔔 Telefon bildirimleri) İÇİNDE — Streamlit
+                # iç içe expander'a izin vermiyor ("Expanders may not be
+                # nested inside other expanders"). Expander yerine düz
+                # caption + st.code kullanılıyor.
                 if sonuc.get("hata_detay"):
-                    with st.expander("Hata ayrıntısı (teşhis için)"):
-                        for _d in sonuc["hata_detay"]:
-                            st.code(_d)
+                    st.caption("Hata ayrıntısı (teşhis için):")
+                    for _d in sonuc["hata_detay"]:
+                        st.code(_d)
             except Exception as e:
                 st.error(f"Gönderilemedi: {e}")
 
