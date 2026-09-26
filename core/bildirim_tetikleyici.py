@@ -133,8 +133,27 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
     else:
         govde = f"{olusturan} {ilk_ilce} bölgesi için bir alıcı talebi girdi."
 
+    d_sayisi = 0
     for kullanici in _push_abone_kullanicilar():
         kullanici_norm = kullanici.strip().casefold()
         if kullanici_norm == olusturan_norm or kullanici_norm in bildirilenler:
             continue
         bildirim_gonder(kullanici, "🔔 Zeta Etkileşimleri", govde)
+        d_sayisi += 1
+
+    # ── E) Kendine ONAY bildirimi — YENİ (26.09.2026, Meltem: "ama ben
+    # olduğum için bana gelmeyecek bu pek mantıklı değil, kişi kendi de
+    # bildirim gitti mi görmek isteyebilir"): A/D bilerek kaydı ekleyen
+    # kişiye göndermiyor (kendi paylaştığı şeyi kendine haber vermenin
+    # anlamı yok) — ama kişi PIPELINE'ın gerçekten çalışıp çalışmadığını
+    # görmek isteyebilir. Bu yüzden olusturan'a AYRI, farklı içerikli
+    # (kaç kişiye gittiğini özetleyen) bir onay bildirimi gidiyor —
+    # bildirim_gonder() zaten push gitsin gitmesin bildirim_gecmisi'ne
+    # yazıyor, yani push aboneliği olmasa bile "Bildirimlerim" ekranında
+    # bu onay görünür, kişi kendi paylaşımının tetiklendiğini doğrulayabilir.
+    toplam_bildirilen = len(bildirilenler) + d_sayisi
+    if toplam_bildirilen:
+        onay_govde = f"{tur_adi.capitalize()} kaydınız paylaşıldı — {toplam_bildirilen} danışmana bildirim gitti."
+    else:
+        onay_govde = f"{tur_adi.capitalize()} kaydınız paylaşıldı — şu an eşleşen/abone bir danışman yoktu."
+    bildirim_gonder(olusturan, "✅ Paylaşıldı", onay_govde)
