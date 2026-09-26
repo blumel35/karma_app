@@ -107,6 +107,12 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
     islem_ek = f"{islem_tipi} " if islem_tipi else ""
 
     # ── A) Uzmanlık Bölgesi eşleşenler — bölge bazlı, isimsiz/nesnel metin.
+    # DEĞİŞTİ (26.09.2026, Meltem: "yazı karakteri renk değişse vs dikkat
+    # çekici olsun istiyorum"): sistem bildirimlerinin yazı tipi/rengi
+    # Android tarafından sabitlendiği için (platform sınırı — bkz.
+    # sw.js'teki not), tek kontrol edebildiğimiz "renk" başlıktaki emoji —
+    # bölge eşleşmesi 📍 ile işaretlendi, bildirim listesinde bir bakışta
+    # ayırt edilsin diye.
     eslesenler = _uzmanlik_bolgesi_eslesenler(ilceler)
     bildirilenler = set()
     for kullanici, ilce in eslesenler.items():
@@ -114,7 +120,7 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
             continue
         bildirim_gonder(
             kullanici,
-            "Uzmanlık Bölgeniz",
+            "📍 Uzmanlık Bölgeniz",
             f"Uzmanlık bölgeniz olan {ilce} bölgesinde 1 adet {islem_ek}{tur_adi} yayınlandı.",
         )
         bildirilenler.add(kullanici.strip().casefold())
@@ -131,4 +137,4 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
         kullanici_norm = kullanici.strip().casefold()
         if kullanici_norm == olusturan_norm or kullanici_norm in bildirilenler:
             continue
-        bildirim_gonder(kullanici, "Zeta Etkileşimleri", govde)
+        bildirim_gonder(kullanici, "🔔 Zeta Etkileşimleri", govde)
