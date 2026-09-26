@@ -279,6 +279,16 @@ def bildirim_gonder(kullanici, baslik, govde, url=None):
                 data=payload,
                 vapid_private_key=private_key,
                 vapid_claims={"sub": "mailto:destek@startkeyzeta.com"},
+                # DÜZELTME (26.09.2026, Meltem'in masaüstü/Edge teşhisi —
+                # endpoint "wns2-*.notify.windows.com", yani Microsoft'un
+                # Edge için kullandığı WNS push servisi): varsayılan TTL
+                # (0) bazı push servislerinde (WNS dahil, bilinen bir
+                # uyumluluk sorunu) "400 Bad Request" ile reddediliyor —
+                # ttl=0, "cihaz o an bağlı değilse mesajı hiç kuyruğa alma"
+                # anlamına geliyor, bazı servisler bunu geçersiz sayıyor.
+                # Makul bir TTL (1 gün) veriliyor — FCM (telefon) tarafını
+                # BOZMAZ, sadece WNS gibi servislerde daha uyumlu.
+                ttl=86400,
             )
             sonuc["gonderildi"] += 1
         except WebPushException as e:
