@@ -256,7 +256,12 @@ def bildirim_gonder(kullanici, baslik, govde, url=None):
     _bildirim_gecmisine_yaz(kullanici, baslik, govde, hedef_url)
 
     abonelikler = abonelikleri_cek(kullanici)
-    sonuc = {"gonderildi": 0, "silinen": 0, "hata": 0}
+    # DÜZELTME (26.09.2026, Meltem: "1 cihazda hata oluştu ... masaüstüne
+    # bildirim gelmiyor"): "hata" sayısı zaten vardı ama SEBEBİ hiçbir
+    # yerde tutulmuyordu — sadece bir sayıydı. Artık her hatanın kısa
+    # bir açıklaması "hata_detay" listesine ekleniyor, ekranda
+    # gösterilebilsin diye (bkz. pages/Danisman_Secim.py).
+    sonuc = {"gonderildi": 0, "silinen": 0, "hata": 0, "hata_detay": []}
     if not abonelikler:
         return sonuc
 
@@ -267,6 +272,7 @@ def bildirim_gonder(kullanici, baslik, govde, url=None):
             "endpoint": ab["endpoint"],
             "keys": {"p256dh": ab["p256dh"], "auth": ab["auth"]},
         }
+        _endpoint_kisa = (ab.get("endpoint") or "")[:60]
         try:
             webpush(
                 subscription_info=subscription_info,
@@ -282,7 +288,12 @@ def bildirim_gonder(kullanici, baslik, govde, url=None):
                 sonuc["silinen"] += 1
             else:
                 sonuc["hata"] += 1
-        except Exception:
+                _govde_metni = getattr(e.response, "text", "") if getattr(e, "response", None) is not None else ""
+                sonuc["hata_detay"].append(
+                    f"[{_endpoint_kisa}...] HTTP {durum_kodu}: {str(e)[:200]} {(_govde_metni or '')[:200]}"
+                )
+        except Exception as e:
             sonuc["hata"] += 1
+            sonuc["hata_detay"].append(f"[{_endpoint_kisa}...] {type(e).__name__}: {str(e)[:300]}")
 
     return sonuc
