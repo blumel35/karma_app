@@ -462,6 +462,19 @@ danisman_musterilerim = st.Page(
     icon=":material/contacts:",
 )
 
+# ── Bildirimlerim — kalıcı bildirim geçmişi (26.09.2026, Meltem: "bu
+# bildirimlerin danışman panodaki bildirim sayfasında da gösterilmesini
+# istiyorum. kişi kendisi de uygulamaya girip son bildirimleri
+# görmeli"). Bu dosyanın st.navigation() listesine eklenmesi
+# UNUTULURSA "Could not find page" hatası verir (bkz. yukarıdaki
+# danisman_startkey_ilanlari notu, aynı hata bu kod tabanında birkaç
+# kez tekrarlandı).
+danisman_bildirimlerim = st.Page(
+    "pages/Danisman_Bildirimlerim.py",
+    title="Bildirimlerim",
+    icon=":material/notifications:",
+)
+
 # ─────────────────────────────────────────────────────
 # NAVIGATION
 # ─────────────────────────────────────────────────────
@@ -490,6 +503,7 @@ pg = st.navigation(
             danisman_paylasimlar,
             danisman_zeta_portfoyleri,
             danisman_musterilerim,
+            danisman_bildirimlerim,
         ],
 
         "Danışman": [
