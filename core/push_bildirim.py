@@ -182,6 +182,51 @@ def _vapid_private_key():
         return os.environ.get("VAPID_PRIVATE_KEY")
 
 
+def _bildirim_gecmisine_yaz(kullanici, baslik, govde, hedef_url):
+    """YENİ (26.09.2026, Meltem: "bu bildirimlerin danışman panodaki
+    bildirim sayfasında da gösterilmesini istiyorum. kişi kendisi de
+    uygulamaya girip son bildirimleri görmeli"): her bildirim_gonder()
+    çağrısı, push GİDİP GİTMEDİĞİNE bakılmaksızın bu tabloya bir satır
+    yazar — amaç kalıcı bir "bildirim geçmişi" oluşturmak (telefon
+    izni yoksa/kaçırılsa/abonelik yoksa bile, uygulamaya girince son
+    bildirimler görülebilsin). Best-effort — burada patlarsa asıl push
+    gönderimini ETKİLEMEMELİ (bkz. bildirim_gecmisi_tablo_ADAY.sql)."""
+    try:
+        supabase.table("bildirim_gecmisi").insert({
+            "kullanici": kullanici,
+            "baslik": baslik,
+            "govde": govde or "",
+            "url": hedef_url,
+        }).execute()
+    except Exception:
+        pass
+
+
+def bildirimlerimi_cek(kullanici, limit=30):
+    """kullanici'nin bildirim GEÇMİŞİNİ (push başarılı olsun olmasın,
+    kaydedilmiş TÜMÜNÜ) en yeniden eskiye döner — Danışman Panosu'ndaki
+    "Bildirimlerim" sayfası bunu kullanır. abonelikleri_cek() ile AYNI
+    normalize (strip+casefold) mantığı — isim eşleşmesinin küçük bir
+    boşluk/büyük-küçük harf farkıyla bozulmaması için (bkz. o
+    fonksiyondaki 02.09.2026 notu)."""
+    hedef = (kullanici or "").strip().casefold()
+    if not hedef:
+        return []
+    try:
+        resp = (
+            supabase.table("bildirim_gecmisi")
+            .select("*")
+            .order("created_at", desc=True)
+            .limit(500)
+            .execute()
+        )
+    except Exception:
+        return []
+    tumu = resp.data or []
+    eslesenler = [r for r in tumu if (r.get("kullanici") or "").strip().casefold() == hedef]
+    return eslesenler[:limit]
+
+
 def bildirim_gonder(kullanici, baslik, govde, url=None):
     """kullanici'nin KAYITLI TÜM cihazlarına push bildirimi gönderir.
     Süresi dolmuş/iptal edilmiş abonelikler (push servisi 404/410
@@ -203,12 +248,18 @@ def bildirim_gonder(kullanici, baslik, govde, url=None):
             "ayarlanmalı."
         )
 
+    hedef_url = url or f"{KARMA_APP_URL}/Danisman_Secim"
+
+    # Push GİTSİN ya da GİTMESİN (abonelik olmasa bile) geçmişe yazılıyor —
+    # "Bildirimlerim" sayfasının amacı tam da bu: push kaçırılsa/telefon
+    # izni olmasa bile, uygulamaya girince bildirim burada görülebilsin.
+    _bildirim_gecmisine_yaz(kullanici, baslik, govde, hedef_url)
+
     abonelikler = abonelikleri_cek(kullanici)
     sonuc = {"gonderildi": 0, "silinen": 0, "hata": 0}
     if not abonelikler:
         return sonuc
 
-    hedef_url = url or f"{KARMA_APP_URL}/Danisman_Secim"
     payload = json.dumps({"title": baslik, "body": govde, "url": hedef_url})
 
     for ab in abonelikler:
