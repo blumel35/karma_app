@@ -1023,6 +1023,38 @@ def render_activity_bar():
                 st.switch_page("pages/Danisman_ZetaPortfoyleri.py")
 
 
+def render_bildirim_onizleme():
+    """YENİ (26.09.2026, Meltem: "bildirimlerim ana sayfada olmalı. son 24
+    saat paylaşımının olduğu yerde bir de ayrıca tüm bildirimleri gösteren
+    ... hamburger menüde bildirimlerim ekranı olsun"): tam liste zaten
+    hamburger menüdeki Bildirimlerim ekranında (pages/Danisman_Bildirimlerim.py,
+    core/push_bildirim.py: bildirimlerimi_cek) — bu, "Son 24 saat" aktivite
+    kutusunun HEMEN ALTINDA, aynı kompakt/kutu desende, son birkaç
+    bildirimin bir önizlemesi. Kayıt yoksa kutuyu hiç göstermiyoruz
+    (render_activity_bar()'daki AYNI "boşsa dönme" mantığı)."""
+    from core.push_bildirim import bildirimlerimi_cek
+
+    kullanici = su_anki_danisman()
+    bildirimler = bildirimlerimi_cek(kullanici, limit=3)
+    if not bildirimler:
+        return
+
+    with st.container(border=True, key="dp_bildirim_onizleme_box"):
+        st.markdown(
+            "<span style='display:inline-flex;align-items:center;gap:6px;'>"
+            "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#b8892f' stroke-width='2' "
+            "stroke-linecap='round' stroke-linejoin='round'><path d='M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9'/>"
+            "<path d='M13.73 21a2 2 0 0 1-3.46 0'/></svg>"
+            "<span><b>Bildirimlerim</b></span></span>",
+            unsafe_allow_html=True,
+        )
+        for b in bildirimler:
+            _govde = f" — {b['govde']}" if b.get("govde") else ""
+            st.caption(f"• **{b.get('baslik') or ''}**{_govde}")
+        if st.button("Tüm Bildirimler →", key="ds_tum_bildirimler", use_container_width=True):
+            st.switch_page("pages/Danisman_Bildirimlerim.py")
+
+
 # ── HAMBURGER MENÜ (sağ üst) ────────────────────────────────────────────
 
 def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
