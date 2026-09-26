@@ -26,7 +26,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import oturum_kontrol
 from core.danisman_ortak import (
     talepleri_cek, portfoyleri_cek, son_N_gun_filtrele,
-    ekle_dialog, render_activity_bar, render_topbar, hide_sidebar_css,
+    ekle_dialog, render_activity_bar, render_bildirim_onizleme,
+    render_topbar, hide_sidebar_css,
     uzmanlik_bolgelerini_cek, su_anki_danisman, ILAN_PORTAL_DEGERLERI,
 )
 from core.bolge_secici import bolgelerini_cek
@@ -576,13 +577,34 @@ with st.container(border=True, key="dp_page_frame"):
                     _test_baslik or "Zeta Radar",
                     _test_govde or "",
                 )
-                if sonuc["gonderildi"]:
+                # DÜZELTME (26.09.2026, Meltem: "2 cihaza kayıtlı, 1 cihaza
+                # gönderildi" — eskiden sadece "gonderildi" sayısı
+                # gösterilirdi, kayıtlı cihaz sayısıyla eşleşmediğinde
+                # (bir cihazda sessizce "hata" ya da "silinen" oluştuğunda)
+                # bunun NEDENİ hiç görünmüyordu. Artık kısmi başarısızlık
+                # da açıkça yazılıyor.
+                if sonuc["gonderildi"] and not sonuc["hata"] and not sonuc["silinen"]:
                     st.success(f"{sonuc['gonderildi']} cihaza gönderildi.")
+                elif sonuc["gonderildi"]:
+                    st.warning(
+                        f"{sonuc['gonderildi']} cihaza gönderildi, "
+                        f"{sonuc['hata']} cihazda hata oluştu, "
+                        f"{sonuc['silinen']} kayıtlı abonelik süresi dolmuş görünüyor "
+                        "(o cihazda tekrar 'Bildirimleri Aç'a basman gerekebilir)."
+                    )
                 elif sonuc["silinen"]:
                     st.warning("Kayıtlı abonelik süresi dolmuş görünüyor — yukarıdan tekrar 'Bildirimleri Aç'a bas.")
+                elif sonuc["hata"]:
+                    st.warning(f"{sonuc['hata']} cihazda gönderim hatası oluştu — birazdan tekrar dene.")
                 else:
                     st.warning("Henüz kayıtlı bir bildirim aboneliğin yok — önce yukarıdan 'Bildirimleri Aç'a bas.")
             except Exception as e:
                 st.error(f"Gönderilemedi: {e}")
 
     render_activity_bar()
+    # YENİ (26.09.2026, Meltem: "bildirimlerim ana sayfada olmalı. son 24
+    # saat paylaşımının olduğu yerde bir de ayrıca tüm bildirimleri
+    # gösteren..."): Son 24 saat kutusunun HEMEN ALTINDA, son birkaç
+    # bildirimin önizlemesi — tam liste hamburger menüdeki Bildirimlerim
+    # ekranında (core/danisman_ortak.py: render_bildirim_onizleme).
+    render_bildirim_onizleme()
