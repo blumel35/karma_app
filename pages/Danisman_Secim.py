@@ -560,8 +560,11 @@ with st.container(border=True, key="dp_page_frame"):
         # DEĞİŞTİ (03.09.2026, Meltem: "ne mesaj yazacağım çıkmıyor"):
         # test bildirimi artık sabit bir metin değil, kendi yazdığın
         # başlık/gövde ile gönderiliyor.
+        # DEĞİŞTİ (26.09.2026, Meltem: "test bildirimi yerine zeta radar"):
+        # varsayılan başlık "Test Bildirimi" yerine uygulamanın adına
+        # ("Zeta Radar") çekildi — alan yine serbestçe düzenlenebilir.
         _test_baslik = st.text_input(
-            "Test bildirimi başlığı", value="Test Bildirimi", key="dp_pb_test_baslik",
+            "Test bildirimi başlığı", value="Zeta Radar", key="dp_pb_test_baslik",
         )
         _test_govde = st.text_input(
             "Test bildirimi mesajı", value="Bildirimler çalışıyor! 🎉", key="dp_pb_test_govde",
@@ -570,7 +573,7 @@ with st.container(border=True, key="dp_page_frame"):
             try:
                 sonuc = bildirim_gonder(
                     su_anki_danisman(),
-                    _test_baslik or "Test Bildirimi",
+                    _test_baslik or "Zeta Radar",
                     _test_govde or "",
                 )
                 if sonuc["gonderildi"]:
