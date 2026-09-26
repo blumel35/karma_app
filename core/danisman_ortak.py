@@ -1256,6 +1256,13 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                 st.markdown(f"**{su_kullanici}**")
                 st.caption("Danışman")
                 st.divider()
+                # YENİ (26.09.2026, Meltem: "bu bildirimlerin danışman
+                # panodaki bildirim sayfasında da gösterilmesini
+                # istiyorum. kişi kendisi de uygulamaya girip son
+                # bildirimleri görmeli") — kalıcı bildirim geçmişi ekranı,
+                # menünün en üstünde (hızlı erişim istenen bir ekran).
+                if st.button("🔔 Bildirimlerim", use_container_width=True, key="dp_menu_bildirimler"):
+                    st.switch_page("pages/Danisman_Bildirimlerim.py")
                 if st.button("📂 Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
                     st.switch_page("pages/Danisman_Kayitlarim.py")
                 if st.button("📇 Rehberim", use_container_width=True, key="dp_menu_musteriler"):
