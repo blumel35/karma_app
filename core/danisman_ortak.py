@@ -980,11 +980,24 @@ def son_24_saat_ozeti():
     }
 
 
-def render_activity_bar():
+def render_activity_bar(startkey_yeni_sayisi=0):
     """Ana ekranda, aksiyon satırının altında tek bir kompakt blok —
-    kart değil. 'Tüm Paylaşımlar' linki Danisman_Paylasimlar.py'ye gider."""
+    kart değil. 'Tüm Paylaşımlar' linki Danisman_Paylasimlar.py'ye gider.
+
+    startkey_yeni_sayisi: YENİ (27.09.2026, Meltem: "son 24 saatte
+    startkey yeni ilan adedini de bölge bazlı göstersin") — Zeta'nın
+    ofis-içi talep/portföy/ilan sayılarından TAMAMEN AYRI bir kaynak
+    (izmir_pazar_ilanlar, marka='startkey', danışmanın KENDİ seçtiği
+    startkey_ilan_bolgeleri ile sınırlı) — bu yüzden burada hesaplanmıyor,
+    çağıran ekrandan (core.bolge_secici'ye erişimi olan
+    pages/Danisman_Secim.py) parametre olarak alınıyor. Varsayılan 0 —
+    geriye dönük uyumlu, bölge seçilmemişse/hesaplanmamışsa sessizce
+    hariç tutulur."""
     ozet = son_24_saat_ozeti()
-    if ozet["talep_sayisi"] == 0 and ozet["portfoy_sayisi"] == 0 and ozet["ilan_sayisi"] == 0:
+    if (
+        ozet["talep_sayisi"] == 0 and ozet["portfoy_sayisi"] == 0
+        and ozet["ilan_sayisi"] == 0 and not startkey_yeni_sayisi
+    ):
         return
 
     with st.container(border=True, key="dp_activity_box"):
@@ -993,17 +1006,21 @@ def render_activity_bar():
         # DÜZELTME (27.09.2026, Meltem: "Son 24 saat" bandı biraz pasif/
         # placeholder gibi duruyor... 3 ve 2 sayılarını lacivert/bold
         # yaparsak göz taramasında hemen yakalanır"): kart yapmadan, SADECE
-        # sayıları (talep/portföy/ilan adedi) lacivert+bold vurgulamak —
-        # bandın kendisi/etiketi/genel görünümü DEĞİŞMEDİ.
+        # sayıları (talep/portföy/ilan/startkey adedi) lacivert+bold
+        # vurgulamak — bandın kendisi/etiketi/genel görünümü DEĞİŞMEDİ.
         _sayi = lambda n: f"<b style='color:#1b2540;'>{n}</b>"
         ilan_cumle = f", {_sayi(ozet['ilan_sayisi'])} yeni Zeta ilanı" if ozet["ilan_sayisi"] else ""
+        startkey_cumle = (
+            f", {_sayi(startkey_yeni_sayisi)} yeni Startkey ilanı (bölgelerinde)"
+            if startkey_yeni_sayisi else ""
+        )
         st.markdown(
             "<span style='display:inline-flex;align-items:center;gap:6px;'>"
             "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#b8892f' stroke-width='2' "
             "stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/>"
             "<polyline points='12 6 12 12 16 14'/></svg>"
             f"<span><b>Son 24 saat:</b> {_sayi(ozet['talep_sayisi'])} yeni talep, "
-            f"{_sayi(ozet['portfoy_sayisi'])} yeni portföy paylaşımı{ilan_cumle}</span></span>",
+            f"{_sayi(ozet['portfoy_sayisi'])} yeni portföy paylaşımı{ilan_cumle}{startkey_cumle}</span></span>",
             unsafe_allow_html=True,
         )
         for olay in ozet["son_olaylar"]:
