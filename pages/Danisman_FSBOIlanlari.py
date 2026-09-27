@@ -134,6 +134,23 @@ def _ilan_tarihi_gun(v):
     except (TypeError, ValueError):
         return None
 
+# DÜZELTME (27.09.2026 — Meltem: "artık filtrede bugün seçince gelecek
+# mi ilanlar"): "Bugün" seçeneği ÖNCEDEN _ilan_tarihi_gun'a (Revy'nin
+# kendi "İlan tarihi" sütunu) bakıyordu — Supabase'te doğrulandı, bu
+# neredeyse hiç "bugün" eşleşmiyordu (core/bildirim_tetikleyici.py'deki
+# aynı düzeltmenin ayrıntılı açıklamasına bkz.). Artık yeni
+# ilk_gorulme_tarihi sütununa (bir ilan tabloya İLK YAZILDIĞINDA dolan,
+# sonraki güncellemelerde asla değişmeyen zaman damgası) bakıyor. "Son 7
+# Gün" seçeneği BİLEREK _ilan_tarihi_gun'da bırakıldı (aşağıda değişmedi).
+def _ilk_gorulme_gun(v):
+    t = v.get("ilk_gorulme_tarihi")
+    if not t:
+        return None
+    try:
+        return datetime.strptime(str(t)[:10], "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
+
 # YENİ (17.09.2026, 2. tur — Meltem: "fsbo ilanlarına da ilçe seçim
 # butonu ekleyelim"). Bu, sayfanın en üstündeki KALICI+GEÇİCİ bölge
 # seçiminin YERİNE değil, ONUN ÜZERİNE ek bir daraltma: aktif_ilceler
@@ -176,8 +193,9 @@ with zaman_col:
         horizontal=True,
         key="fsbo_zaman",
         help=(
-            "İlan tarihi alanında saat bilgisi yok, bu yüzden 'Bugün' "
-            "pratikte 'ilan tarihi bugün olanlar' anlamına geliyor."
+            "'Bugün', bu ilanın sistemimize İLK KEZ bugün eklendiği "
+            "anlamına geliyor (ilanın kendi 'İlan tarihi'ne göre değil "
+            "— o bilgi kaynağa göre gecikmeli/güvenilmez çıktı)."
         ),
     )
 with siralama_col:
@@ -195,7 +213,7 @@ if zaman_secim == "Son 7 Gün":
     ilanlar = [v for v in ilanlar if (_ilan_tarihi_gun(v) or date.min) >= esik]
 elif zaman_secim == "Bugün":
     bugun = date.today()
-    ilanlar = [v for v in ilanlar if _ilan_tarihi_gun(v) == bugun]
+    ilanlar = [v for v in ilanlar if _ilk_gorulme_gun(v) == bugun]
 
 if siralama_secim == "En Yeni İlan":
     ilanlar = sorted(ilanlar, key=lambda v: v.get("ilan_tarihi") or "", reverse=True)
