@@ -990,14 +990,20 @@ def render_activity_bar():
     with st.container(border=True, key="dp_activity_box"):
         # DÜZELTME (12.08.2026): "N yeni ilan" bilgisi, varsa cümleye
         # eklendi — resmi portal ilanları artık ayrı bir sinyal.
-        ilan_cumle = f", {ozet['ilan_sayisi']} yeni Zeta ilanı" if ozet["ilan_sayisi"] else ""
+        # DÜZELTME (27.09.2026, Meltem: "Son 24 saat" bandı biraz pasif/
+        # placeholder gibi duruyor... 3 ve 2 sayılarını lacivert/bold
+        # yaparsak göz taramasında hemen yakalanır"): kart yapmadan, SADECE
+        # sayıları (talep/portföy/ilan adedi) lacivert+bold vurgulamak —
+        # bandın kendisi/etiketi/genel görünümü DEĞİŞMEDİ.
+        _sayi = lambda n: f"<b style='color:#1b2540;'>{n}</b>"
+        ilan_cumle = f", {_sayi(ozet['ilan_sayisi'])} yeni Zeta ilanı" if ozet["ilan_sayisi"] else ""
         st.markdown(
             "<span style='display:inline-flex;align-items:center;gap:6px;'>"
             "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#b8892f' stroke-width='2' "
             "stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/>"
             "<polyline points='12 6 12 12 16 14'/></svg>"
-            f"<span><b>Son 24 saat:</b> {ozet['talep_sayisi']} yeni talep, "
-            f"{ozet['portfoy_sayisi']} yeni portföy paylaşımı{ilan_cumle}</span></span>",
+            f"<span><b>Son 24 saat:</b> {_sayi(ozet['talep_sayisi'])} yeni talep, "
+            f"{_sayi(ozet['portfoy_sayisi'])} yeni portföy paylaşımı{ilan_cumle}</span></span>",
             unsafe_allow_html=True,
         )
         for olay in ozet["son_olaylar"]:
@@ -1144,6 +1150,35 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
     div[class*="st-key-dp_geri_btn"] button {
         white-space: nowrap !important;
         width: auto !important;
+    }
+    /* 🏠 Ana Sayfa — YENİ (27.09.2026): ikon-only, dairesel, "← Panoya
+       Dön" ile aynı sırada ama görsel olarak ayrı bir "çip" — mobilde
+       tek dokunuşla, metin okumaya gerek kalmadan fark edilsin diye
+       bilinçli olarak yuvarlak/dolgu renkli (diğer sayfalardaki rozet/
+       çip deseniyle aynı dil). */
+    div[class*="st-key-dp_ana_sayfa_btn"] button {
+        width: 36px !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        border-radius: 50% !important;
+        padding: 0 !important;
+        background: #eef0f3 !important;
+        border: 1px solid #dde1e6 !important;
+        font-size: 15px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    div[class*="st-key-dp_ana_sayfa_btn"] button:hover {
+        background: #e2e5ea !important;
+    }
+    @media (max-width: 480px) {
+        div[class*="st-key-dp_ana_sayfa_btn"] button {
+            width: 32px !important;
+            height: 32px !important;
+            min-height: 32px !important;
+            font-size: 14px !important;
+        }
     }
     /* Başlık — grid sütunu içinde ortalı, satır kırmasın, sığmazsa
        kırpılıp "..." göstersin (satır kırıp dikey bölünmek yerine).
@@ -1352,6 +1387,17 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
             if geri_hedefi:
                 if st.button("← Panoya Dön", key="dp_geri_btn"):
                     st.switch_page(geri_hedefi)
+                # YENİ (27.09.2026, Meltem: "bir de ana sayfa butonu ekleyelim
+                # oklarla geri dönmek özellikle mobilde zor oluyor"): geri
+                # okunun YANINA, onu KALDIRMADAN (mockup karşılaştırmasında
+                # onaylanan seçenek) — geri oku "bir önceki adıma" döner,
+                # bu ikonlu buton HER ZAMAN doğrudan Ana Ekran'a. Hedef
+                # bilerek geri_hedefi PARAMETRESİNDEN bağımsız, sabit
+                # "pages/Danisman_Secim.py" — "Ana Sayfa" her sayfada aynı
+                # anlama gelsin diye (geri_hedefi ileride farklı bir sayfaya
+                # işaret edecek olsa bile, bu buton yine de eve gider).
+                if st.button("🏠", key="dp_ana_sayfa_btn", help="Ana Sayfa"):
+                    st.switch_page("pages/Danisman_Secim.py")
 
         # 2. GRID SÜTUNU — başlık. HER ZAMAN render edilir (boşsa bile
         # boş bir div) — sütun sayısı/sırası hiçbir zaman kaymasın diye.
