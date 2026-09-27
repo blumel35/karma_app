@@ -23,6 +23,17 @@ olsun diye. Fiyat düşüşü tespiti BİLEREK bu turda YOK (Meltem: mevcut
 senkronizasyon akışına eski fiyatı saklayan yeni bir adım gerektiriyor,
 ayrı/daha büyük bir iş — Faz 3'e bırakıldı).
 
+DÜZELTME (27.09.2026, Meltem: "sorunsuz çalıştı ama bildirim gelmedi.
+revy de ilanlar 3 gün geriden geliyor ondan olabilir mi"): ilk sürüm
+"yeni ilan" tetikleyicisi ilan_tarihi (Revy'nin kendi tarihi) == bugün
+şartına bakıyordu; gerçek Supabase verisiyle bunun neredeyse hiç
+eşleşmediği doğrulandı. Artık izmir_pazar_ilanlar.ilk_gorulme_tarihi
+(yeni sütun, sadece gerçek İLK INSERT'te dolan, sonraki güncellemelerde
+değişmeyen bir zaman damgası) kullanılıyor — bkz. _pazar_ilk_gorulme_gun.
+Aynı kök sebep pages/Danisman_Secim.py'deki FSBO "+N yeni" rozetini ve
+Startkey "Son 24 saat" sayısını da etkiliyordu, ikisi de aynı turda
+düzeltildi.
+
 FAZ 1 kararı (Meltem onayı — "tek anahtar, hepsi birlikte"): 4 kaynak
 için AYRI AÇMA/KAPAMA tercihi YOK — mevcut tek "Telefon Bildirimlerini
 Aç" anahtarını (core/push_bildirim.py) açmış olan HERKES, ilgili
@@ -193,11 +204,25 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
 # bildirim_tetikleyici döngüsel import hatası (ImportError) oluşurdu.
 # ══════════════════════════════════════════════════════════════════════
 
-def _pazar_ilan_tarihi_gun(v):
-    """pages/Danisman_Secim.py'deki _ilan_tarihi_gun ile BİREBİR AYNI
-    mantık — izmir_pazar_ilanlar.ilan_tarihi'ni (tarih-only, saat yok)
-    date nesnesine çevirir, geçersiz/boşsa None döner."""
-    t = v.get("ilan_tarihi")
+def _pazar_ilk_gorulme_gun(v):
+    """DÜZELTME (27.09.2026 — Meltem: "sorunsuz çalıştı ama bildirim
+    gelmedi. revy de ilanlar 3 gün geriden geliyor ondan olabilir mi"):
+    bu fonksiyon ÖNCEDEN ilan_tarihi'ne (Revy'nin kendi "İlan tarihi"
+    sütunu) bakıyordu. Meltem'in verdiği Supabase sorgusuyla doğrulandı:
+    bugün taranan/dokunulan ilanlar arasında ilan_tarihi'ne göre GERÇEKTEN
+    "bugün" (gün farkı=0) olan pratikte YOK, dağılım 100 güne kadar
+    yayılıyor — yani ilan_tarihi bizim "bunu ilk gördüğümüz tarih"imiz
+    DEĞİL, Revy'nin kendi (gecikmeli/güvenilmez) tarihi; "== bugün"
+    filtresi bu yüzden neredeyse hiç eşleşmiyordu.
+
+    Artık yeni izmir_pazar_ilanlar.ilk_gorulme_tarihi sütununa bakıyor —
+    bu sütun SADECE bir ilan tabloya İLK YAZILDIĞINDA (gerçek INSERT)
+    Postgres'in kendi DEFAULT now()'ıyla dolar; core/izmir_pazar_sync.py
+    bu alanı upsert payload'ına BİLEREK hiç eklemiyor, böylece sonraki
+    güncellemelerde (aynı ilan tekrar aktif görüldüğünde) ASLA
+    değişmiyor. Yani "bizim veritabanımız bunu bugün ilk kez gördü"
+    sinyali — Revy'nin kendi tarihi ne olursa olsun güvenilir."""
+    t = v.get("ilk_gorulme_tarihi")
     if not t:
         return None
     try:
@@ -208,9 +233,10 @@ def _pazar_ilan_tarihi_gun(v):
 
 def _pazar_bugun_sayilari(tablo_adi, marka):
     """tablo_adi'na (fsbo_bolgeleri | startkey_ilan_bolgeleri) kayıtlı HER
-    kullanıcı için, KENDİ seçtiği ilçelerde BUGÜN (ilan_tarihi = bugün)
-    yayınlanan ilan SAYISINI hesaplar. Sonuç {kullanici: sayı} — sayısı 0
-    olan kullanıcılar sonuca dahil edilmez (çağıran taraf zaten sadece
+    kullanıcı için, KENDİ seçtiği ilçelerde BUGÜN veritabanına İLK KEZ
+    yazılan (ilk_gorulme_tarihi = bugün — bkz. _pazar_ilk_gorulme_gun)
+    ilan SAYISINI hesaplar. Sonuç {kullanici: sayı} — sayısı 0 olan
+    kullanıcılar sonuca dahil edilmez (çağıran taraf zaten sadece
     bildirim gidecekleri dolaşıyor)."""
     from core.bolge_secici import tum_kullanicilarin_bolgeleri, pazar_ilanlarini_cek
 
@@ -230,7 +256,7 @@ def _pazar_bugun_sayilari(tablo_adi, marka):
         if ilceler_key not in _hesaplanan:
             ilanlar = pazar_ilanlarini_cek(marka, list(ilceler_key))
             _hesaplanan[ilceler_key] = len(
-                [v for v in ilanlar if _pazar_ilan_tarihi_gun(v) == bugun]
+                [v for v in ilanlar if _pazar_ilk_gorulme_gun(v) == bugun]
             )
         sayi = _hesaplanan[ilceler_key]
         if sayi:
