@@ -115,6 +115,7 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
     # ayırt edilsin diye.
     eslesenler = _uzmanlik_bolgesi_eslesenler(ilceler)
     bildirilenler = set()
+    bildirilen_isimler = []
     for kullanici, ilce in eslesenler.items():
         if kullanici.strip().casefold() == olusturan_norm:
             continue
@@ -124,6 +125,7 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
             f"Uzmanlık bölgeniz olan {ilce} bölgesinde 1 adet {islem_ek}{tur_adi} yayınlandı.",
         )
         bildirilenler.add(kullanici.strip().casefold())
+        bildirilen_isimler.append(kullanici)
 
     # ── D) Zeta Etkileşimleri — bölgeden BAĞIMSIZ, telefon bildirimini
     # açmış TÜM danışmanlara (A'da zaten bildirim alanlar HARİÇ — aynı
@@ -133,13 +135,12 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
     else:
         govde = f"{olusturan} {ilk_ilce} bölgesi için bir alıcı talebi girdi."
 
-    d_sayisi = 0
     for kullanici in _push_abone_kullanicilar():
         kullanici_norm = kullanici.strip().casefold()
         if kullanici_norm == olusturan_norm or kullanici_norm in bildirilenler:
             continue
         bildirim_gonder(kullanici, "🔔 Zeta Etkileşimleri", govde)
-        d_sayisi += 1
+        bildirilen_isimler.append(kullanici)
 
     # ── E) Kendine ONAY bildirimi — YENİ (26.09.2026, Meltem: "ama ben
     # olduğum için bana gelmeyecek bu pek mantıklı değil, kişi kendi de
@@ -151,9 +152,17 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
     # bildirim_gonder() zaten push gitsin gitmesin bildirim_gecmisi'ne
     # yazıyor, yani push aboneliği olmasa bile "Bildirimlerim" ekranında
     # bu onay görünür, kişi kendi paylaşımının tetiklendiğini doğrulayabilir.
-    toplam_bildirilen = len(bildirilenler) + d_sayisi
+    # DEĞİŞTİ (27.09.2026, Meltem: "2 danışmana bildirim gitti mesajı geldi
+    # ama bu danışmanlar kim bilsem daha iyi değil mi"): sadece sayı değil,
+    # bildirilen_isimler listesi de (A + D'de gerçekten push_gonder()
+    # çağrılan herkesin kullanıcı adı) onay metnine ekleniyor.
+    toplam_bildirilen = len(bildirilen_isimler)
     if toplam_bildirilen:
-        onay_govde = f"{tur_adi.capitalize()} kaydınız paylaşıldı — {toplam_bildirilen} danışmana bildirim gitti."
+        isim_listesi = ", ".join(bildirilen_isimler)
+        onay_govde = (
+            f"{tur_adi.capitalize()} kaydınız paylaşıldı — {toplam_bildirilen} "
+            f"danışmana bildirim gitti: {isim_listesi}."
+        )
     else:
         onay_govde = f"{tur_adi.capitalize()} kaydınız paylaşıldı — şu an eşleşen/abone bir danışman yoktu."
     bildirim_gonder(olusturan, "✅ Paylaşıldı", onay_govde)
