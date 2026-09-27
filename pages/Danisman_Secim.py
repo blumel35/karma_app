@@ -377,6 +377,28 @@ with st.container(border=True, key="dp_page_frame"):
         except (TypeError, ValueError):
             return None
 
+    # DÜZELTME (27.09.2026, Meltem: "bildirim gelmedi, revy de ilanlar 3
+    # gün geriden geliyor ondan olabilir mi"): "+N yeni" rozetleri (aşağıda
+    # fsbo_bugun_sayisi / startkey_bugun_sayisi) ÖNCEDEN _ilan_tarihi_gun
+    # (Revy'nin kendi, gecikmeli/güvenilmez "İlan tarihi" sütunu) == bugün
+    # şartına bakıyordu — Supabase'te gerçek veriyle doğrulandı, bu
+    # neredeyse hiç eşleşmiyor. "Son 7 gün" caption'ı (fsbo_ilanlar_yakin,
+    # aşağıda) BİLEREK _ilan_tarihi_gun'da bırakıldı — Danisman_FSBOIlanlari.py
+    # sayfasının kendi varsayılan filtresiyle TUTARLI kalsın diye, o sayfaya
+    # bu turda dokunulmadı. Sadece "bugün" rozetleri, yeni
+    # ilk_gorulme_tarihi sütununa (core/izmir_pazar_sync.py'nin upsert'inin
+    # HİÇ dokunmadığı, sadece gerçek İLK INSERT'te Postgres DEFAULT now()
+    # ile dolan bir zaman damgası) geçirildi — bkz. core/bildirim_tetikleyici.py
+    # içindeki aynı düzeltmenin ayrıntılı açıklaması.
+    def _ilk_gorulme_gun(v):
+        t = v.get("ilk_gorulme_tarihi")
+        if not t:
+            return None
+        try:
+            return datetime.strptime(str(t)[:10], "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            return None
+
     _bugun = date.today()
     # DÜZELTME (27.09.2026, Meltem: "2 ilçe ... bölge adedi doğru ilan
     # adedi hatalı"): "Bölgelerinde N aktif ilan" caption'ı önceden
@@ -394,7 +416,7 @@ with st.container(border=True, key="dp_page_frame"):
         v for v in fsbo_ilanlar if (_ilan_tarihi_gun(v) or date.min) >= _esik_7gun
     ]
     fsbo_ilan_sayisi = len(fsbo_ilanlar_yakin)
-    fsbo_bugun_sayisi = len([v for v in fsbo_ilanlar if _ilan_tarihi_gun(v) == _bugun])
+    fsbo_bugun_sayisi = len([v for v in fsbo_ilanlar if _ilk_gorulme_gun(v) == _bugun])
 
     # Startkey İlanları — YENİ (27.09.2026, Meltem: "son 24 saatte
     # startkey yeni ilan adedini de bölge bazlı göstersin"): Uzmanlık/
@@ -405,7 +427,7 @@ with st.container(border=True, key="dp_page_frame"):
     startkey_kayitlar = bolgelerini_cek("startkey_ilan_bolgeleri", su_kullanici)
     startkey_ilceler = [k["ilce"] for k in startkey_kayitlar]
     startkey_ilanlar = pazar_ilanlarini_cek("startkey", startkey_ilceler) if startkey_ilceler else []
-    startkey_bugun_sayisi = len([v for v in startkey_ilanlar if _ilan_tarihi_gun(v) == _bugun])
+    startkey_bugun_sayisi = len([v for v in startkey_ilanlar if _ilk_gorulme_gun(v) == _bugun])
 
     # ── HERO — Uzmanlık Bölgelerim + FSBO İlanları ──────────────────────
     with st.container(key="dp_hero_row"):
