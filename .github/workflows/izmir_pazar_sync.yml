@@ -34,9 +34,12 @@ jobs:
           chrome-version: stable
 
       - name: Bağımlılıkları kur
+        # DEĞİŞTİ (27.09.2026 — Faz 2 bildirimleri): pywebpush + py-vapid
+        # eklendi, core/push_bildirim.py'nin bildirim_gonder() fonksiyonu
+        # (aşağıdaki yeni "Faz 2" adımı) bunlara ihtiyaç duyuyor.
         run: |
           pip install --upgrade pip
-          pip install selenium pandas openpyxl supabase python-dateutil requests streamlit
+          pip install selenium pandas openpyxl supabase python-dateutil requests streamlit pywebpush py-vapid
 
       - name: Supabase secrets dosyasını oluştur
         # core/danisman_ortak.py (aktif_uzmanlik_bolgeleri için) modül
@@ -67,3 +70,19 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: python izmir_pazar_sync_job.py
+
+      - name: Faz 2 — FSBO/Startkey "yeni ilan" bildirimlerini gönder
+        # YENİ (27.09.2026 — Meltem: "önce bildirim faz 2 yi tamamlayalım",
+        # "önce sadece yeni ilan bildirimi", "ayrı bildirimler"): yukarıdaki
+        # senkronizasyon BİTTİKTEN HEMEN SONRA, izmir_pazar_ilanlar tablosu
+        # o günün taze verisiyle doluyken çalışır. Senkronizasyon adımı
+        # başarısız olsa bile (sys.exit(1)) bu adım BİLEREK yine de çalışır
+        # (if: always()) — böylece dünkü veriyle de olsa bildirim akışı
+        # tamamen durmaz; asıl veri tazeliği zaten senkronizasyon adımının
+        # kendi başarısı/uyarısıyla takip ediliyor.
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+        run: python pazar_bildirim_job.py
