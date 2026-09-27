@@ -134,6 +134,20 @@ def _ilan_tarihi_gun(v):
     except (TypeError, ValueError):
         return None
 
+# DÜZELTME (27.09.2026) — FSBO İlanları'ndaki AYNI düzeltme, bkz. o
+# dosyadaki not: "Bugün" artık ilk_gorulme_tarihi'ne (tabloya İLK
+# YAZILDIĞI an dolan, sonraki güncellemelerde değişmeyen zaman damgası)
+# bakıyor — ilan_tarihi (Revy'nin kendi tarihi) Supabase'te doğrulandığı
+# gibi güvenilmezdi. "Son 7 Gün" BİLEREK ilan_tarihi'nde bırakıldı.
+def _ilk_gorulme_gun(v):
+    t = v.get("ilk_gorulme_tarihi")
+    if not t:
+        return None
+    try:
+        return datetime.strptime(str(t)[:10], "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
+
 ilce_filtre_secim = st.multiselect(
     "İlçe (gösterilen bölgeler içinden)", aktif_ilceler,
     key="startkey_ilce_filtre", placeholder="Tüm gösterilen bölgeler",
@@ -164,8 +178,9 @@ with zaman_col:
         horizontal=True,
         key="startkey_zaman",
         help=(
-            "İlan tarihi alanında saat bilgisi yok, bu yüzden 'Bugün' "
-            "pratikte 'ilan tarihi bugün olanlar' anlamına geliyor."
+            "'Bugün', bu ilanın sistemimize İLK KEZ bugün eklendiği "
+            "anlamına geliyor (ilanın kendi 'İlan tarihi'ne göre değil "
+            "— o bilgi kaynağa göre gecikmeli/güvenilmez çıktı)."
         ),
     )
 with siralama_col:
@@ -183,7 +198,7 @@ if zaman_secim == "Son 7 Gün":
     ilanlar = [v for v in ilanlar if (_ilan_tarihi_gun(v) or date.min) >= esik]
 elif zaman_secim == "Bugün":
     bugun = date.today()
-    ilanlar = [v for v in ilanlar if _ilan_tarihi_gun(v) == bugun]
+    ilanlar = [v for v in ilanlar if _ilk_gorulme_gun(v) == bugun]
 
 if siralama_secim == "En Yeni İlan":
     ilanlar = sorted(ilanlar, key=lambda v: v.get("ilan_tarihi") or "", reverse=True)
