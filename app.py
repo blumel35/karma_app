@@ -32,6 +32,14 @@ st.set_page_config(
 # Şimdi tersi: önce var olan manifest/meta/ikon etiketleri varsa SİLİNİYOR,
 # sonra bizimkiler ekleniyor — hem Streamlit'in varsayılanının hem de
 # önceki rerun'lardan kalan kopyaların üzerine kesin olarak yazılıyor.
+#
+# DEĞİŞTİ (27.09.2026, Meltem: "uygulamanın ikonunu bununla değiştirmek
+# istiyorum" + "aynen adı artık zeta radar olmalı"): telefonun ana
+# ekranında ikonun altında görünen isim "Danışman Panosu"ndan "Zeta
+# Radar"a çevrildi (static/manifest.json'daki name/short_name de aynı
+# şekilde güncellendi). BİLİNÇLİ OLARAK sadece bu ev-ekranı kimliği
+# değişti — uygulama İÇİNDEKİ sayfa başlıkları/sekme adları ("Danışman
+# Panosu" yazan st.Page title'ları) bu turda dokunulmadı.
 components.html(
     """
     <script>
@@ -50,7 +58,7 @@ components.html(
             ['theme-color', '#1C2B47'],
             ['apple-mobile-web-app-capable', 'yes'],
             ['apple-mobile-web-app-status-bar-style', 'black-translucent'],
-            ['apple-mobile-web-app-title', 'Danışman Panosu'],
+            ['apple-mobile-web-app-title', 'Zeta Radar'],
         ].forEach(function (pair) {
             head.querySelectorAll('meta[name="' + pair[0] + '"]').forEach(function (el) {
                 el.parentNode.removeChild(el);
