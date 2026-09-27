@@ -96,6 +96,28 @@ def bolgelerini_kaydet(tablo_adi, ilceler):
             )
 
 
+def tum_kullanicilarin_bolgeleri(tablo_adi):
+    """YENİ (27.09.2026 — Faz 2 bildirimleri, Meltem: "önce sadece yeni
+    ilan bildirimi"): aktif_bolgeler()'in aksine (tekrarsız İLÇE listesi,
+    kimin seçtiği bilgisi kaybolur — senkronizasyon kapsamı için yeterli),
+    burada TERSİNE ihtiyaç var: her KULLANICININ KENDİ ilçe listesi, günlük
+    bildirim işinin "bu danışmana hangi ilan(lar) bildirim olarak gitsin"
+    sorusuna cevap verebilmesi için. {kullanici: [ilce, ilce, ...]} döner —
+    boş/None kullanıcı adlı satırlar atlanır."""
+    try:
+        resp = supabase.table(tablo_adi).select("kullanici, ilce").execute()
+    except Exception:
+        return {}
+    sonuc = {}
+    for r in (resp.data or []):
+        kullanici = (r.get("kullanici") or "").strip()
+        ilce = (r.get("ilce") or "").strip()
+        if not kullanici or not ilce:
+            continue
+        sonuc.setdefault(kullanici, []).append(ilce)
+    return sonuc
+
+
 def aktif_bolgeler(tablo_adi):
     """TÜM danışmanların verilen tabloya kaydettiği ilçelerin tekrarsız
     (distinct) birleşimini döndürür — aktif_uzmanlik_bolgeleri()'nin
