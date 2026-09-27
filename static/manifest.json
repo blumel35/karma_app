@@ -1,6 +1,6 @@
 {
-  "name": "Startkey Zeta - Danışman Panosu",
-  "short_name": "Danışman Panosu",
+  "name": "Zeta Radar",
+  "short_name": "Zeta Radar",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
