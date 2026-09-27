@@ -8,10 +8,20 @@ bağımsız) örneğin ömer çiğli de yeni bir portföy ilanı paylaştı. sin
 buda için bir alıcı talebi girdi gibi.").
 
 Planlanan 4 bildirim kaynağından (A: Uzmanlık Bölgem, B: Startkey
-İlanları, C: FSBO İlanları, D: Zeta Etkileşimleri) bu dosya SADECE A ve
-D'yi kapsıyor — Meltem'in onayladığı sıralama gereği ("A+D önce, sonra
-B+C"). B ve C (günlük toplu FSBO/Startkey bildirimi + fiyat düşüşü)
-ayrı bir turda core/izmir_pazar_sync.py'ye bağlanacak.
+İlanları, C: FSBO İlanları, D: Zeta Etkileşimleri) bu dosya A ve D'yi
+(manuel ekleme anında, senkron) VE artık B ile C'nin "yeni ilan" kısmını
+(günde bir kere, headless — bkz. pazar_yeni_ilan_bildirimleri_gonder())
+kapsıyor.
+
+FAZ 2 (27.09.2026 — Meltem onayı: "önce sadece yeni ilan bildirimi",
+"ayrı bildirimler" [FSBO ve Startkey için ayrı ayrı, birleşik özet
+değil]): pazar_yeni_ilan_bildirimleri_gonder(), pazar_bildirim_job.py
+(yeni, headless) tarafından GÜNDE BİR KERE, core/izmir_pazar_sync.py'nin
+günlük senkronizasyonu BİTTİKTEN HEMEN SONRA (aynı GitHub Actions
+job'ında, aynı runner'da) çağrılır — izmir_pazar_ilanlar tablosu taze
+olsun diye. Fiyat düşüşü tespiti BİLEREK bu turda YOK (Meltem: mevcut
+senkronizasyon akışına eski fiyatı saklayan yeni bir adım gerektiriyor,
+ayrı/daha büyük bir iş — Faz 3'e bırakıldı).
 
 FAZ 1 kararı (Meltem onayı — "tek anahtar, hepsi birlikte"): 4 kaynak
 için AYRI AÇMA/KAPAMA tercihi YOK — mevcut tek "Telefon Bildirimlerini
@@ -35,6 +45,8 @@ sorgusu, push gönderimi) SESSİZCE yutulur; asıl kayıt ekleme akışını
 ASLA bozmamalı veya kullanıcıya hata göstermemeli (kayıt zaten
 başarıyla eklenmiş oluyor, bildirim ikincil bir katman).
 """
+
+from datetime import date, datetime
 
 from core.supabase_client import get_client
 from core.push_bildirim import bildirim_gonder
@@ -166,3 +178,134 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
     else:
         onay_govde = f"{tur_adi.capitalize()} kaydınız paylaşıldı — şu an eşleşen/abone bir danışman yoktu."
     bildirim_gonder(olusturan, "✅ Paylaşıldı", onay_govde)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# FAZ 2 (27.09.2026) — Startkey İlanları (B) + FSBO İlanları (C): günlük
+# toplu "bugün yeni ilan çıktı" bildirimleri. bkz. modül üstü not.
+#
+# NOT: core.bolge_secici burada BİLEREK modül üstünde değil, fonksiyon
+# içinde import ediliyor — core.danisman_ortak (bolge_secici'nin
+# su_anki_danisman() için import ettiği modül) bu dosyadaki
+# talep_portfoy_bildirim_gonder'i modül üstünde import ediyor
+# (danisman_ortak.py satır 41); modül üstünde import edilseydi
+# bildirim_tetikleyici -> bolge_secici -> danisman_ortak ->
+# bildirim_tetikleyici döngüsel import hatası (ImportError) oluşurdu.
+# ══════════════════════════════════════════════════════════════════════
+
+def _pazar_ilan_tarihi_gun(v):
+    """pages/Danisman_Secim.py'deki _ilan_tarihi_gun ile BİREBİR AYNI
+    mantık — izmir_pazar_ilanlar.ilan_tarihi'ni (tarih-only, saat yok)
+    date nesnesine çevirir, geçersiz/boşsa None döner."""
+    t = v.get("ilan_tarihi")
+    if not t:
+        return None
+    try:
+        return datetime.strptime(str(t)[:10], "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
+
+
+def _pazar_bugun_sayilari(tablo_adi, marka):
+    """tablo_adi'na (fsbo_bolgeleri | startkey_ilan_bolgeleri) kayıtlı HER
+    kullanıcı için, KENDİ seçtiği ilçelerde BUGÜN (ilan_tarihi = bugün)
+    yayınlanan ilan SAYISINI hesaplar. Sonuç {kullanici: sayı} — sayısı 0
+    olan kullanıcılar sonuca dahil edilmez (çağıran taraf zaten sadece
+    bildirim gidecekleri dolaşıyor)."""
+    from core.bolge_secici import tum_kullanicilarin_bolgeleri, pazar_ilanlarini_cek
+
+    kullanici_ilceleri = tum_kullanicilarin_bolgeleri(tablo_adi)
+    if not kullanici_ilceleri:
+        return {}
+    bugun = date.today()
+    # Aynı ilçe kümesini seçen birden fazla kullanıcı için tekrar sorgu
+    # atmamak üzere (pazar_ilanlarini_cek zaten @st.cache_data(ttl=60) ile
+    # cache'li olsa da) burada da basit bir sonuç-cache'i tutuluyor.
+    _hesaplanan = {}
+    sonuc = {}
+    for kullanici, ilceler in kullanici_ilceleri.items():
+        ilceler_key = tuple(sorted(set(ilceler)))
+        if not ilceler_key:
+            continue
+        if ilceler_key not in _hesaplanan:
+            ilanlar = pazar_ilanlarini_cek(marka, list(ilceler_key))
+            _hesaplanan[ilceler_key] = len(
+                [v for v in ilanlar if _pazar_ilan_tarihi_gun(v) == bugun]
+            )
+        sayi = _hesaplanan[ilceler_key]
+        if sayi:
+            sonuc[kullanici] = sayi
+    return sonuc
+
+
+def pazar_yeni_ilan_bildirimleri_gonder(progress_cb=None):
+    """FAZ 2 (27.09.2026 — Meltem onayı): FSBO İlanları ve Startkey
+    İlanları için, HER danışmana KENDİ bölgelerinde BUGÜN yayınlanan yeni
+    ilan varsa push bildirimi gönderir.
+
+    Meltem'in AskUserQuestion ile onayladığı iki karar:
+    1) "Önce sadece yeni ilan bildirimi" — fiyat düşüşü tespiti BU TURDA
+       YOK (Faz 3'e bırakıldı, mevcut senkronizasyon akışına eski fiyatı
+       saklayan yeni bir adım gerektiriyor).
+    2) "Ayrı bildirimler" — FSBO ve Startkey için AYRI push/kayıt gider;
+       aynı kullanıcıya ikisi de varsa 2 ayrı bildirim gider, birleşik
+       tek bir günlük özet YOK.
+
+    pazar_bildirim_job.py (headless) tarafından, core/izmir_pazar_sync.py
+    senkronizasyonu BİTTİKTEN HEMEN SONRA, aynı GitHub Actions job'ında
+    çağrılır — izmir_pazar_ilanlar tablosu o günün taze verisiyle dolu
+    olsun diye. progress_cb(msg) verilirse ilerleme mesajları oraya
+    (print yerine) yazılır. Best-effort: bir kullanıcı/kaynak için hata
+    diğerlerini durdurmaz; hiçbir hata dışarı sızmaz.
+
+    Döndürür: {"fsbo_bildirim_sayisi": int, "startkey_bildirim_sayisi": int}
+    """
+
+    def _bildir(msg):
+        if progress_cb:
+            progress_cb(msg)
+        else:
+            print(msg, flush=True)
+
+    # ── C) FSBO İlanları
+    try:
+        fsbo_sayilar = _pazar_bugun_sayilari("fsbo_bolgeleri", "mulk_sahibi")
+    except Exception as e:
+        _bildir(f"⚠️ FSBO sayıları hesaplanamadı: {e}")
+        fsbo_sayilar = {}
+    for kullanici, sayi in fsbo_sayilar.items():
+        try:
+            bildirim_gonder(
+                kullanici,
+                "📋 FSBO İlanları",
+                f"Bölgelerinde bugün {sayi} yeni FSBO ilanı yayınlandı.",
+            )
+            _bildir(f"✅ FSBO bildirimi gönderildi: {kullanici} ({sayi} ilan)")
+        except Exception as e:
+            _bildir(f"⚠️ FSBO bildirimi gönderilemedi ({kullanici}): {e}")
+
+    # ── B) Startkey İlanları
+    try:
+        startkey_sayilar = _pazar_bugun_sayilari("startkey_ilan_bolgeleri", "startkey")
+    except Exception as e:
+        _bildir(f"⚠️ Startkey sayıları hesaplanamadı: {e}")
+        startkey_sayilar = {}
+    for kullanici, sayi in startkey_sayilar.items():
+        try:
+            bildirim_gonder(
+                kullanici,
+                "🏢 Startkey İlanları",
+                f"Bölgelerinde bugün {sayi} yeni Startkey ilanı yayınlandı.",
+            )
+            _bildir(f"✅ Startkey bildirimi gönderildi: {kullanici} ({sayi} ilan)")
+        except Exception as e:
+            _bildir(f"⚠️ Startkey bildirimi gönderilemedi ({kullanici}): {e}")
+
+    _bildir(
+        f"🏁 Bitti: {len(fsbo_sayilar)} FSBO bildirimi, "
+        f"{len(startkey_sayilar)} Startkey bildirimi gönderildi."
+    )
+    return {
+        "fsbo_bildirim_sayisi": len(fsbo_sayilar),
+        "startkey_bildirim_sayisi": len(startkey_sayilar),
+    }
