@@ -350,10 +350,11 @@ with st.container(border=True, key="dp_page_frame"):
     # fsbo_bolgeleri seçimi, izmir_pazar_ilanlar tablosu, marka=mulk_sahibi).
     fsbo_kayitlar = bolgelerini_cek("fsbo_bolgeleri", su_kullanici)
     fsbo_ilceler = [k["ilce"] for k in fsbo_kayitlar]
+    fsbo_bolge_sayisi = len(fsbo_ilceler)
     fsbo_ilanlar = pazar_ilanlarini_cek("mulk_sahibi", fsbo_ilceler) if fsbo_ilceler else []
     fsbo_ilan_sayisi = len(fsbo_ilanlar)
 
-    def _fsbo_tarih_gun(v):
+    def _ilan_tarihi_gun(v):
         t = v.get("ilan_tarihi")
         if not t:
             return None
@@ -363,7 +364,18 @@ with st.container(border=True, key="dp_page_frame"):
             return None
 
     _bugun = date.today()
-    fsbo_bugun_sayisi = len([v for v in fsbo_ilanlar if _fsbo_tarih_gun(v) == _bugun])
+    fsbo_bugun_sayisi = len([v for v in fsbo_ilanlar if _ilan_tarihi_gun(v) == _bugun])
+
+    # Startkey İlanları — YENİ (27.09.2026, Meltem: "son 24 saatte
+    # startkey yeni ilan adedini de bölge bazlı göstersin"): Uzmanlık/
+    # FSBO'dan TAMAMEN BAĞIMSIZ kendi bölge tablosu (startkey_ilan_bolgeleri)
+    # + izmir_pazar_ilanlar (marka='startkey') — SADECE "Son 24 saat"
+    # bandına eklenen bir ek bilgi, kendi hero/ikincil kartı YOK (o karar
+    # bu turda yeniden açılmadı, sadece bu tek sayı istendi).
+    startkey_kayitlar = bolgelerini_cek("startkey_ilan_bolgeleri", su_kullanici)
+    startkey_ilceler = [k["ilce"] for k in startkey_kayitlar]
+    startkey_ilanlar = pazar_ilanlarini_cek("startkey", startkey_ilceler) if startkey_ilceler else []
+    startkey_bugun_sayisi = len([v for v in startkey_ilanlar if _ilan_tarihi_gun(v) == _bugun])
 
     # ── HERO — Uzmanlık Bölgelerim + FSBO İlanları ──────────────────────
     with st.container(key="dp_hero_row"):
@@ -402,18 +414,26 @@ with st.container(border=True, key="dp_page_frame"):
             st.markdown("<div class='dp-hero-accent fsbo'></div>", unsafe_allow_html=True)
             st.markdown("<div class='dp-hero-icon'>📋</div>", unsafe_allow_html=True)
             st.markdown("<div class='dp-hero-title'>FSBO İlanları</div>", unsafe_allow_html=True)
+            # DÜZELTME (27.09.2026, Meltem: "fsbo ilanlarında da 2 bölge 14
+            # ilan desin tüm izmir fsbo ilanları yazmasın"): birincil
+            # rakam artık Uzmanlık Bölgelerim ile AYNI desende — SEÇİLİ
+            # BÖLGE SAYISI (küçük, anlamlı bir sayı), toplam ilan adedi
+            # ise alttaki caption'a taşındı ("Bölgelerinde N aktif ilan").
+            # Önceki hâlde tek başına gösterilen büyük "ilan" rakamı bölge
+            # bağlamı olmadan "tüm İzmir" gibi okunuyordu — artık ikisi
+            # birlikte, net biçimde.
             _fsbo_yeni_rozet = (
                 f"<span class='dp-hero-new-badge'>+{fsbo_bugun_sayisi} yeni</span>"
                 if fsbo_bugun_sayisi else ""
             )
             st.markdown(
-                f"<div class='dp-hero-num-row'><span class='dp-hero-num'>{fsbo_ilan_sayisi}</span>"
-                f"<span class='dp-hero-num-unit'>ilan</span>{_fsbo_yeni_rozet}</div>",
+                f"<div class='dp-hero-num-row'><span class='dp-hero-num'>{fsbo_bolge_sayisi}</span>"
+                f"<span class='dp-hero-num-unit'>bölge</span>{_fsbo_yeni_rozet}</div>",
                 unsafe_allow_html=True,
             )
             if fsbo_ilceler:
                 st.markdown(
-                    f"<div class='dp-hero-caption'>Bugün {fsbo_bugun_sayisi} yeni/güncellenen</div>",
+                    f"<div class='dp-hero-caption'>Bölgelerinde {fsbo_ilan_sayisi} aktif ilan</div>",
                     unsafe_allow_html=True,
                 )
             else:
@@ -541,5 +561,5 @@ with st.container(border=True, key="dp_page_frame"):
             except Exception as e:
                 st.error(f"Gönderilemedi: {e}")
 
-    render_activity_bar()
+    render_activity_bar(startkey_yeni_sayisi=startkey_bugun_sayisi)
     render_bildirim_onizleme()
