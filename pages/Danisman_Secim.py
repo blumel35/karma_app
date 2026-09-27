@@ -37,7 +37,7 @@ deneme aşamasındaysa şimdilik anlaşılır; oturduğunda ayarlara taşınabil
 """
 
 import streamlit as st
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -98,16 +98,31 @@ div[class*="st-key-dp_hero_fsbo"] div[data-testid="stVerticalBlockBorderWrapper"
 }
 div[class*="st-key-dp_hero_uzmanlik_git"] button,
 div[class*="st-key-dp_hero_fsbo_git"] button {
-    background-color: #1b2540 !important;
-    border-color: #1b2540 !important;
     color: #ffffff !important;
     font-size: 11.5px !important;
     padding: 8px 0 !important;
 }
-div[class*="st-key-dp_hero_uzmanlik_git"] button:hover,
-div[class*="st-key-dp_hero_fsbo_git"] button:hover {
+/* DÜZELTME (27.09.2026, Meltem: "buton rengi değişmemiş"): mockup'ta
+   FSBO'nun CTA butonu kendi üst şeridiyle (kiremit) AYNI renkteydi —
+   gerçek uygulamada ikisi de yanlışlıkla navy kalmıştı (Talep/Portföy'ün
+   eski "hepsi navy" kuralı düşünülmeden buraya taşınmış). Artık Uzmanlık
+   navy, FSBO kiremit — mockup'la birebir. */
+div[class*="st-key-dp_hero_uzmanlik_git"] button {
+    background-color: #1b2540 !important;
+    border-color: #1b2540 !important;
+}
+div[class*="st-key-dp_hero_uzmanlik_git"] button:hover {
     background-color: #28345a !important;
     border-color: #28345a !important;
+    color: #ffffff !important;
+}
+div[class*="st-key-dp_hero_fsbo_git"] button {
+    background-color: #bb5f3c !important;
+    border-color: #bb5f3c !important;
+}
+div[class*="st-key-dp_hero_fsbo_git"] button:hover {
+    background-color: #a34f30 !important;
+    border-color: #a34f30 !important;
     color: #ffffff !important;
 }
 
@@ -352,7 +367,6 @@ with st.container(border=True, key="dp_page_frame"):
     fsbo_ilceler = [k["ilce"] for k in fsbo_kayitlar]
     fsbo_bolge_sayisi = len(fsbo_ilceler)
     fsbo_ilanlar = pazar_ilanlarini_cek("mulk_sahibi", fsbo_ilceler) if fsbo_ilceler else []
-    fsbo_ilan_sayisi = len(fsbo_ilanlar)
 
     def _ilan_tarihi_gun(v):
         t = v.get("ilan_tarihi")
@@ -364,6 +378,22 @@ with st.container(border=True, key="dp_page_frame"):
             return None
 
     _bugun = date.today()
+    # DÜZELTME (27.09.2026, Meltem: "2 ilçe ... bölge adedi doğru ilan
+    # adedi hatalı"): "Bölgelerinde N aktif ilan" caption'ı önceden
+    # pazar_ilanlarini_cek()'in HAM/TÜM ZAMANLARDAKİ "aktif=True" toplamını
+    # (2405 gibi) gösteriyordu — pages/Danisman_FSBOIlanlari.py'nin kendi
+    # dosya başı notunda da açıklandığı gibi ("izmir_pazar_sync.py'de
+    # otomatik pasifleştirme BİLİNÇLİ OLARAK kapalı ... tek başına
+    # 'aktif=True' filtresi hâlâ çok eski ilanları da getirebiliyor"), bu
+    # ham toplam güncel/anlamlı bir sayı DEĞİL — o sayfanın kendisi de tam
+    # bu yüzden varsayılan olarak "Son 7 Gün" filtresiyle açılıyor (101/2405
+    # gibi). Ana ekran kartı da AYNI "Son 7 Gün" penceresine çekildi —
+    # artık FSBO sayfasını ilk açtığında gördüğün sayıyla TUTARLI.
+    _esik_7gun = _bugun - timedelta(days=7)
+    fsbo_ilanlar_yakin = [
+        v for v in fsbo_ilanlar if (_ilan_tarihi_gun(v) or date.min) >= _esik_7gun
+    ]
+    fsbo_ilan_sayisi = len(fsbo_ilanlar_yakin)
     fsbo_bugun_sayisi = len([v for v in fsbo_ilanlar if _ilan_tarihi_gun(v) == _bugun])
 
     # Startkey İlanları — YENİ (27.09.2026, Meltem: "son 24 saatte
@@ -433,7 +463,7 @@ with st.container(border=True, key="dp_page_frame"):
             )
             if fsbo_ilceler:
                 st.markdown(
-                    f"<div class='dp-hero-caption'>Bölgelerinde {fsbo_ilan_sayisi} aktif ilan</div>",
+                    f"<div class='dp-hero-caption'>Bölgelerinde son 7 günde {fsbo_ilan_sayisi} ilan</div>",
                     unsafe_allow_html=True,
                 )
             else:
