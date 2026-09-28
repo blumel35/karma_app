@@ -163,6 +163,18 @@ ilce_filtre_secim = st.multiselect(
     key="fsbo_ilce_filtre", placeholder="Tüm gösterilen bölgeler",
 )
 
+# DÜZELTME (28.09.2026, Meltem: "bildirim sistemi başarılı oldu ama
+# panoyu aç dediğinde bildirimin bahsettiği ekranı açmıyor ana sayfayı
+# açıyor... hatta bugün 2 yeni ilan dediyse bugün filtresiyle ilgili
+# sayfa açılmalı"): core/bildirim_tetikleyici.py artık FSBO "bugün X
+# yeni ilan" bildirimini bu sayfaya ?zaman=bugun ile bağlıyor. Widget
+# key'i (fsbo_zaman) session_state'te YOKSA (yani sayfa bu oturumda İLK
+# kez yükleniyorsa), radio'nun başlangıç değerini "Bugün" yap — key zaten
+# varsa (kullanıcı filtreyi bu oturumda elle değiştirdiyse) dokunulmuyor,
+# sonraki reruns'larda kullanıcının kendi seçimi geçerliliğini korur.
+if st.query_params.get("zaman") == "bugun" and "fsbo_zaman" not in st.session_state:
+    st.session_state["fsbo_zaman"] = "Bugün"
+
 # YENİ (17.09.2026, Meltem: "... konut/ticari/arsa filtrelerininin
 # eklenmesi"). Mülk Tipi eksikti, mevcut 3'lü sütuna 4. sütun olarak
 # eklendi — mobilde Streamlit'in doğal sütun-yığma davranışı (bu sayfada
