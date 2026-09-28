@@ -806,7 +806,17 @@ def uzmanlik_bolgelerini_kaydet(ilceler):
     Sonuç: çağıran ekran "başarılı" mesajı gösterir ama satır hiç
     eklenmemiş olur (canlıda gözlemlenen belirti tam olarak buydu).
     Artık dönen satır sayısı gönderilenle eşleşmezse AÇIKÇA hata
-    fırlatılıyor — çağıran ekran bunu yakalayıp göstermeli."""
+    fırlatılıyor — çağıran ekran bunu yakalayıp göstermeli.
+
+    DÜZELTME (28.09.2026, Meltem: "uzmanlık bölgelerindeki ilçelere tek
+    tek bildirim açık/kapalı butonu olmalı"): bu fonksiyon her "Kaydet"
+    tıklamasında TÜM satırları silip yeniden ekliyor — bildirim_acik
+    sütunu eklendiğinden beri, halihazırda seçili kalan bir ilçenin
+    (örn. hem eski hem yeni seçimde olan Balçova) kapatılmış bildirim
+    tercihi bu sil-yeniden-ekle sırasında sessizce True'ya sıfırlanırdı.
+    Artık silmeden ÖNCE mevcut {ilce: bildirim_acik} durumu okunup, yeni
+    eklenen satırlara aktarılıyor — sadece YENİ eklenen bir ilçe
+    (önceden seçili değildi) varsayılan True ile başlıyor."""
     kullanici = su_anki_danisman()
     ilceler = list(ilceler)[:5]
     if not kullanici:
@@ -814,10 +824,21 @@ def uzmanlik_bolgelerini_kaydet(ilceler):
             "Kaydedilemedi: giriş yapan kullanıcı tespit edilemedi "
             "(su_anki_danisman() boş döndü)."
         )
+    _mevcut_durum = {
+        k["ilce"]: k.get("bildirim_acik", True)
+        for k in uzmanlik_bolgelerini_cek(kullanici)
+    }
     supabase.table("uzmanlik_bolgeleri").delete().eq("kullanici", kullanici).execute()
     if ilceler:
         insert_resp = supabase.table("uzmanlik_bolgeleri").insert(
-            [{"kullanici": kullanici, "ilce": ilce} for ilce in ilceler]
+            [
+                {
+                    "kullanici": kullanici,
+                    "ilce": ilce,
+                    "bildirim_acik": _mevcut_durum.get(ilce, True),
+                }
+                for ilce in ilceler
+            ]
         ).execute()
         donen_sayi = len(insert_resp.data or [])
         if donen_sayi != len(ilceler):
@@ -831,6 +852,27 @@ def uzmanlik_bolgelerini_kaydet(ilceler):
                 f"(kullanılan API key'in — anon/service — bu tabloya yazma "
                 f"izni olduğundan emin ol)."
             )
+
+
+def uzmanlik_bolgesi_bildirim_ayarla(ilce, acik: bool):
+    """YENİ (28.09.2026, Meltem: "uzmanlık bölgelerindeki ilçelere tek
+    tek bildirim açık/kapalı butonu olmalı. uzmanlık bölgesi buca ve
+    balçova dır ama sadece balcova bildirimleri gelsin isteyebilir (
+    fazla bilgi dikkati dağıtır)") — tek bir ilçenin bildirim aç/kapa
+    durumunu, 5'lik İLÇE SEÇİMİNE hiç dokunmadan günceller. Kapatılan
+    bir ilçe seçimden ÇIKMAZ — veri hâlâ o ilçe için taranır/gösterilir
+    (core/bildirim_tetikleyici.py:aktif_uzmanlik_bolgeleri kapsamı
+    BİLEREK değişmedi), sadece core/bildirim_tetikleyici.py'nin
+    "📍 Uzmanlık Bölgeniz" push'u o ilçe için artık gönderilmez."""
+    kullanici = su_anki_danisman()
+    if not kullanici:
+        raise ValueError(
+            "Kaydedilemedi: giriş yapan kullanıcı tespit edilemedi "
+            "(su_anki_danisman() boş döndü)."
+        )
+    supabase.table("uzmanlik_bolgeleri").update(
+        {"bildirim_acik": acik}
+    ).eq("kullanici", kullanici).eq("ilce", ilce).execute()
 
 
 def aktif_uzmanlik_bolgeleri():
