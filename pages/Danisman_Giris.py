@@ -77,13 +77,24 @@ with center:
     with st.container(border=True):
         email = st.text_input("E-posta", placeholder="ornek@startkey.com", key="dg_email")
         sifre = st.text_input("Şifre", type="password", placeholder="••••••••", key="dg_sifre")
+        # EKLENDİ (28.09.2026, Meltem: "uygulamaya beni hatırla butonu
+        # eklemeliyiz her defasında olmasa da çoğunlukla özellikle gün
+        # değiştirdiğinde terkar sifre yazman gerekiyor") — cookie zaten
+        # her girişte otomatik yazılıyordu (core/auth.py), ama kullanıcıya
+        # görünür/kontrol edilebilir bir seçenek yoktu. Varsayılan True —
+        # işaretli bırakılırsa davranış aynen önceki gibi (30 gün hatırla).
+        beni_hatirla = st.checkbox(
+            "Beni hatırla (bu cihazda 30 gün oturum açık kalsın)",
+            value=True,
+            key="dg_beni_hatirla",
+        )
 
         if st.button("Giriş Yap →", type="primary", use_container_width=True, key="dg_btn"):
             if not email or not sifre:
                 st.error("E-posta ve şifre zorunludur.")
             else:
                 with st.spinner("Giriş yapılıyor..."):
-                    kullanici = giris_yap(email.strip(), sifre)
+                    kullanici = giris_yap(email.strip(), sifre, beni_hatirla=beni_hatirla)
                 if kullanici:
                     kullanici = enrich_session_from_personel(kullanici)
                     set_session_fields(kullanici)
@@ -110,8 +121,13 @@ with center:
                     # boyunca script hâlâ "canlı" kaldığı için, cookie
                     # component'inin deltası tarayıcıya ulaşıp işlenmeye
                     # gerçek zaman buluyor.
-                    with st.spinner("Oturum kaydediliyor..."):
-                        time.sleep(1)
+                    # 28.09.2026: bu bekleme yalnız gerçekten cookie
+                    # YAZILDIYSA (beni_hatirla=True) gerekli — kutunun
+                    # işareti kaldırılmışsa yazma hiç olmadı, beklemenin
+                    # bir anlamı yok, kullanıcıyı gereksiz geciktirmeyelim.
+                    if beni_hatirla:
+                        with st.spinner("Oturum kaydediliyor..."):
+                            time.sleep(1)
                     st.switch_page("pages/Danisman_Secim.py")
                 else:
                     st.error("E-posta veya şifre hatalı.")
