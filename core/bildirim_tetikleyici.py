@@ -60,9 +60,26 @@ başarıyla eklenmiş oluyor, bildirim ikincil bir katman).
 from datetime import date, datetime
 
 from core.supabase_client import get_client
-from core.push_bildirim import bildirim_gonder
+from core.push_bildirim import bildirim_gonder, KARMA_APP_URL
 
 supabase = get_client()
+
+# DÜZELTME (28.09.2026, Meltem: "bildirim sistemi başarılı oldu ama
+# panoyu aç dediğinde bildirimin bahsettiği ekranı açmıyor ana sayfayı
+# açıyor. o ekranı açmalı hatta bugün 2 yeni ilan dediyse bugün
+# filtresiyle ilgili sayfa açılmalı") — KÖK SEBEP: bu dosyadaki HER
+# bildirim_gonder() çağrısı url parametresini hiç geçmiyordu, bu yüzden
+# core/push_bildirim.py'nin varsayılanı (KARMA_APP_URL + "/Danisman_Secim"
+# — yani ana sayfa) HER bildirim türü için kullanılıyordu, bildirimin
+# gerçek konusundan bağımsız olarak. Artık her bildirim türü kendi
+# ekranına özel bir url gönderiyor; FSBO/Startkey ayrıca ?zaman=bugun
+# ekliyor ki hedef sayfa (pages/Danisman_FSBOIlanlari.py /
+# Danisman_StartkeyIlanlari.py) "Bugün" filtresiyle açılsın (bkz. o
+# dosyalardaki aynı tarihli düzeltme notu).
+_TALEP_URL = f"{KARMA_APP_URL}/Danisman_Talep"
+_PORTFOY_URL = f"{KARMA_APP_URL}/Danisman_Portfoy"
+_FSBO_BUGUN_URL = f"{KARMA_APP_URL}/Danisman_FSBOIlanlari?zaman=bugun"
+_STARTKEY_BUGUN_URL = f"{KARMA_APP_URL}/Danisman_StartkeyIlanlari?zaman=bugun"
 
 
 def _ilce_normalize(ilce):
@@ -73,18 +90,31 @@ def _uzmanlik_bolgesi_eslesenler(ilceler):
     """Verilen ilçe listesinden EN AZ biriyle Uzmanlık Bölgesi'nde
     eşleşen danışmanların {kullanici: eşleşen_ilce} sözlüğünü döner.
     Bir danışmanın birden fazla ilçesi eşleşse bile tek bir bildirim
-    gitsin diye sadece İLK eşleşen ilçe tutulur."""
+    gitsin diye sadece İLK eşleşen (VE bildirimi açık olan) ilçe
+    tutulur.
+
+    DÜZELTME (28.09.2026, Meltem: "uzmanlık bölgelerindeki ilçelere tek
+    tek bildirim açık/kapalı butonu olmalı ... sadece balcova
+    bildirimleri gelsin isteyebilir"): bildirim_acik=False olan bir
+    ilçe artık EŞLEŞME SAYILMIYOR — o ilçe için push gönderilmez, ama
+    kullanıcının başka (bildirimi açık) bir ilçesi eşleşirse yine o
+    üzerinden bildirim alır. bildirim_acik sütunu henüz migration
+    çalıştırılmamış eski satırlarda yoksa (None), varsayılan olarak
+    açık (True) sayılır — geriye dönük davranış bozulmaz."""
     hedef = {_ilce_normalize(i) for i in (ilceler or []) if i}
     if not hedef:
         return {}
     try:
-        resp = supabase.table("uzmanlik_bolgeleri").select("kullanici, ilce").execute()
+        resp = supabase.table("uzmanlik_bolgeleri").select("kullanici, ilce, bildirim_acik").execute()
     except Exception:
         return {}
     eslesenler = {}
     for row in (resp.data or []):
         kullanici = (row.get("kullanici") or "").strip()
         ilce = row.get("ilce") or ""
+        bildirim_acik = row.get("bildirim_acik")
+        if bildirim_acik is False:
+            continue
         if not kullanici or _ilce_normalize(ilce) not in hedef:
             continue
         if kullanici not in eslesenler:
@@ -128,6 +158,10 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
     tur_adi = "portföy" if portfoy_mu else "talep"
     ilk_ilce = ilceler[0]
     islem_ek = f"{islem_tipi} " if islem_tipi else ""
+    # 28.09.2026: A/D/E bildirimleri hep AYNI kaydın (bu çağrıdaki
+    # kayit_tipi) panosuna işaret eder — talep mi portföy mü olduğuna
+    # göre doğru ekran.
+    panosu_url = _PORTFOY_URL if portfoy_mu else _TALEP_URL
 
     # ── A) Uzmanlık Bölgesi eşleşenler — bölge bazlı, isimsiz/nesnel metin.
     # DEĞİŞTİ (26.09.2026, Meltem: "yazı karakteri renk değişse vs dikkat
@@ -146,6 +180,7 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
             kullanici,
             "📍 Uzmanlık Bölgeniz",
             f"Uzmanlık bölgeniz olan {ilce} bölgesinde 1 adet {islem_ek}{tur_adi} yayınlandı.",
+            url=panosu_url,
         )
         bildirilenler.add(kullanici.strip().casefold())
         bildirilen_isimler.append(kullanici)
@@ -162,7 +197,7 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
         kullanici_norm = kullanici.strip().casefold()
         if kullanici_norm == olusturan_norm or kullanici_norm in bildirilenler:
             continue
-        bildirim_gonder(kullanici, "🔔 Zeta Etkileşimleri", govde)
+        bildirim_gonder(kullanici, "🔔 Zeta Etkileşimleri", govde, url=panosu_url)
         bildirilen_isimler.append(kullanici)
 
     # ── E) Kendine ONAY bildirimi — YENİ (26.09.2026, Meltem: "ama ben
@@ -188,7 +223,7 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
         )
     else:
         onay_govde = f"{tur_adi.capitalize()} kaydınız paylaşıldı — şu an eşleşen/abone bir danışman yoktu."
-    bildirim_gonder(olusturan, "✅ Paylaşıldı", onay_govde)
+    bildirim_gonder(olusturan, "✅ Paylaşıldı", onay_govde, url=panosu_url)
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -305,6 +340,7 @@ def pazar_yeni_ilan_bildirimleri_gonder(progress_cb=None):
                 kullanici,
                 "📋 FSBO İlanları",
                 f"Bölgelerinde bugün {sayi} yeni FSBO ilanı yayınlandı.",
+                url=_FSBO_BUGUN_URL,
             )
             _bildir(f"✅ FSBO bildirimi gönderildi: {kullanici} ({sayi} ilan)")
         except Exception as e:
@@ -322,6 +358,7 @@ def pazar_yeni_ilan_bildirimleri_gonder(progress_cb=None):
                 kullanici,
                 "🏢 Startkey İlanları",
                 f"Bölgelerinde bugün {sayi} yeni Startkey ilanı yayınlandı.",
+                url=_STARTKEY_BUGUN_URL,
             )
             _bildir(f"✅ Startkey bildirimi gönderildi: {kullanici} ({sayi} ilan)")
         except Exception as e:
