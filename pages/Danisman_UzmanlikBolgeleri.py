@@ -27,6 +27,7 @@ from core.danisman_ortak import (
     talepleri_cek, portfoyleri_cek, islem_tipi_filtrele,
     favorileri_cek, su_anki_danisman, supabase_anon_secrets, IZMIR_ILCELERI,
     uzmanlik_bolgelerini_cek, uzmanlik_bolgelerini_kaydet, uzmanlik_bolgesi_filtrele,
+    uzmanlik_bolgesi_bildirim_ayarla,
     ilce_ile_filtrele, mulk_tipi_filtrele, pano_sirala, SIRALAMA_SECENEKLERI,
     render_topbar, hide_sidebar_css, _inject_filtre_pill_css, ILAN_PORTAL_DEGERLERI,
 )
@@ -78,6 +79,29 @@ with st.expander(
 if not mevcut_ilceler:
     st.info("Henüz uzmanlık bölgesi seçmedin — yukarıdan en fazla 5 ilçe seçip kaydet.")
     st.stop()
+
+# EKLENDİ (28.09.2026, Meltem: "uzmanlık bölgelerindeki ilçelere tek
+# tek bildirim açık/kapalı butonu olmalı. uzmanlık bölgesi buca ve
+# balçova dır ama sadece balcova bildirimleri gelsin isteyebilir (
+# fazla bilgi dikkati dağıtır)") — YUKARIDAKİ 5-ilçe SEÇİMİNE dokunmaz;
+# kapatılan bir ilçenin talep/portföyleri bu sayfada ve diğer
+# ekranlarda GÖRÜNMEYE devam eder, sadece core/bildirim_tetikleyici.py
+# o ilçe için artık push göndermez (bkz. o dosyadaki aynı tarihli not).
+with st.expander("İlçe bazlı bildirimler", expanded=False):
+    st.caption(
+        "Kapattığın bir ilçe için kayıtları görmeye devam edersin — "
+        "sadece o ilçe için telefon bildirimi gelmez."
+    )
+    _bildirim_durumu = {k["ilce"]: k.get("bildirim_acik", True) for k in mevcut_kayitlar}
+    for _ilce in mevcut_ilceler:
+        _onceki_durum = _bildirim_durumu.get(_ilce, True)
+        _yeni_durum = st.toggle(_ilce, value=_onceki_durum, key=f"ub_bildirim_{_ilce}")
+        if _yeni_durum != _onceki_durum:
+            try:
+                uzmanlik_bolgesi_bildirim_ayarla(_ilce, _yeni_durum)
+                st.rerun()
+            except Exception as e:
+                st.error(f"Kaydedilemedi: {e}")
 
 supabase_url, supabase_anon = supabase_anon_secrets()
 
