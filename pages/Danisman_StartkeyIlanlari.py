@@ -148,6 +148,15 @@ def _ilk_gorulme_gun(v):
     except (TypeError, ValueError):
         return None
 
+# DÜZELTME (28.09.2026, Meltem: "bildirim sistemi başarılı oldu ama
+# panoyu aç dediğinde bildirimin bahsettiği ekranı açmıyor ana sayfayı
+# açıyor... hatta bugün 2 yeni ilan dediyse bugün filtresiyle ilgili
+# sayfa açılmalı") — FSBO İlanları'ndaki AYNI düzeltme, bkz. o dosyadaki
+# not: core/bildirim_tetikleyici.py artık Startkey "bugün X yeni ilan"
+# bildirimini bu sayfaya ?zaman=bugun ile bağlıyor.
+if st.query_params.get("zaman") == "bugun" and "startkey_zaman" not in st.session_state:
+    st.session_state["startkey_zaman"] = "Bugün"
+
 ilce_filtre_secim = st.multiselect(
     "İlçe (gösterilen bölgeler içinden)", aktif_ilceler,
     key="startkey_ilce_filtre", placeholder="Tüm gösterilen bölgeler",
