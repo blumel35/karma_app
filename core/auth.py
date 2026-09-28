@@ -35,10 +35,20 @@ def _get_supa(use_service_key: bool = False):
     return None
 
 
-def giris_yap(email: str, sifre: str) -> dict | None:
+def giris_yap(email: str, sifre: str, beni_hatirla: bool = True) -> dict | None:
     """
     E-posta ve şifre ile giriş yap.
     Başarılıysa kullanıcı dict döndürür, değilse None.
+
+    beni_hatirla (28.09.2026, Meltem: "uygulamaya beni hatırla butonu
+    eklemeliyiz"): tarayıcı cookie'sine yazılıp yazılmayacağını
+    belirler. Varsayılan True — mevcut davranış (her girişte 30 günlük
+    cookie yazılır) korunuyor, pages/giris.py (Karma App ana giriş,
+    parametreyi hiç geçmiyor) etkilenmez. Danışman girişinde kutunun
+    işaretini kaldırırsa (örn. ortak/paylaşımlı bir cihazda), cookie hiç
+    yazılmaz VE önceden o cihazda kalmış olabilecek eski bir cookie de
+    temizlenir — aksi hâlde "hatırlama" kapatılmış görünse de eski
+    cookie sessizce oturumu geri yükleyebilirdi.
     """
     supa = _get_supa()
     if not supa:
@@ -130,7 +140,13 @@ def giris_yap(email: str, sifre: str) -> dict | None:
             # yenilemelerinde şifre tekrar sorulmasın diye. Bu, dosya
             # tabanlı LOCAL_SESSION_RESTORE'dan bağımsız, tarayıcıya
             # özel bir kalıcılık (bkz. yukarısı).
-            _tarayici_oturumu_kaydet(kullanici)
+            # 28.09.2026: artık beni_hatirla=False ise YAZILMIYOR, ayrıca
+            # bu cihazda önceden kalmış olabilecek eski cookie de silinir
+            # (bkz. yukarıdaki fonksiyon docstring'i).
+            if beni_hatirla:
+                _tarayici_oturumu_kaydet(kullanici)
+            else:
+                _tarayici_oturumu_temizle()
 
             # KA-AUTH-001-R4 — GÜVENLİ KİLİT KURTARMA (doğru konum):
             # bu satıra yalnız kullanılabilir VE geçerli aktör kimliği
@@ -951,6 +967,37 @@ def oturum_kontrol() -> bool:
     _tarayici_kullanici = _tarayici_oturumu_yukle()
     if _tarayici_kullanici:
         return set_session_fields(_tarayici_kullanici)
+
+    # DÜZELTME (28.09.2026, Meltem: "beni hatırla ... her defasında
+    # olmasa da çoğunlukla özellikle gün değiştirdiğinde tekrar şifre
+    # yazman gerekiyor") — SOĞUK BAŞLANGIÇ YARIŞI (cold-start race):
+    # streamlit-cookies-controller bileşeni, bir tarayıcı sekmesi/PWA
+    # TAMAMEN yeni açıldığında (session_state boş, yani tam olarak
+    # "gün değiştirdiğinde tekrar aç" senaryosu — tab/PWA gün içinde
+    # açık kalırsa session_state zaten dolu olduğu için bu fonksiyona
+    # hiç girilmiyor, üstteki `if st.session_state.get("kullanici")`
+    # dalı yeterli oluyor) script'in bu İLK çalışmasında tarayıcıdan
+    # gerçek cookie listesini henüz ALMAMIŞ olabiliyor — bu durumda
+    # ctrl.get() "cookie hiç yok" ile "henüz yüklenmedi" arasında ayrım
+    # yapamıyor, ikisi de boş/None dönüyor (bkz. _cookie_ctrl() üstü
+    # not — bileşen kendi kendine bir rerun tetikliyor ama bu SONRAKİ
+    # script çalışmasında olur). Danisman_Giris.py gibi sayfalar bu
+    # otomatik rerun'dan ÖNCE, script'in aynı (ilk) çalışması içinde
+    # "oturum yok" kararını verip giriş formunu gösteriyor/switch_page
+    # çağırıyordu — kullanıcı geçerli bir cookie'si olduğu hâlde
+    # şifreyi yeniden yazmak zorunda kalıyordu.
+    #
+    # Çözüm: bu tarayıcı oturumunda (session_state, websocket bağlantısı
+    # boyunca kalıcı) DAHA ÖNCE denenmediyse, boş sonucu hemen kesin
+    # kabul etmek yerine BİR KEZ st.rerun() ile script'e ikinci bir şans
+    # veriyoruz — bileşenin gerçek cevabı genelde bu ikinci çalışmada
+    # hazır oluyor. Bayrak sayesinde sonsuz döngü riski yok (bir kez
+    # denenip denenmediği kaydediliyor) ve gerçekten cookie'si olmayan
+    # kullanıcılar için de tek seferlik, göz ile fark edilmeyecek kadar
+    # kısa bir ek yenileme dışında hiçbir davranış değişmiyor.
+    if not st.session_state.get("_cookie_soguk_baslangic_denendi"):
+        st.session_state["_cookie_soguk_baslangic_denendi"] = True
+        st.rerun()
 
     if not LOCAL_SESSION_RESTORE:
         return False
