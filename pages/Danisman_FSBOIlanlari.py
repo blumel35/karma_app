@@ -270,10 +270,14 @@ with mulk_col:
         label_visibility="collapsed",
     )
 with zaman_col:
+    # DÜZELTME (01.10.2026) — Startkey İlanları'ndaki AYNI düzeltme, bkz. o
+    # dosyadaki not: session_state'te zaten değer varken index=1 de vermek
+    # Streamlit uyarısına yol açıyordu ("created with a default value but
+    # also had its value set via the Session State API").
     zaman_secim = st.radio(
         "Zaman aralığı",
         ["Tümü", "Son 7 Gün", "Bugün"],
-        index=1,
+        index=None if "fsbo_zaman" in st.session_state else 1,
         horizontal=True,
         key="fsbo_zaman",
         help=(
