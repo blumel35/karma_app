@@ -115,21 +115,57 @@ if not bildirimler:
     st.info("Henüz bir bildirimin yok — yeni bir talep/portföy paylaşıldığında ya da sana özel bir bildirim gönderildiğinde burada görünecek.")
     st.stop()
 
+# DÜZELTME (01.10.2026, Meltem: "tüm bildirimlere basınca görüntüle
+# buyonu çıkıyor mümkünse ana sf daki bildirim yazısına doğrudan
+# tıklansın") — kök istek: ayrı bir "Görüntüle →" butonuna basmak yerine
+# bildirimin BAŞLIĞININ KENDİSİ tıklanabilir olsun (Danışman Panosu'nun
+# başka yerlerinde de kurulu desenle aynı — bkz. Danisman_Secim.py'deki
+# Talep/Portföy kartları notu: "TEK kontrol, ayrı buton eklemezdim").
+# st.button'ın kendi görünümünü CSS ile düz/kalın metne benzetip, hedefi
+# ÇÖZÜLEBİLEN bildirimlerde başlık artık doğrudan o butonun kendisi.
+# Hedefi çözülemeyen (tanınmayan) url'lerde eski "Görüntüle →" dış link
+# butonu olduğu gibi korunuyor — kırılma riski yok.
+st.markdown(
+    """
+    <style>
+    div[class*="st-key-bildirim_baslik_"] button {
+        all: unset;
+        display: block;
+        width: 100%;
+        font-weight: 700;
+        font-size: 1rem;
+        line-height: 1.4;
+        cursor: pointer;
+        color: inherit;
+    }
+    div[class*="st-key-bildirim_baslik_"] button:hover {
+        text-decoration: underline;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 for b in bildirimler:
     with st.container(border=True, key=f"bildirim_{b.get('id')}"):
+        hedef_sayfa, session_anahtari = (
+            _bildirim_url_coz(b["url"]) if b.get("url") else (None, None)
+        )
         ust_col, zaman_col = st.columns([5, 2])
         with ust_col:
-            st.markdown(f"**{b.get('baslik') or ''}**")
-        with zaman_col:
-            st.caption(_zaman_once(b.get("created_at")))
-        if b.get("govde"):
-            st.write(b["govde"])
-        if b.get("url"):
-            hedef_sayfa, session_anahtari = _bildirim_url_coz(b["url"])
             if hedef_sayfa:
-                if st.button("Görüntüle →", key=f"bildirim_git_{b.get('id')}", use_container_width=True):
+                if st.button(
+                    b.get("baslik") or "",
+                    key=f"bildirim_baslik_{b.get('id')}",
+                ):
                     if session_anahtari:
                         st.session_state[session_anahtari] = "Bugün"
                     st.switch_page(hedef_sayfa)
             else:
-                st.link_button("Görüntüle →", b["url"], use_container_width=True)
+                st.markdown(f"**{b.get('baslik') or ''}**")
+        with zaman_col:
+            st.caption(_zaman_once(b.get("created_at")))
+        if b.get("govde"):
+            st.write(b["govde"])
+        if b.get("url") and not hedef_sayfa:
+            st.link_button("Görüntüle →", b["url"], use_container_width=True)
