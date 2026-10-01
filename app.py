@@ -483,6 +483,20 @@ danisman_bildirimlerim = st.Page(
     icon=":material/notifications:",
 )
 
+# ── Yatırım Alıcısı İhtiyaç Formu — hızlı test turu (01.10.2026) ────────
+# Senaryo Hesaplayıcı/Hesap Aktivasyonu ile AYNI desen: oturumsuz,
+# müşteriye gönderilen bağımsız link (bkz. pages/Yatirim_Formu.py'deki
+# ayrıntılı not — static/ klasöründeki ilk deneme canlıda takılı
+# kaldığı için bu deseni kopyaladı). Meltem: "şimdilik bu sayfa sadece
+# bende görülsün" — bu yüzden hiçbir menüde/hamburger'da linklenmiyor,
+# navigation() listesinde olması SADECE URL ile erişilebilir olması
+# için gerekli (aksi halde "Could not find page" hatası verir).
+yatirim_formu = st.Page(
+    "pages/Yatirim_Formu.py",
+    title="Yatırım Formu",
+    icon=":material/real_estate_agent:",
+)
+
 # ─────────────────────────────────────────────────────
 # NAVIGATION
 # ─────────────────────────────────────────────────────
@@ -512,6 +526,7 @@ pg = st.navigation(
             danisman_zeta_portfoyleri,
             danisman_musterilerim,
             danisman_bildirimlerim,
+            yatirim_formu,
         ],
 
         "Danışman": [
