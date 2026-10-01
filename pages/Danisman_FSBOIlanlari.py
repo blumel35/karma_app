@@ -37,6 +37,7 @@ from core.danisman_ortak import (
 )
 from core.bolge_secici import (
     bolgelerini_cek, bolgelerini_kaydet, etkin_ilceler, pazar_ilanlarini_cek,
+    ilcenin_mahalleleri, ilce_mahallelerini_ayarla, mahalle_ile_filtrele,
 )
 
 if not oturum_kontrol():
@@ -77,6 +78,44 @@ with st.expander(
         except Exception as e:
             st.error(f"Kaydedilemedi: {e}")
 
+# ── MAHALLE BAZLI DARALTMA — EKLENDİ (01.10.2026, danışmanların yoğun
+# talebi: "sadece uzmanlık bölgesi değil aynı zamanda mahalle seçmek
+# istiyorlar... çoğu danışman birkaç mahalle üzerinden aktif çalışıyor")
+# — 5-ilçe SEÇİMİNE dokunmaz, her ilçenin İÇİNDE isteğe bağlı bir mahalle
+# alt-kümesi seçtirir. Seçim yapılmazsa (varsayılan) o ilçedeki TÜM
+# mahalleler geçerli — hiçbir danışman için geriye dönük davranış
+# değişmez. Hem bu sayfadaki listeyi HEM de push bildirimlerini
+# (core/bildirim_tetikleyici.py) daraltır (Meltem'in tercihi). Mahalle
+# seçenekleri izmir_mahalleler.json gibi sabit bir kaynaktan DEĞİL,
+# doğrudan izmir_pazar_ilanlar'daki gerçek verilerden geliyor (bkz.
+# core/bolge_secici.py:ilcenin_mahalleleri() — veri temizliği Meltem'in
+# Buca sorgusuyla doğrulandı).
+if kalici_ilceler:
+    with st.expander("Mahalle bazlı daraltma (isteğe bağlı)", expanded=False):
+        st.caption(
+            "Bir ilçede mahalle seçmezsen o ilçedeki tüm mahalleler geçerli "
+            "olmaya devam eder — hem listede hem bildirimlerde."
+        )
+        for _ilce in kalici_ilceler:
+            _onceki_secim = next(
+                (k.get("mahalleler") or [] for k in mevcut_kayitlar if k["ilce"] == _ilce), []
+            )
+            _secenekler = ilcenin_mahalleleri(_ilce, MARKA)
+            if not _secenekler:
+                st.caption(f"{_ilce}: bu ilçede henüz mahalle verisi yok.")
+                continue
+            _yeni_secim = st.multiselect(
+                _ilce, options=_secenekler, default=_onceki_secim,
+                key=f"fsbo_mahalle_{_ilce}",
+                placeholder="Tüm mahalleler (daraltma yok)",
+            )
+            if set(_yeni_secim) != set(_onceki_secim):
+                try:
+                    ilce_mahallelerini_ayarla(TABLO_ADI, _ilce, _yeni_secim)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Kaydedilemedi: {e}")
+
 # ── GEÇİCİ (AD-HOC) EK BÖLGE FİLTRESİ ────────────────────────────────
 # Kaydedilmez — sadece bu oturumda, kalıcı 5'liğe EK olarak ilçe(ler)
 # görmek için. "bugün sadece Çeşme'ye de bakayım" senaryosu.
@@ -109,6 +148,14 @@ with toolbar_col2:
         st.rerun()
 
 ilanlar_ham = pazar_ilanlarini_cek(MARKA, aktif_ilceler)
+
+# DÜZELTME (01.10.2026): yukarıdaki "Mahalle bazlı daraltma" seçimi
+# burada uygulanıyor — SADECE kalıcı ilçeler için (geçici/ad-hoc
+# ilçelerde zaten kaydedilmiş bir mahalle tercihi olamaz, o yüzden
+# haritada hiç yer almıyorlar ve tüm mahalleleriyle görünmeye devam
+# ederler, bu kasıtlı).
+_ilce_mahalle_haritasi = {k["ilce"]: (k.get("mahalleler") or []) for k in mevcut_kayitlar}
+ilanlar_ham = mahalle_ile_filtrele(ilanlar_ham, _ilce_mahalle_haritasi)
 
 if not ilanlar_ham:
     st.info("Seçili bölge(ler)de şu an aktif FSBO ilanı yok.")
