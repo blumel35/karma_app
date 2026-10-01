@@ -3,6 +3,7 @@
 
 import streamlit as st
 import os
+import time
 
 def _get_supa(use_service_key: bool = False):
     try:
@@ -995,8 +996,27 @@ def oturum_kontrol() -> bool:
     # denenip denenmediği kaydediliyor) ve gerçekten cookie'si olmayan
     # kullanıcılar için de tek seferlik, göz ile fark edilmeyecek kadar
     # kısa bir ek yenileme dışında hiçbir davranış değişmiyor.
+    #
+    # DÜZELTME (01.10.2026, Meltem canlı testinde: "30 gün boyunca beni
+    # hatırla seçeneğini tıklasak ta ertesi gün şifre girişi istiyor"):
+    # yukarıdaki st.rerun() ARADA HİÇ BEKLEMEDEN çağrılıyordu. Sorun:
+    # bir Streamlit bileşeninin tarayıcıdan gelen GERÇEK değeri Python
+    # tarafına ancak bir sonraki script çalışmasında yansır — ama bu
+    # yansımanın kendisi de bir ÖNCEKİ adımda tarayıcının document.cookie
+    # okuyup postMessage ile geri göndermesini (gerçek, sıfır olmayan
+    # bir ağ/JS gecikmesi) gerektiriyor. st.rerun()'ı GECİKMESİZ çağırmak,
+    # bu geri bildirim daha ulaşmadan script'i yeniden başlatıyordu —
+    # yani "ikinci şans" da genellikle AYNI boş/henüz-yüklenmemiş değeri
+    # okuyordu ve soğuk başlangıç yarışı aslında çözülmüyordu (yazma
+    # tarafındaki kanıtlanmış time.sleep(1) desenine BİLEREK burada da
+    # başvuruluyor — tek fark, write orada zaten açık bir websocket'e
+    # gönderilmiş mesajın işlenmesini bekliyordu, burada ise tarayıcının
+    # cevabının Python'a ulaşmasını bekliyoruz). Şimdi rerun'dan ÖNCE
+    # kısa bir gerçek bekleme ekleniyor — bu, tarayıcının cevabının asıl
+    # zamanında ulaşma ihtimalini ciddi şekilde artırıyor.
     if not st.session_state.get("_cookie_soguk_baslangic_denendi"):
         st.session_state["_cookie_soguk_baslangic_denendi"] = True
+        time.sleep(0.7)
         st.rerun()
 
     if not LOCAL_SESSION_RESTORE:
