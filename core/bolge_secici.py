@@ -71,7 +71,18 @@ def bolgelerini_kaydet(tablo_adi, ilceler):
     (delete + insert, RLS sessiz reddini tespit eden satır-sayısı
     kontrolü dahil), sadece tablo adı parametrik. En fazla MAX_BOLGE
     ilçe — UI tarafında (st.multiselect max_selections=MAX_BOLGE) zaten
-    zorlanmalı, burada ikinci bir güvenlik önlemi olarak tekrar kesilir."""
+    zorlanmalı, burada ikinci bir güvenlik önlemi olarak tekrar kesilir.
+
+    DÜZELTME (01.10.2026, Meltem: "... mahalle seçmek istiyorlar") —
+    core/danisman_ortak.py:uzmanlik_bolgelerini_kaydet()'teki AYNI
+    düzeltme buraya da taşındı: bu fonksiyon her "Kaydet" tıklamasında
+    TÜM satırları silip yeniden ekliyor — mahalleler sütunu eklendiğinden
+    beri, hâlâ seçili kalan bir ilçenin (örn. hem eski hem yeni seçimde
+    olan Buca) kaydedilmiş mahalle alt-filtresi bu sil-yeniden-ekle
+    sırasında sessizce boşa (yani "tüm mahalleler") sıfırlanırdı. Artık
+    silmeden ÖNCE mevcut {ilce: mahalleler} durumu okunup yeni eklenen
+    satırlara aktarılıyor — sadece YENİ eklenen bir ilçe boş listeyle
+    (tüm mahalleler) başlıyor."""
     kullanici = su_anki_danisman()
     ilceler = list(ilceler)[:MAX_BOLGE]
     if not kullanici:
@@ -79,10 +90,21 @@ def bolgelerini_kaydet(tablo_adi, ilceler):
             "Kaydedilemedi: giriş yapan kullanıcı tespit edilemedi "
             "(su_anki_danisman() boş döndü)."
         )
+    _mevcut_mahalleler = {
+        k["ilce"]: (k.get("mahalleler") or [])
+        for k in bolgelerini_cek(tablo_adi, kullanici)
+    }
     supabase.table(tablo_adi).delete().eq("kullanici", kullanici).execute()
     if ilceler:
         insert_resp = supabase.table(tablo_adi).insert(
-            [{"kullanici": kullanici, "ilce": ilce} for ilce in ilceler]
+            [
+                {
+                    "kullanici": kullanici,
+                    "ilce": ilce,
+                    "mahalleler": _mevcut_mahalleler.get(ilce, []),
+                }
+                for ilce in ilceler
+            ]
         ).execute()
         donen_sayi = len(insert_resp.data or [])
         if donen_sayi != len(ilceler):
@@ -96,16 +118,100 @@ def bolgelerini_kaydet(tablo_adi, ilceler):
             )
 
 
+def ilce_mahallelerini_ayarla(tablo_adi, ilce, mahalleler):
+    """YENİ (01.10.2026, Meltem: "... mahalle seçmek istiyorlar") — tek
+    bir ilçenin mahalle alt-filtresini, 5'lik İLÇE SEÇİMİNE hiç
+    dokunmadan günceller (core/danisman_ortak.py:
+    uzmanlik_bolgesi_bildirim_ayarla() ile AYNI desen). Boş liste = "bu
+    ilçede tüm mahalleler" (filtre yok, mevcut/varsayılan davranış)."""
+    kullanici = su_anki_danisman()
+    if not kullanici:
+        raise ValueError(
+            "Kaydedilemedi: giriş yapan kullanıcı tespit edilemedi "
+            "(su_anki_danisman() boş döndü)."
+        )
+    supabase.table(tablo_adi).update(
+        {"mahalleler": list(mahalleler or [])}
+    ).eq("kullanici", kullanici).eq("ilce", ilce).execute()
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def ilcenin_mahalleleri(ilce, marka):
+    """İzmir_pazar_ilanlar'da bu ilçe + marka için GERÇEKTEN görülen,
+    tekrarsız mahalle adlarını (alfabetik) döner — izmir_mahalleler.json
+    gibi sabit bir kaynak DEĞİL: Meltem'in Buca için çalıştırdığı canlı
+    SQL sorgusu mahalle alanının temiz/tutarlı ("X Mah" biçiminde)
+    olduğunu doğruladı, ama kaynak dosyadaki ek biçim tutarsızlıklarına
+    (bkz. core/danisman_ortak.py modül üstü not) hiç maruz kalmamak için
+    doğrudan canlı veriden okunuyor — seçenekler her zaman gerçekten
+    filtrelenebilir değerlerle eşleşir. 1 saat cache'li (mahalle listesi
+    günde bir kez değişen senkronizasyon verisine bağlı, sık tazelenmesi
+    gerekmiyor)."""
+    if not ilce:
+        return []
+    tum_mahalleler = set()
+    baslangic = 0
+    sayfa_boyutu = 1000
+    while True:
+        resp = (
+            supabase.table("izmir_pazar_ilanlar")
+            .select("mahalle")
+            .eq("marka", marka)
+            .eq("ilce", ilce)
+            .eq("aktif", True)
+            .range(baslangic, baslangic + sayfa_boyutu - 1)
+            .execute()
+        )
+        satirlar = resp.data or []
+        for r in satirlar:
+            m = (r.get("mahalle") or "").strip()
+            if m:
+                tum_mahalleler.add(m)
+        if len(satirlar) < sayfa_boyutu:
+            break
+        baslangic += sayfa_boyutu
+    return sorted(tum_mahalleler)
+
+
+def mahalle_ile_filtrele(ilanlar, ilce_mahalle_haritasi):
+    """İlan listesini, her ilçe için AYRI mahalle alt-kümesine göre
+    süzer. ilce_mahalle_haritasi: {ilce: [mahalle, ...]} — bir ilçe bu
+    haritada YOKSA ya da listesi boşsa, o ilçedeki TÜM ilanlar geçer
+    (filtre yok, varsayılan davranış). Bu, "Buca'da sadece Adatepe ve
+    Kuruçeşme, ama Balçova'da hepsi" gibi karma senaryoları doğru ele
+    alır — Supabase sorgusunda değil, Python'da uygulanıyor çünkü
+    kısıt ilçe başına değişken (tek bir .in_("mahalle", ...) tüm
+    ilçelere aynı anda uygulanamaz)."""
+    sonuc = []
+    for v in ilanlar:
+        ilce = (v.get("ilce") or "").strip()
+        kisitlar = ilce_mahalle_haritasi.get(ilce) or []
+        if not kisitlar:
+            sonuc.append(v)
+            continue
+        if (v.get("mahalle") or "").strip() in set(kisitlar):
+            sonuc.append(v)
+    return sonuc
+
+
 def tum_kullanicilarin_bolgeleri(tablo_adi):
     """YENİ (27.09.2026 — Faz 2 bildirimleri, Meltem: "önce sadece yeni
     ilan bildirimi"): aktif_bolgeler()'in aksine (tekrarsız İLÇE listesi,
     kimin seçtiği bilgisi kaybolur — senkronizasyon kapsamı için yeterli),
     burada TERSİNE ihtiyaç var: her KULLANICININ KENDİ ilçe listesi, günlük
     bildirim işinin "bu danışmana hangi ilan(lar) bildirim olarak gitsin"
-    sorusuna cevap verebilmesi için. {kullanici: [ilce, ilce, ...]} döner —
-    boş/None kullanıcı adlı satırlar atlanır."""
+    sorusuna cevap verebilmesi için.
+
+    DÜZELTME (01.10.2026, Meltem: "... mahalle seçmek istiyorlar"): dönüş
+    şekli {kullanici: [ilce, ...]} iken artık {kullanici: [{"ilce":...,
+    "mahalleler":[...]}, ...]} — her ilçenin KENDİ mahalle alt-filtresi
+    (varsa) bilgisini de taşıyor, böylece _pazar_bugun_sayilari() sadece
+    ilçe değil, seçiliyse mahalle bazında da doğru sayabiliyor. Tek
+    çağıran core/bildirim_tetikleyici.py:_pazar_bugun_sayilari() bu yeni
+    şekle göre güncellendi. Boş/None kullanıcı adlı veya ilçesiz satırlar
+    atlanır."""
     try:
-        resp = supabase.table(tablo_adi).select("kullanici, ilce").execute()
+        resp = supabase.table(tablo_adi).select("kullanici, ilce, mahalleler").execute()
     except Exception:
         return {}
     sonuc = {}
@@ -114,7 +220,9 @@ def tum_kullanicilarin_bolgeleri(tablo_adi):
         ilce = (r.get("ilce") or "").strip()
         if not kullanici or not ilce:
             continue
-        sonuc.setdefault(kullanici, []).append(ilce)
+        sonuc.setdefault(kullanici, []).append(
+            {"ilce": ilce, "mahalleler": r.get("mahalleler") or []}
+        )
     return sonuc
 
 
