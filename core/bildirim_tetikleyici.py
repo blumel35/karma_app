@@ -268,32 +268,47 @@ def _pazar_ilk_gorulme_gun(v):
 
 def _pazar_bugun_sayilari(tablo_adi, marka):
     """tablo_adi'na (fsbo_bolgeleri | startkey_ilan_bolgeleri) kayıtlı HER
-    kullanıcı için, KENDİ seçtiği ilçelerde BUGÜN veritabanına İLK KEZ
-    yazılan (ilk_gorulme_tarihi = bugün — bkz. _pazar_ilk_gorulme_gun)
-    ilan SAYISINI hesaplar. Sonuç {kullanici: sayı} — sayısı 0 olan
-    kullanıcılar sonuca dahil edilmez (çağıran taraf zaten sadece
-    bildirim gidecekleri dolaşıyor)."""
-    from core.bolge_secici import tum_kullanicilarin_bolgeleri, pazar_ilanlarini_cek
+    kullanıcı için, KENDİ seçtiği ilçelerde (varsa KENDİ mahalle alt-
+    filtresiyle) BUGÜN veritabanına İLK KEZ yazılan (ilk_gorulme_tarihi
+    = bugün — bkz. _pazar_ilk_gorulme_gun) ilan SAYISINI hesaplar. Sonuç
+    {kullanici: sayı} — sayısı 0 olan kullanıcılar sonuca dahil edilmez
+    (çağıran taraf zaten sadece bildirim gidecekleri dolaşıyor).
 
-    kullanici_ilceleri = tum_kullanicilarin_bolgeleri(tablo_adi)
-    if not kullanici_ilceleri:
+    DÜZELTME (01.10.2026, Meltem: "... mahalle seçmek istiyorlar"):
+    core/bolge_secici.py:tum_kullanicilarin_bolgeleri() artık her ilçe
+    için mahalleler alt-listesini de taşıyor (bkz. o fonksiyondaki aynı
+    tarihli not). Paylaşılan ilan havuzu HÂLÂ sadece ilçe kümesine göre
+    (eskisi gibi) bir kere çekiliyor/cache'leniyor — mahalle filtresi
+    her kullanıcı için o paylaşılan havuzun ÜZERİNE, ayrıca uygulanıyor
+    (iki kullanıcı aynı ilçeleri seçse bile mahalle alt-filtreleri farklı
+    olabilir, bu yüzden mahalle bazında ayrıca cache'lenmiyor — ama bu
+    adım saf Python/bellek içi, ekstra Supabase sorgusu gerektirmiyor)."""
+    from core.bolge_secici import (
+        tum_kullanicilarin_bolgeleri, pazar_ilanlarini_cek, mahalle_ile_filtrele,
+    )
+
+    kullanici_bolgeleri = tum_kullanicilarin_bolgeleri(tablo_adi)
+    if not kullanici_bolgeleri:
         return {}
     bugun = date.today()
     # Aynı ilçe kümesini seçen birden fazla kullanıcı için tekrar sorgu
     # atmamak üzere (pazar_ilanlarini_cek zaten @st.cache_data(ttl=60) ile
     # cache'li olsa da) burada da basit bir sonuç-cache'i tutuluyor.
-    _hesaplanan = {}
+    _ilanlar_havuzu = {}
     sonuc = {}
-    for kullanici, ilceler in kullanici_ilceleri.items():
+    for kullanici, kayitlar in kullanici_bolgeleri.items():
+        ilceler = [k["ilce"] for k in kayitlar]
         ilceler_key = tuple(sorted(set(ilceler)))
         if not ilceler_key:
             continue
-        if ilceler_key not in _hesaplanan:
-            ilanlar = pazar_ilanlarini_cek(marka, list(ilceler_key))
-            _hesaplanan[ilceler_key] = len(
-                [v for v in ilanlar if _pazar_ilk_gorulme_gun(v) == bugun]
-            )
-        sayi = _hesaplanan[ilceler_key]
+        if ilceler_key not in _ilanlar_havuzu:
+            _ilanlar_havuzu[ilceler_key] = pazar_ilanlarini_cek(marka, list(ilceler_key))
+        ilanlar = _ilanlar_havuzu[ilceler_key]
+
+        ilce_mahalle_haritasi = {k["ilce"]: (k.get("mahalleler") or []) for k in kayitlar}
+        ilanlar_kullanici = mahalle_ile_filtrele(ilanlar, ilce_mahalle_haritasi)
+
+        sayi = len([v for v in ilanlar_kullanici if _pazar_ilk_gorulme_gun(v) == bugun])
         if sayi:
             sonuc[kullanici] = sayi
     return sonuc
