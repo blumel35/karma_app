@@ -233,10 +233,18 @@ with mulk_col:
         label_visibility="collapsed",
     )
 with zaman_col:
+    # DÜZELTME (01.10.2026, Meltem'in ekran görüntüsünde görülen Streamlit
+    # uyarısı: "widget with key 'startkey_zaman' was created with a default
+    # value but also had its value set via the Session State API") — kök
+    # sebep: yukarıdaki query-param bloğu (ve artık Bildirimlerim.py'den
+    # gelen st.session_state["startkey_zaman"]="Bugün" ataması) widget
+    # OLUŞTURULMADAN ÖNCE session_state'i dolduruyor; aynı anda index=1
+    # vermek Streamlit'in "ikisini birden verme" kuralını ihlal ediyordu.
+    # index artık SADECE session_state'te henüz değer yokken veriliyor.
     zaman_secim = st.radio(
         "Zaman aralığı",
         ["Tümü", "Son 7 Gün", "Bugün"],
-        index=1,
+        index=None if "startkey_zaman" in st.session_state else 1,
         horizontal=True,
         key="startkey_zaman",
         help=(
