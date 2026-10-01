@@ -17,6 +17,7 @@ Diğer Danışman ekranlarıyla AYNI iskelet: oturum_kontrol + hide_sidebar_css
 
 import streamlit as st
 from datetime import datetime, timezone
+from urllib.parse import urlparse, parse_qs
 
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -60,6 +61,53 @@ def _zaman_once(iso_str):
         return iso_str
 
 
+# DÜZELTME (01.10.2026, Meltem: "bildirimlerin üzerine tıklayınca o sf ya
+# ve o günün ilanlarına gidebilmeliyiz") — kök sebep: "Görüntüle →" butonu
+# st.link_button() ile TAM (dış) URL'e (https://startkey-zeta.streamlit.app/...)
+# gidiyordu. Bu, zaten oturum açık olan Streamlit sekmesinde bile TAM bir
+# tarayıcı sayfa yenilemesi (yeni bir HTTP isteği, baştan oturum_kontrol())
+# tetikliyordu — soğuk başlangıç çerez yarışına (core/auth.py'deki aynı
+# sorun) yeniden maruz kalma riski VE ?zaman=bugun sorgu parametresinin bu
+# yenileme sürecinde güvenilir taşınmaması ihtimali vardı. Push bildirimleri
+# (farklı origin'deki servis worker'dan açıldıkları için) bu dış-link
+# yöntemine mahkum, ama BURASI zaten uygulamanın İÇİNDE — dış link yerine
+# st.switch_page() ile SAYFA İÇİ geçiş yapılabilir, oturum hiç bozulmaz.
+# "Bugün" filtresi de sorgu parametresi yerine DOĞRUDAN session_state'e
+# yazılıyor (Danisman_FSBOIlanlari.py/Danisman_StartkeyIlanlari.py zaten
+# "fsbo_zaman"/"startkey_zaman" session_state anahtarını okuyor) — push
+# bildirimindeki ?zaman=bugun ile AYNI sonucu, daha güvenilir şekilde verir.
+_URL_SAYFA_HARITASI = {
+    "/Danisman_Talep": "pages/Danisman_Talep.py",
+    "/Danisman_Portfoy": "pages/Danisman_Portfoy.py",
+    "/Danisman_FSBOIlanlari": "pages/Danisman_FSBOIlanlari.py",
+    "/Danisman_StartkeyIlanlari": "pages/Danisman_StartkeyIlanlari.py",
+}
+_URL_ZAMAN_SESSION_ANAHTARI = {
+    "/Danisman_FSBOIlanlari": "fsbo_zaman",
+    "/Danisman_StartkeyIlanlari": "startkey_zaman",
+}
+
+
+def _bildirim_url_coz(url):
+    """url'i (core/bildirim_tetikleyici.py'nin ürettiği birkaç sabit
+    kalıptan biri) uygulama içi bir sayfaya çözer. Eşleşme yoksa (None,
+    None) döner — çağıran taraf bu durumda eski dış-link davranışına
+    (st.link_button) düşer, ileride eklenecek tanınmayan bir url türü
+    sessizce kırılmasın diye."""
+    if not url:
+        return None, None
+    try:
+        parcalar = urlparse(url)
+    except Exception:
+        return None, None
+    hedef_sayfa = _URL_SAYFA_HARITASI.get(parcalar.path)
+    if not hedef_sayfa:
+        return None, None
+    bugun_mu = parse_qs(parcalar.query).get("zaman") == ["bugun"]
+    session_anahtari = _URL_ZAMAN_SESSION_ANAHTARI.get(parcalar.path) if bugun_mu else None
+    return hedef_sayfa, session_anahtari
+
+
 su_kullanici = su_anki_danisman()
 bildirimler = bildirimlerimi_cek(su_kullanici, limit=30)
 
@@ -77,4 +125,11 @@ for b in bildirimler:
         if b.get("govde"):
             st.write(b["govde"])
         if b.get("url"):
-            st.link_button("Görüntüle →", b["url"], use_container_width=True)
+            hedef_sayfa, session_anahtari = _bildirim_url_coz(b["url"])
+            if hedef_sayfa:
+                if st.button("Görüntüle →", key=f"bildirim_git_{b.get('id')}", use_container_width=True):
+                    if session_anahtari:
+                        st.session_state[session_anahtari] = "Bugün"
+                    st.switch_page(hedef_sayfa)
+            else:
+                st.link_button("Görüntüle →", b["url"], use_container_width=True)
