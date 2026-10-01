@@ -82,7 +82,13 @@ def bolgelerini_kaydet(tablo_adi, ilceler):
     sırasında sessizce boşa (yani "tüm mahalleler") sıfırlanırdı. Artık
     silmeden ÖNCE mevcut {ilce: mahalleler} durumu okunup yeni eklenen
     satırlara aktarılıyor — sadece YENİ eklenen bir ilçe boş listeyle
-    (tüm mahalleler) başlıyor."""
+    (tüm mahalleler) başlıyor.
+
+    DÜZELTME (01.10.2026, 2. tur, Meltem: "bildirimleri açıp kapama
+    özelliği vardı... fsbo ve startkey e de ekleyelim") — AYNI sebepten
+    AYNI desen bildirim_acik için de uygulandı: korunmazsa, hâlâ seçili
+    kalan bir ilçenin kapatılmış bildirimi her "Kaydet" tıklamasında
+    sessizce yeniden açılırdı."""
     kullanici = su_anki_danisman()
     ilceler = list(ilceler)[:MAX_BOLGE]
     if not kullanici:
@@ -90,10 +96,9 @@ def bolgelerini_kaydet(tablo_adi, ilceler):
             "Kaydedilemedi: giriş yapan kullanıcı tespit edilemedi "
             "(su_anki_danisman() boş döndü)."
         )
-    _mevcut_mahalleler = {
-        k["ilce"]: (k.get("mahalleler") or [])
-        for k in bolgelerini_cek(tablo_adi, kullanici)
-    }
+    _mevcut_kayitlar = bolgelerini_cek(tablo_adi, kullanici)
+    _mevcut_mahalleler = {k["ilce"]: (k.get("mahalleler") or []) for k in _mevcut_kayitlar}
+    _mevcut_bildirim = {k["ilce"]: k.get("bildirim_acik", True) for k in _mevcut_kayitlar}
     supabase.table(tablo_adi).delete().eq("kullanici", kullanici).execute()
     if ilceler:
         insert_resp = supabase.table(tablo_adi).insert(
@@ -102,6 +107,7 @@ def bolgelerini_kaydet(tablo_adi, ilceler):
                     "kullanici": kullanici,
                     "ilce": ilce,
                     "mahalleler": _mevcut_mahalleler.get(ilce, []),
+                    "bildirim_acik": _mevcut_bildirim.get(ilce, True),
                 }
                 for ilce in ilceler
             ]
@@ -132,6 +138,27 @@ def ilce_mahallelerini_ayarla(tablo_adi, ilce, mahalleler):
         )
     supabase.table(tablo_adi).update(
         {"mahalleler": list(mahalleler or [])}
+    ).eq("kullanici", kullanici).eq("ilce", ilce).execute()
+
+
+def ilce_bildirim_ayarla(tablo_adi, ilce, acik):
+    """YENİ (01.10.2026, 2. tur, Meltem: "bildirimleri açıp kapama
+    özelliği vardı hatırlarsan uzmanlık bölgelerimde yapmışız onu fsbo
+    ve startkey e de ekleyelim") — core/danisman_ortak.py:
+    uzmanlik_bolgesi_bildirim_ayarla() ile BİREBİR AYNI desen, sadece
+    tablo adı parametrik (ilce_mahallelerini_ayarla() ile aynı mantık).
+    5'lik İLÇE SEÇİMİNE hiç dokunmadan tek bir ilçenin bildirim
+    tercihini günceller — kapatılan ilçenin kayıtları listede/pazar
+    bildirimlerinde görünmeye devam eder, sadece o ilçe için push
+    gitmez (core/bildirim_tetikleyici.py:tum_kullanicilarin_bolgeleri())."""
+    kullanici = su_anki_danisman()
+    if not kullanici:
+        raise ValueError(
+            "Kaydedilemedi: giriş yapan kullanıcı tespit edilemedi "
+            "(su_anki_danisman() boş döndü)."
+        )
+    supabase.table(tablo_adi).update(
+        {"bildirim_acik": acik}
     ).eq("kullanici", kullanici).eq("ilce", ilce).execute()
 
 
@@ -209,9 +236,20 @@ def tum_kullanicilarin_bolgeleri(tablo_adi):
     ilçe değil, seçiliyse mahalle bazında da doğru sayabiliyor. Tek
     çağıran core/bildirim_tetikleyici.py:_pazar_bugun_sayilari() bu yeni
     şekle göre güncellendi. Boş/None kullanıcı adlı veya ilçesiz satırlar
-    atlanır."""
+    atlanır.
+
+    DÜZELTME (01.10.2026, 2. tur, Meltem: "bildirimleri açıp kapama
+    özelliği... fsbo ve startkey e de ekleyelim") — bu fonksiyonun TEK
+    çağıranı bildirim sayımı (_pazar_bugun_sayilari) olduğu için,
+    core/danisman_ortak.py:_uzmanlik_bolgesi_eslesenler() ile AYNI
+    kararla, bildirim_acik=False olan ilçe satırları BURADA (kaynakta)
+    tamamen atlanıyor — o ilçe artık bu kullanıcının bildirim listesine
+    hiç girmiyor, ama kaydın kendisi (Mahalle bazlı daraltma ekranındaki
+    bolgelerini_cek() çağrısı ayrı) listede görünmeye devam ediyor.
+    bildirim_acik sütunu henüz migration çalıştırılmamış eski satırlarda
+    yoksa (None), varsayılan olarak açık (True) sayılır."""
     try:
-        resp = supabase.table(tablo_adi).select("kullanici, ilce, mahalleler").execute()
+        resp = supabase.table(tablo_adi).select("kullanici, ilce, mahalleler, bildirim_acik").execute()
     except Exception:
         return {}
     sonuc = {}
@@ -219,6 +257,8 @@ def tum_kullanicilarin_bolgeleri(tablo_adi):
         kullanici = (r.get("kullanici") or "").strip()
         ilce = (r.get("ilce") or "").strip()
         if not kullanici or not ilce:
+            continue
+        if r.get("bildirim_acik") is False:
             continue
         sonuc.setdefault(kullanici, []).append(
             {"ilce": ilce, "mahalleler": r.get("mahalleler") or []}
