@@ -30,6 +30,7 @@ import time
 import json
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
+from urllib.parse import urlparse, parse_qs
 
 import streamlit as st
 
@@ -1088,6 +1089,48 @@ def render_activity_bar(startkey_yeni_sayisi=0):
                 st.switch_page("pages/Danisman_ZetaPortfoyleri.py")
 
 
+# ── BİLDİRİM URL ÇÖZÜMLEYİCİ — PAYLAŞILAN (01.10.2026, 4. tur) ──────────
+# ÖNCEDEN pages/Danisman_Bildirimlerim.py içinde yerel/tek kullanımlıktı;
+# Meltem'in ana sayfadaki "Bildirimlerim" önizlemesinde de (hemen aşağıda,
+# render_bildirim_onizleme) AYNI "başlığa tıklayınca ilgili sayfaya git"
+# davranışı istenince BURAYA (tek, paylaşılan yer) taşındı — iki kopyanın
+# zamanla birbirinden sapması riskini (biri düzeltilip öbürünün unutulması)
+# baştan ortadan kaldırmak için. Danisman_Bildirimlerim.py artık bu
+# fonksiyonu buradan import ediyor, kendi kopyasını tutmuyor.
+_BILDIRIM_URL_SAYFA_HARITASI = {
+    "/Danisman_Talep": "pages/Danisman_Talep.py",
+    "/Danisman_Portfoy": "pages/Danisman_Portfoy.py",
+    "/Danisman_FSBOIlanlari": "pages/Danisman_FSBOIlanlari.py",
+    "/Danisman_StartkeyIlanlari": "pages/Danisman_StartkeyIlanlari.py",
+}
+_BILDIRIM_URL_ZAMAN_SESSION_ANAHTARI = {
+    "/Danisman_FSBOIlanlari": "fsbo_zaman",
+    "/Danisman_StartkeyIlanlari": "startkey_zaman",
+}
+
+
+def bildirim_url_coz(url):
+    """url'i (core/bildirim_tetikleyici.py'nin ürettiği birkaç sabit
+    kalıptan biri) uygulama içi bir sayfaya çözer. Eşleşme yoksa (None,
+    None) döner — çağıran taraf bu durumda eski dış-link davranışına
+    (st.link_button) düşer, ileride eklenecek tanınmayan bir url türü
+    sessizce kırılmasın diye."""
+    if not url:
+        return None, None
+    try:
+        parcalar = urlparse(url)
+    except Exception:
+        return None, None
+    hedef_sayfa = _BILDIRIM_URL_SAYFA_HARITASI.get(parcalar.path)
+    if not hedef_sayfa:
+        return None, None
+    bugun_mu = parse_qs(parcalar.query).get("zaman") == ["bugun"]
+    session_anahtari = (
+        _BILDIRIM_URL_ZAMAN_SESSION_ANAHTARI.get(parcalar.path) if bugun_mu else None
+    )
+    return hedef_sayfa, session_anahtari
+
+
 def render_bildirim_onizleme():
     """YENİ (26.09.2026, Meltem: "bildirimlerim ana sayfada olmalı. son 24
     saat paylaşımının olduğu yerde bir de ayrıca tüm bildirimleri gösteren
@@ -1096,13 +1139,41 @@ def render_bildirim_onizleme():
     core/push_bildirim.py: bildirimlerimi_cek) — bu, "Son 24 saat" aktivite
     kutusunun HEMEN ALTINDA, aynı kompakt/kutu desende, son birkaç
     bildirimin bir önizlemesi. Kayıt yoksa kutuyu hiç göstermiyoruz
-    (render_activity_bar()'daki AYNI "boşsa dönme" mantığı)."""
+    (render_activity_bar()'daki AYNI "boşsa dönme" mantığı).
+
+    DÜZELTME (01.10.2026, Meltem canlı testte — ekran görüntüsü ana sayfa
+    önizlemesinden: "masaüstünde hala bildirimlerin üzerine tıklanmıyor"):
+    Danisman_Bildirimlerim.py'deki "başlığa tıkla, git" düzeltmesi SADECE o
+    tam listeye uygulanmıştı — Meltem aslında BURADAKİ (ana sayfa) önizlemeyi
+    test ediyordu, o hâlâ düz/tıklanamaz st.caption metniydi. Aynı davranış
+    (hedefi çözülebilen bildirimde başlık = buton, çözülemezse eski düz
+    metin) şimdi burada da uygulanıyor."""
     from core.push_bildirim import bildirimlerimi_cek
 
     kullanici = su_anki_danisman()
     bildirimler = bildirimlerimi_cek(kullanici, limit=3)
     if not bildirimler:
         return
+
+    st.markdown(
+        """
+        <style>
+        div[class*="st-key-dp_bildirim_onizleme_baslik_"] button {
+            all: unset;
+            display: block;
+            width: 100%;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            cursor: pointer;
+            color: inherit;
+        }
+        div[class*="st-key-dp_bildirim_onizleme_baslik_"] button:hover {
+            text-decoration: underline;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
     with st.container(border=True, key="dp_bildirim_onizleme_box"):
         st.markdown(
@@ -1115,7 +1186,17 @@ def render_bildirim_onizleme():
         )
         for b in bildirimler:
             _govde = f" — {b['govde']}" if b.get("govde") else ""
-            st.caption(f"• **{b.get('baslik') or ''}**{_govde}")
+            hedef_sayfa, session_anahtari = bildirim_url_coz(b.get("url"))
+            if hedef_sayfa:
+                if st.button(
+                    f"• {b.get('baslik') or ''}{_govde}",
+                    key=f"dp_bildirim_onizleme_baslik_{b.get('id')}",
+                ):
+                    if session_anahtari:
+                        st.session_state[session_anahtari] = "Bugün"
+                    st.switch_page(hedef_sayfa)
+            else:
+                st.caption(f"• **{b.get('baslik') or ''}**{_govde}")
         if st.button("Tüm Bildirimler →", key="ds_tum_bildirimler", use_container_width=True):
             st.switch_page("pages/Danisman_Bildirimlerim.py")
 
