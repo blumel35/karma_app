@@ -473,6 +473,13 @@ label{display:block;font-weight:800;margin-bottom:8px}
         </div>
       </div>
       <div class="mini" id="shareHint"></div>
+      <!-- YENİ (01.10.2026, 3. tur, Meltem: "özet bana geliyor ama sisteme
+      kayıt olmuyor esas amacımız o") — kaydet() artık BAŞARISIZ olursa
+      (önceden tamamen sessizce yutuluyordu, hiçbir iz kalmıyordu) burada
+      küçük bir "(Test notu)" satırı gösteriyor; başarılıysa hiçbir şey
+      görünmez. SADECE bu test turu için — gerçek müşteri kullanımına
+      geçmeden önce bu satır kaldırılmalı/sessize alınmalı. -->
+      <div class="mini" id="kayitDurum"></div>
     </section>
 
   </main>
@@ -526,7 +533,15 @@ async function kaydet(){
       detaylar:{S, alanlar},
       kaynak_url: location.href
     };
-    await fetch(SUPABASE_URL.replace(/\/$/,'')+'/rest/v1/musteri_talepleri',{
+    // DÜZELTME (01.10.2026, 3. tur, Meltem: "özet bana geliyor ama sisteme
+    // kayıt olmuyor esas amacımız o") — önceden bu fetch hiç kontrol
+    // edilmiyordu (ne await, ne de response.ok kontrolü); Supabase 4xx/5xx
+    // dönse bile sessizce "başarılı" gibi davranılıyordu, hiçbir hata izi
+    // kalmıyordu. Artık yanıt bekleniyor ve başarısızsa aşağıda #kayitDurum
+    // alanına (ve console.error'a) YAZILIYOR — kaydet() yine de await
+    // EDİLMİYOR finish() içinde (müşteri özeti bekletilmesin diye), ama
+        // kendi içinde artık sonucu görüyor/bildiriyor.
+    const res = await fetch(SUPABASE_URL.replace(/\/$/,'')+'/rest/v1/musteri_talepleri',{
       method:'POST',
       headers:{
         'apikey': SUPABASE_ANON_KEY,
@@ -536,9 +551,14 @@ async function kaydet(){
       },
       body: JSON.stringify(govde)
     });
+    if(!res.ok){
+      const hataMetni=await res.text().catch(()=>'');
+      console.error('musteri_talepleri kayıt hatası:', res.status, hataMetni);
+      if(kayitDurum) kayitDurum.textContent='(Test notu) Kayıt başarısız — HTTP '+res.status+(hataMetni?': '+hataMetni.slice(0,220):'');
+    }
   }catch(e){
-    // Sessizce düş — codebase'deki genel kural: müşteriye hata gösterme,
-    // formun kendisi her koşulda tamamlanmış görünmeli.
+    console.error('musteri_talepleri kayıt istisnası:', e);
+    if(kayitDurum) kayitDurum.textContent='(Test notu) Kayıt isteği gönderilemedi: '+(e&&e.message?e.message:String(e));
   }
 }
 
