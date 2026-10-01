@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Yatırım Amaçlı Gayrimenkul İhtiyaç Analizi</title>
+<style>
+:root{
+  --bg:#f6f7f9;--card:#fff;--ink:#171922;--muted:#6c7180;--line:#e5e7ed;
+  --accent:#2d327d;--soft:#eef0fb;--good:#edf7f3;--goodink:#315f51;
+  --shadow:0 18px 55px rgba(26,31,55,.09);--r:24px
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:
+  radial-gradient(circle at 18% -5%,rgba(45,50,125,.08),transparent 28%),
+  var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input,textarea{font:inherit}
+button{cursor:pointer}
+.shell{width:min(880px,100%);margin:auto;padding:18px 16px 64px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:16px}
+.brand{display:flex;gap:10px;align-items:center;font-weight:850;letter-spacing:-.02em}
+.logo{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:var(--accent);color:white;font-weight:900}
+.advisor{font-size:12px;color:var(--muted);text-align:right}
+.progress{height:7px;background:#e8eaf0;border-radius:99px;overflow:hidden;margin-bottom:8px}
+.bar{height:100%;background:var(--accent);width:0;transition:width .3s ease}
+.progressText{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin:0 2px 20px}
+.card{background:rgba(255,255,255,.98);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:30px}
+.step{display:none}
+.step.active{display:block;animation:in .25s ease}
+@keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.eyebrow{color:var(--accent);font-weight:850;text-transform:uppercase;letter-spacing:.09em;font-size:11px;margin-bottom:10px}
+h1,h2,h3{margin:0;letter-spacing:-.035em}
+h1{font-size:clamp(32px,6vw,48px);line-height:1.04}
+h2{font-size:clamp(26px,4.8vw,37px);line-height:1.1}
+h3{font-size:18px;margin-bottom:8px}
+.lead{color:var(--muted);font-size:16.5px;line-height:1.6;margin:14px 0 25px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.choice,.chip{
+  border:1px solid var(--line);background:#fff;color:var(--ink);transition:.16s ease
+}
+.choice{border-radius:18px;padding:18px;text-align:left;min-height:108px}
+.choice:hover{border-color:#c9cceb;transform:translateY(-1px)}
+.choice.selected{background:var(--soft);border-color:var(--accent)}
+.choice .ico{font-size:27px;display:block;margin-bottom:10px}
+.choice strong{display:block;font-size:16px;margin-bottom:4px}
+.choice small{display:block;color:var(--muted);font-size:12.5px;line-height:1.4}
+.pills{display:flex;flex-wrap:wrap;gap:9px}
+.chip{border-radius:999px;padding:10px 14px;font-weight:750}
+.chip.selected{background:var(--accent);border-color:var(--accent);color:#fff}
+.boxchips{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.boxchip{border:1px solid var(--line);background:#fff;border-radius:14px;min-height:64px;padding:12px 9px;font-weight:750;color:var(--ink)}
+.boxchip.selected{background:var(--soft);border-color:var(--accent);color:var(--accent)}
+.field{margin-top:19px}
+label{display:block;font-weight:800;margin-bottom:8px}
+.help{font-size:12.5px;line-height:1.45;color:var(--muted);margin-top:6px}
+.input,.textarea{
+  width:100%;border:1px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);
+  padding:13px 14px;outline:none;font-size:17px
+}
+.input:focus,.textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(45,50,125,.07)}
+.textarea{min-height:90px;resize:vertical}
+.section{margin-top:26px;padding-top:23px;border-top:1px solid var(--line)}
+.section:first-of-type{border-top:0;padding-top:0}
+.nav{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:26px}
+.btn{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:12px 19px;font-weight:850}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.soft{background:var(--soft);border-color:transparent;color:var(--accent)}
+.btn:disabled{opacity:.38;cursor:default}
+.hidden{display:none!important}
+.notice{background:var(--good);color:var(--goodink);border-radius:15px;padding:14px 16px;font-size:13px;line-height:1.5;margin-top:18px}
+.mini{font-size:12px;color:var(--muted);margin-top:10px}
+.summary{border:1px solid var(--line);border-radius:18px;padding:17px}
+.row{display:flex;justify-content:space-between;gap:18px;padding:10px 0;border-bottom:1px solid #f0f1f4}
+.row:last-child{border-bottom:0}
+.row span{color:var(--muted);font-size:13px}
+.row strong{text-align:right;font-size:14px}
+.profile{
+  margin-bottom:16px;background:var(--soft);border:1px solid #dce0f4;border-radius:17px;padding:16px
+}
+.profileTitle{font-weight:900;color:var(--accent);margin-bottom:6px}
+.profileText{font-size:14px;line-height:1.5;color:#444a63}
+.consent{display:flex;align-items:flex-start;gap:10px;margin-top:18px;font-size:12.5px;line-height:1.45;color:var(--muted)}
+.consent input{margin-top:3px}
+.footer{text-align:center;color:var(--muted);font-size:11px;padding-top:18px;line-height:1.45}
+@media(max-width:680px){
+  .shell{padding:12px 12px 45px}.card{padding:22px}
+  .grid2,.grid3,.boxchips{grid-template-columns:1fr}
+  .choice{min-height:auto}.top{align-items:flex-start}.advisor{max-width:44%}
+  .row{flex-direction:column;gap:3px}.row strong{text-align:left}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="top">
+    <div class="brand"><div class="logo">Z</div><div>Startkey Zeta</div></div>
+    <div class="advisor" id="advisorLabel">Gayrimenkul Danışmanınız</div>
+  </div>
+  <div class="progress"><div class="bar" id="bar"></div></div>
+  <div class="progressText"><span id="stepName">Başlangıç</span><span>Yaklaşık 3 dakika</span></div>
+
+  <main class="card">
+    <!-- DÜZELTME (01.10.2026, hızlı test turu, Meltem: "alıcı talep
+    linkini oluşturmaya geçelim deneme maksatlı hızlıca test etmek
+    istiyorum") — bkz. script sonundaki kaydet() fonksiyonu: form artık
+    gönderildiğinde Supabase'e (musteri_talepleri tablosu, anon anahtarla,
+    pano_export.py'deki favoriToggle ile AYNI client-side yazma deseni)
+    gerçekten yazıyor; aynı anda çalışan bir Postgres trigger (bkz.
+    yatirim_talepleri_migration.sql) kaydı Rehber'e (danisman_kisiler)
+    otomatik ekliyor/güncelliyor. -->
+
+    <section class="step active" data-step="0">
+      <div class="eyebrow">Yatırım İhtiyaç Analizi</div>
+      <h1>Doğru yatırım fırsatını birlikte tarif edelim.</h1>
+      <p class="lead">Birkaç kısa soruyla bütçenizi, getiri beklentinizi ve sizin için gerçekten önemli kriterleri anlayalım. Böylece size daha isabetli seçenekler sunabiliriz.</p>
+      <div class="notice">Burada “doğru cevap” yok. Yaklaşık bilgiler yeterli; emin olmadığınız soruları boş bırakabilirsiniz.</div>
+      <div class="nav"><span></span><button class="btn primary" onclick="go(1)">Başlayalım ›</button></div>
+    </section>
+
+    <section class="step" data-step="1">
+      <div class="eyebrow">Yatırım Türü</div>
+      <h2>Hangi tür gayrimenkul yatırımı düşünüyorsunuz?</h2>
+      <p class="lead">Seçiminize göre sonraki soruları değiştireceğiz.</p>
+      <div class="grid2">
+        <button class="choice prop" data-v="Konut"><span class="ico">🏡</span><strong>Konut</strong><small>Daire, villa, müstakil ev vb.</small></button>
+        <button class="choice prop" data-v="Ticari"><span class="ico">🏢</span><strong>Ticari</strong><small>Ofis, dükkan, mağaza, depo vb.</small></button>
+        <button class="choice prop" data-v="Arsa"><span class="ico">🌿</span><strong>Arsa</strong><small>İmarlı veya geliştirmeye uygun parsel.</small></button>
+        <button class="choice prop" data-v="Arazi"><span class="ico">🌾</span><strong>Arazi</strong><small>Tarla, zeytinlik, bağ-bahçe vb.</small></button>
+      </div>
+      <div class="nav"><button class="btn" onclick="go(0)">‹ Geri</button><button id="next1" class="btn primary" disabled onclick="go(2)">Devam et ›</button></div>
+    </section>
+
+    <section class="step" data-step="2">
+      <div class="eyebrow">Yatırım Hedefi</div>
+      <h2>Bu yatırımda önceliğiniz hangisi?</h2>
+      <p class="lead">Bu cevap, hangi mülkleri öne çıkaracağımızı belirlememize yardımcı olur.</p>
+      <div class="grid2">
+        <button class="choice goal" data-v="Düzenli kira geliri"><span class="ico">💰</span><strong>Düzenli kira geliri</strong><small>Kiralanabilirlik ve aylık gelir benim için öncelikli.</small></button>
+        <button class="choice goal" data-v="Değer artışı"><span class="ico">📈</span><strong>Değer artışı</strong><small>Orta-uzun vadede prim potansiyeline odaklanıyorum.</small></button>
+        <button class="choice goal" data-v="Kira + değer artışı"><span class="ico">⚖️</span><strong>Her ikisi de</strong><small>Kira getirisi ile değer artışını birlikte önemsiyorum.</small></button>
+        <button class="choice goal" data-v="Fırsat alımı"><span class="ico">🎯</span><strong>Fırsat alımı</strong><small>Piyasanın altında doğru fırsat çıkarsa değerlendirmek istiyorum.</small></button>
+      </div>
+
+      <div id="rentExpect" class="section hidden">
+        <h3>Kira beklentinizi de not edelim.</h3>
+        <div class="field">
+          <label>Beklediğiniz yaklaşık aylık kira geliri <span style="font-weight:500;color:var(--muted)">(opsiyonel)</span></label>
+          <input id="rent" class="input money" inputmode="numeric" placeholder="Örn. 45.000">
+          <div class="help">Net bir rakamınız yoksa boş bırakabilirsiniz. Bu yalnızca beklentinizi anlamak için.</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Yatırımı ne kadar süre elde tutmayı düşünüyorsunuz?</label>
+        <div class="pills">
+          <button class="chip horizon" data-v="1–3 yıl">1–3 yıl</button>
+          <button class="chip horizon" data-v="3–5 yıl">3–5 yıl</button>
+          <button class="chip horizon" data-v="5 yıl ve üzeri">5 yıl ve üzeri</button>
+          <button class="chip horizon" data-v="Henüz net değil">Henüz net değil</button>
+        </div>
+      </div>
+      <div class="nav"><button class="btn" onclick="go(1)">‹ Geri</button><button id="next2" class="btn primary" disabled onclick="go(3)">Devam et ›</button></div>
+    </section>
+
+    <section class="step" data-step="3">
+      <div class="eyebrow">Bölge</div>
+      <h2>Yatırımı nerede düşünüyorsunuz?</h2>
+      <p class="lead">Önce lokasyonu anlayalım; bütçeyi bir sonraki adımda ele alacağız.</p>
+      <div class="field">
+        <label>Öncelikli bölgeniz</label>
+        <input id="region1" class="input" placeholder="Örn. Balçova">
+      </div>
+      <div class="field">
+        <label>Alternatif bölge <span style="font-weight:500;color:var(--muted)">(opsiyonel)</span></label>
+        <input id="region2" class="input" placeholder="Örn. Narlıdere">
+      </div>
+      <div class="field">
+        <label>Bölge konusunda ne kadar esneksiniz?</label>
+        <div class="pills">
+          <button class="chip flex" data-v="Sadece belirttiğim bölge">Sadece belirttiğim bölge</button>
+          <button class="chip flex" data-v="Yakın çevre olabilir">Yakın çevre olabilir</button>
+          <button class="chip flex" data-v="Getirisi uygunsa farklı bölge olabilir">Getirisi uygunsa farklı bölge de olabilir</button>
+        </div>
+      </div>
+      <div class="nav"><button class="btn" onclick="go(2)">‹ Geri</button><button class="btn primary" onclick="go(4)">Devam et ›</button></div>
+    </section>
+
+    <section class="step" data-step="4">
+      <div class="eyebrow">Bütçe</div>
+      <h2>Yatırım için düşündüğünüz bütçe nedir?</h2>
+      <p class="lead">Yaklaşık bir aralık vermeniz yeterli.</p>
+      <div class="grid2">
+        <div class="field"><label>Alt sınır</label><input id="bmin" class="input money" inputmode="numeric" placeholder="Örn. 5.000.000"></div>
+        <div class="field"><label>Üst sınır</label><input id="bmax" class="input money" inputmode="numeric" placeholder="Örn. 8.000.000"></div>
+      </div>
+      <div class="field">
+        <label>Ödeme planınız</label>
+        <div class="pills">
+          <button class="chip pay" data-v="Nakit">Nakit</button>
+          <button class="chip pay" data-v="Nakit + kredi">Nakit + kredi</button>
+          <button class="chip pay" data-v="Finansmana göre karar vereceğim">Finansmana göre karar vereceğim</button>
+        </div>
+      </div>
+      <div class="nav"><button class="btn" onclick="go(3)">‹ Geri</button><button class="btn primary" onclick="prepareSpecific();go(5)">Devam et ›</button></div>
+    </section>
+
+    <section class="step" data-step="5">
+      <div class="eyebrow">Mülk Kriterleri</div>
+      <h2 id="specificTitle">Yatırım mülkünü biraz daha tarif edelim.</h2>
+      <p class="lead">Yalnızca seçtiğiniz yatırım türüyle ilgili soruları gösteriyoruz.</p>
+
+      <div id="homeSpecific" class="specific hidden">
+        <div class="field"><label>Tercih ettiğiniz oda sayısı</label>
+          <div class="pills">
+            <button class="chip rooms" data-v="1+1">1+1</button><button class="chip rooms" data-v="2+1">2+1</button>
+            <button class="chip rooms" data-v="3+1">3+1</button><button class="chip rooms" data-v="4+1 ve üzeri">4+1+</button>
+            <button class="chip rooms" data-v="Fark etmez">Fark etmez</button>
+          </div>
+        </div>
+        <div class="field"><label>Minimum net m² <span style="font-weight:500;color:var(--muted)">(opsiyonel)</span></label><input id="homeM2" class="input" inputmode="numeric" placeholder="Örn. 80"></div>
+        <div class="field"><label>Teslim / kullanım durumu</label>
+          <div class="pills">
+            <button class="chip delivery" data-v="Hemen kiraya verilebilir">Hemen kiraya verilebilir</button>
+            <button class="chip delivery" data-v="Yapım aşamasında olabilir">Yapım aşamasında olabilir</button>
+            <button class="chip delivery" data-v="Fark etmez">Fark etmez</button>
+          </div>
+        </div>
+        <div class="field"><label>Kiracılı mülk değerlendirir misiniz?</label>
+          <div class="pills"><button class="chip tenantedHome" data-v="Evet">Evet</button><button class="chip tenantedHome" data-v="Hayır">Hayır</button><button class="chip tenantedHome" data-v="Koşullara göre">Koşullara göre</button></div>
+        </div>
+        <div class="section">
+          <h3>Yatırımda vazgeçemeyeceğiniz özellikler</h3>
+          <div class="boxchips">
+            <button class="boxchip must" data-v="Toplu taşımaya yakın">Toplu taşımaya yakın</button>
+            <button class="boxchip must" data-v="Düşük / makul aidat">Düşük / makul aidat</button>
+            <button class="boxchip must" data-v="Asansör">Asansör</button>
+            <button class="boxchip must" data-v="Otopark">Otopark</button>
+            <button class="boxchip must" data-v="Yeni / yeni sayılabilecek bina">Yeni / yeni sayılabilecek bina</button>
+            <button class="boxchip must" data-v="Balkon / teras">Balkon / teras</button>
+            <button class="boxchip must" data-v="Kapalı mutfak">Kapalı mutfak</button>
+            <button class="boxchip must" data-v="Site içinde">Site içinde</button>
+            <button class="boxchip must" data-v="Kolay kiralanabilir plan">Kolay kiralanabilir plan</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="commercialSpecific" class="specific hidden">
+        <div class="field"><label>Ne tür ticari mülk?</label>
+          <div class="pills">
+            <button class="chip ctype" data-v="Ofis">Ofis</button><button class="chip ctype" data-v="Dükkan / mağaza">Dükkan / mağaza</button>
+            <button class="chip ctype" data-v="Depo">Depo</button><button class="chip ctype" data-v="Plaza katı">Plaza katı</button><button class="chip ctype" data-v="Fark etmez">Fark etmez</button>
+          </div>
+        </div>
+        <div class="field"><label>Minimum kullanım alanı <span style="font-weight:500;color:var(--muted)">(opsiyonel)</span></label><input id="commM2" class="input" placeholder="Örn. 150 m²"></div>
+        <div class="field"><label>Kiracılı mülk değerlendirir misiniz?</label>
+          <div class="pills"><button class="chip tenantedComm" data-v="Evet">Evet</button><button class="chip tenantedComm" data-v="Hayır">Hayır</button><button class="chip tenantedComm" data-v="Koşullara göre">Koşullara göre</button></div>
+        </div>
+        <div class="section"><h3>Vazgeçilmez yatırım kriterleri</h3>
+          <div class="boxchips">
+            <button class="boxchip must" data-v="Cadde / görünürlük">Cadde / görünürlük</button>
+            <button class="boxchip must" data-v="Otopark">Otopark</button>
+            <button class="boxchip must" data-v="Toplu taşımaya yakın">Toplu taşımaya yakın</button>
+            <button class="boxchip must" data-v="Yüksek yaya / araç trafiği">Yüksek yaya / araç trafiği</button>
+            <button class="boxchip must" data-v="Kurumsal kiracı potansiyeli">Kurumsal kiracı potansiyeli</button>
+            <button class="boxchip must" data-v="Boş teslim / kullanıma hazır">Boş teslim / kullanıma hazır</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="landSpecific" class="specific hidden">
+        <div class="field"><label>Arsada yatırım yaklaşımınız</label>
+          <div class="pills">
+            <button class="chip landgoal" data-v="Mevcut imarı güçlü">Mevcut imarı güçlü</button>
+            <button class="chip landgoal" data-v="Gelişme / prim potansiyeli">Gelişme / prim potansiyeli</button>
+            <button class="chip landgoal" data-v="Proje geliştirme">Proje geliştirme</button>
+            <button class="chip landgoal" data-v="Fark etmez">Fark etmez</button>
+          </div>
+        </div>
+        <div class="field"><label>Tercih ettiğiniz imar türü <span style="font-weight:500;color:var(--muted)">(opsiyonel)</span></label>
+          <div class="pills"><button class="chip zoning" data-v="Konut">Konut</button><button class="chip zoning" data-v="Ticaret">Ticaret</button><button class="chip zoning" data-v="Karma">Karma</button><button class="chip zoning" data-v="Fark etmez">Fark etmez</button></div>
+        </div>
+        <div class="field"><label>Minimum alan <span style="font-weight:500;color:var(--muted)">(opsiyonel)</span></label><input id="landM2" class="input" placeholder="Örn. 500 m²"></div>
+        <div class="section"><h3>Vazgeçilmez yatırım kriterleri</h3>
+          <div class="boxchips">
+            <button class="boxchip must" data-v="Müstakil tapu">Müstakil tapu</button>
+            <button class="boxchip must" data-v="Kadastral yol">Kadastral yol</button>
+            <button class="boxchip must" data-v="Elektrik / su altyapısı">Elektrik / su altyapısı</button>
+            <button class="boxchip must" data-v="Belirli emsal / KAKS">Belirli emsal / KAKS</button>
+            <button class="boxchip must" data-v="Köşe parsel">Köşe parsel</button>
+            <button class="boxchip must" data-v="Gelişim aksında">Gelişim aksında</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="fieldSpecific" class="specific hidden">
+        <div class="field"><label>Arazide yatırım yaklaşımınız</label>
+          <div class="pills">
+            <button class="chip fieldgoal" data-v="Tarımsal gelir">Tarımsal gelir</button>
+            <button class="chip fieldgoal" data-v="Uzun vadeli değer artışı">Uzun vadeli değer artışı</button>
+            <button class="chip fieldgoal" data-v="Her ikisi">Her ikisi</button>
+          </div>
+        </div>
+        <div class="field"><label>Minimum alan <span style="font-weight:500;color:var(--muted)">(opsiyonel)</span></label><input id="fieldM2" class="input" placeholder="Örn. 5 dönüm"></div>
+        <div class="section"><h3>Vazgeçilmez yatırım kriterleri</h3>
+          <div class="boxchips">
+            <button class="boxchip must" data-v="Müstakil tapu">Müstakil tapu</button>
+            <button class="boxchip must" data-v="Kadastral yol">Kadastral yol</button>
+            <button class="boxchip must" data-v="Su">Su</button>
+            <button class="boxchip must" data-v="Elektrik">Elektrik</button>
+            <button class="boxchip must" data-v="Kuyu / sulama">Kuyu / sulama</button>
+            <button class="boxchip must" data-v="Düz / az eğimli">Düz / az eğimli</button>
+            <button class="boxchip must" data-v="Ürün / gelir potansiyeli">Ürün / gelir potansiyeli</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Listede olmayan başka bir olmazsa olmazınız var mı? <span style="font-weight:500;color:var(--muted)">(opsiyonel)</span></label>
+        <input id="mustOther" class="input" placeholder="Kısaca yazabilirsiniz">
+      </div>
+      <div class="nav"><button class="btn" onclick="go(4)">‹ Geri</button><button class="btn primary" onclick="go(6)">Devam et ›</button></div>
+    </section>
+
+    <section class="step" data-step="6">
+      <div class="eyebrow">Karar ve Zaman</div>
+      <h2>Doğru fırsatı bulduğumuzda nasıl ilerlersiniz?</h2>
+      <p class="lead">Bu bölüm, size hangi hızda seçenek sunmamız gerektiğini anlamamız için.</p>
+      <div class="field"><label>Satın alma kararını kim verecek?</label>
+        <div class="pills">
+          <button class="chip decider" data-v="Ben">Ben</button>
+          <button class="chip decider" data-v="Eşim / ailemle birlikte">Eşim / ailemle birlikte</button>
+          <button class="chip decider" data-v="Ortak / şirketle birlikte">Ortak / şirketle birlikte</button>
+        </div>
+      </div>
+      <div class="field"><label>Doğru fırsatı bugün bulsak ne kadar hızlı ilerleyebilirsiniz?</label>
+        <div class="grid2">
+          <button class="choice ready" data-v="Hemen"><strong>Hemen</strong><small>Koşullar uygunsa hızlı karar verebilirim.</small></button>
+          <button class="choice ready" data-v="1 ay içinde"><strong>1 ay içinde</strong><small>Yakın zamanda yatırım yapmak istiyorum.</small></button>
+          <button class="choice ready" data-v="1–3 ay"><strong>1–3 ay</strong><small>Alternatifleri karşılaştırarak ilerliyorum.</small></button>
+          <button class="choice ready" data-v="Araştırma aşamasındayım"><strong>Araştırma aşamasındayım</strong><small>Önce piyasayı ve fırsatları görmek istiyorum.</small></button>
+        </div>
+      </div>
+      <div class="nav"><button class="btn" onclick="go(5)">‹ Geri</button><button class="btn primary" onclick="go(7)">Devam et ›</button></div>
+    </section>
+
+    <section class="step" data-step="7">
+      <div class="eyebrow">Deneyiminiz</div>
+      <h2>Daha önce yatırım için mülk baktınız mı?</h2>
+      <p class="lead">Beğendiğiniz ve vazgeçtiğiniz seçenekler, beklentinizi çok daha hızlı anlamamıza yardımcı olur.</p>
+      <div class="pills">
+        <button class="chip prior" data-v="Evet">Evet</button>
+        <button class="chip prior" data-v="Hayır">Hayır</button>
+      </div>
+      <div id="priorDetails" class="section hidden">
+        <div class="field"><label>Beğendiğiniz özellikler nelerdi?</label><textarea id="liked" class="textarea" placeholder="Örn. konumu, kira potansiyeli, fiyatı..."></textarea></div>
+        <div class="field"><label>Neden vazgeçtiniz?</label><textarea id="rejected" class="textarea" placeholder="Örn. aidat yüksek, kira getirisi düşük, bina eski..."></textarea></div>
+        <div class="field"><label>İlan linki varsa eklemek ister misiniz? <span style="font-weight:500;color:var(--muted)">(opsiyonel)</span></label><input id="listing" class="input" placeholder="https://..."></div>
+      </div>
+      <div class="nav"><button class="btn" onclick="go(6)">‹ Geri</button><button class="btn primary" onclick="go(8)">Devam et ›</button></div>
+    </section>
+
+    <section class="step" data-step="8">
+      <div class="eyebrow">İletişim</div>
+      <h2>Size uygun seçenekleri kaydedebilmemiz için son bir adım.</h2>
+      <p class="lead">İletişim bilgilerinizi en sona bıraktık; önce yatırım ihtiyacınızı anlamak istedik.</p>
+      <div class="field"><label>Ad Soyad <span style="font-weight:500;color:var(--muted)">(zorunlu)</span></label><input id="name" class="input" autocomplete="name" placeholder="Adınız Soyadınız"></div>
+      <div class="field"><label>Telefon <span style="font-weight:500;color:var(--muted)">(zorunlu)</span></label><input id="phone" class="input" autocomplete="tel" inputmode="tel" placeholder="05xx xxx xx xx"></div>
+      <div class="field"><label>E-posta <span style="font-weight:500;color:var(--muted)">(opsiyonel)</span></label><input id="email" class="input" autocomplete="email" inputmode="email" placeholder="ornek@mail.com"></div>
+
+      <label class="consent">
+        <input id="consent" type="checkbox">
+        <span>Gayrimenkul ihtiyacım kapsamında benimle iletişim kurulması amacıyla iletişim bilgilerimin kullanılmasını kabul ediyorum. <strong>Gerçek kullanımda kurumunuzun onaylı KVKK Aydınlatma Metni bu alana bağlanmalıdır.</strong></span>
+      </label>
+      <div class="nav"><button class="btn" onclick="go(7)">‹ Geri</button><button class="btn primary" onclick="finish()">Özetimi oluştur ›</button></div>
+    </section>
+
+    <section class="step" data-step="9">
+      <div class="eyebrow">Tamamlandı</div>
+      <h2>Sizi şöyle anladık.</h2>
+      <p class="lead">Aşağıdaki bilgiler danışmanınızın size daha uygun yatırım seçenekleri araştırmasına yardımcı olacak.</p>
+      <div class="profile">
+        <div class="profileTitle" id="profileTitle">Yatırım Profili</div>
+        <div class="profileText" id="profileText"></div>
+      </div>
+      <div id="summary" class="summary"></div>
+      <div id="yieldNote" class="notice hidden"></div>
+
+      <div class="nav" style="flex-wrap:wrap">
+        <button class="btn" onclick="go(8)">‹ Düzenle</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn soft" onclick="copySummary()">Özeti kopyala</button>
+          <button class="btn primary" onclick="shareSummary()">Danışmanımla paylaş</button>
+        </div>
+      </div>
+      <div class="mini" id="shareHint"></div>
+    </section>
+
+  </main>
+  <div class="footer">Pilot müşteri deneyimi · Startkey Zeta Gayrimenkul.</div>
+</div>
+
+<script>
+const params=new URLSearchParams(location.search);
+const ADVISOR=params.get('advisor')||'Gayrimenkul Danışmanınız';
+const WA=(params.get('wa')||'').replace(/\D/g,'');
+// YENİ (01.10.2026, hızlı test turu): ?danisman=... — musteri_talepleri
+// satırını VE Rehber (danisman_kisiler) senkronizasyonunu hangi
+// danışmana bağlayacağımızı belirtir. Bu parametre, o danışmanın
+// su_anki_danisman()'daki (core/danisman_ortak.py) GERÇEK kimliğiyle
+// BİREBİR AYNI olmalı — aksi halde kayıt yanlış/hiçbir danışmana
+// bağlanmaz. ?advisor= SADECE müşteriye gösterilen İSİM, ?danisman=
+// SİSTEMİN İÇ kimliği — ikisi farklı amaçlara hizmet ediyor, bilerek
+// ayrı tutuldu.
+const DANISMAN=params.get('danisman')||'';
+document.getElementById('advisorLabel').textContent=ADVISOR;
+
+// YENİ (01.10.2026, hızlı test turu) — Supabase proje bilgileri. Değerler
+// Supabase Dashboard > Settings > API'den: "Project URL" ve "anon public"
+// anahtarı (service_role DEĞİL — o anahtar gizli kalmalı, buraya ASLA
+// yazılmamalı). Bu HTML statik/herkese açık servis edildiği için (static/
+// klasörü) bu iki değer tarayıcı kaynağında GÖRÜNÜR olacak — bu, zaten
+// pano_export.py'deki favoriToggle ile AYNI, bilinçli/güvenli tasarım:
+// "anon" anahtarı zaten public kullanım için var, gerçek güvenlik Row
+// Level Security politikalarında (bkz. migration'daki "yalnızca insert"
+// politikası).
+const SUPABASE_URL='https://lfpnkuldlirnljsrkkyf.supabase.co';
+const SUPABASE_ANON_KEY='sb_publishable_LwnIYzskXmuq6BLNYI5ngw_JUk0TMgj';
+
+async function kaydet(){
+  // Placeholder'lar doldurulmadan deploy edilirse sessizce atla — müşteri
+  // deneyimini hiçbir şekilde bozmasın.
+  if(!SUPABASE_URL || SUPABASE_URL.indexOf('__')===0) return;
+  try{
+    const alanlar={}; buildRows().forEach(r=>{alanlar[r[0]]=r[1];});
+    const govde={
+      talep_tipi:'yatirim_alici',
+      danisman: DANISMAN||null,
+      musteri_adi: text('name'),
+      telefon: text('phone'),
+      eposta: text('email')||null,
+      oncelikli_bolge: text('region1')||null,
+      alternatif_bolge: text('region2')||null,
+      butce_min: moneyNumber('bmin')||null,
+      butce_max: moneyNumber('bmax')||null,
+      mulk_turu: S.prop||null,
+      detaylar:{S, alanlar},
+      kaynak_url: location.href
+    };
+    await fetch(SUPABASE_URL.replace(/\/$/,'')+'/rest/v1/musteri_talepleri',{
+      method:'POST',
+      headers:{
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization':'Bearer '+SUPABASE_ANON_KEY,
+        'Content-Type':'application/json',
+        'Prefer':'return=minimal'
+      },
+      body: JSON.stringify(govde)
+    });
+  }catch(e){
+    // Sessizce düş — codebase'deki genel kural: müşteriye hata gösterme,
+    // formun kendisi her koşulda tamamlanmış görünmeli.
+  }
+}
+
+const S={prop:'',goal:'',horizon:'',flex:'',pay:'',decider:'',ready:'',prior:'',must:[],
+        rooms:'',delivery:'',tenantedHome:'',tenantedComm:'',ctype:'',landgoal:'',zoning:'',fieldgoal:''};
+const names=['Başlangıç','Yatırım türü','Yatırım hedefi','Bölge','Bütçe','Mülk kriterleri','Karar ve zaman','Deneyim','İletişim','Özet'];
+
+function go(n){
+  document.querySelectorAll('.step').forEach(x=>x.classList.toggle('active',+x.dataset.step===n));
+  bar.style.width=(n/(names.length-1)*100)+'%';
+  stepName.textContent=names[n]||'';
+  scrollTo({top:0,behavior:'smooth'});
+}
+function single(cls,b,key){
+  document.querySelectorAll('.'+cls).forEach(x=>x.classList.remove('selected'));
+  b.classList.add('selected'); if(key) S[key]=b.dataset.v;
+}
+// DÜZELTME (01.10.2026): önceden her tuş vuruşunda yeniden biçimlendiriliyordu
+// (binlik ayraç), bu da imleci her seferinde sona atıp sayının ortasını
+// düzeltmeyi zorlaştırıyordu. Artık odaklanınca (focus) ayraçsız ham
+// rakamlar gösteriliyor (serbestçe düzenlenebilir), alandan çıkınca (blur)
+// tekrar biçimlendiriliyor.
+document.querySelectorAll('.money').forEach(i=>{
+  i.addEventListener('focus',()=>{ i.value=i.value.replace(/\D/g,''); });
+  i.addEventListener('blur',()=>{
+    const d=i.value.replace(/\D/g,''); i.value=d?Number(d).toLocaleString('tr-TR'):'';
+  });
+});
+document.querySelectorAll('.prop').forEach(b=>b.onclick=()=>{
+  single('prop',b,'prop'); next1.disabled=false;
+});
+document.querySelectorAll('.goal').forEach(b=>b.onclick=()=>{
+  single('goal',b,'goal'); next2.disabled=false;
+  rentExpect.classList.toggle('hidden',!(S.goal==='Düzenli kira geliri'||S.goal==='Kira + değer artışı'));
+});
+document.querySelectorAll('.horizon').forEach(b=>b.onclick=()=>single('horizon',b,'horizon'));
+document.querySelectorAll('.flex').forEach(b=>b.onclick=()=>single('flex',b,'flex'));
+document.querySelectorAll('.pay').forEach(b=>b.onclick=()=>single('pay',b,'pay'));
+document.querySelectorAll('.decider').forEach(b=>b.onclick=()=>single('decider',b,'decider'));
+document.querySelectorAll('.ready').forEach(b=>b.onclick=()=>single('ready',b,'ready'));
+document.querySelectorAll('.prior').forEach(b=>b.onclick=()=>{
+  single('prior',b,'prior'); priorDetails.classList.toggle('hidden',S.prior!=='Evet');
+});
+['rooms','delivery','tenantedHome','tenantedComm','ctype','landgoal','zoning','fieldgoal'].forEach(cls=>{
+  document.querySelectorAll('.'+cls).forEach(b=>b.onclick=()=>single(cls,b,cls));
+});
+document.querySelectorAll('.must').forEach(b=>b.onclick=()=>{
+  const v=b.dataset.v;
+  if(b.classList.contains('selected')){b.classList.remove('selected');S.must=S.must.filter(x=>x!==v)}
+  else{b.classList.add('selected');S.must.push(v)}
+});
+
+// DÜZELTME (01.10.2026): "Kiracılı mülk değerlendirir misiniz?" sorusu
+// Konut ve Ticari bölümlerinde AYNI sınıfı ("tenanted") paylaşıyordu —
+// biri Konut için cevaplayıp geri dönüp Ticari'ye geçerse, ekranda hiçbir
+// seçili görünmediği halde özet ekranında eski cevap sessizce yeni türe
+// taşınıyordu (yanlış bilgi danışmana gidebilirdi). Artık her ikisinin
+// kendi ayrı anahtarı var (tenantedHome / tenantedComm) VE yatırım türü
+// her değiştiğinde (bu fonksiyon Bütçe adımından çıkışta çağrılıyor) o
+// türe özel TÜM cevaplar (sadece "vazgeçilmezler" değil) sıfırlanıyor —
+// böylece hangi türe geçilirse geçilsin, görünen de kaydedilen de hep
+// tutarlı, hiçbir eski cevap sessizce taşınmıyor.
+function prepareSpecific(){
+  document.querySelectorAll('.specific').forEach(x=>x.classList.add('hidden'));
+  ['rooms','delivery','tenantedHome','tenantedComm','ctype','landgoal','zoning','fieldgoal'].forEach(cls=>{
+    S[cls]='';
+    document.querySelectorAll('.'+cls).forEach(x=>x.classList.remove('selected'));
+  });
+  S.must=[]; document.querySelectorAll('.must').forEach(x=>x.classList.remove('selected'));
+  if(S.prop==='Konut') homeSpecific.classList.remove('hidden');
+  if(S.prop==='Ticari') commercialSpecific.classList.remove('hidden');
+  if(S.prop==='Arsa') landSpecific.classList.remove('hidden');
+  if(S.prop==='Arazi') fieldSpecific.classList.remove('hidden');
+}
+
+function moneyNumber(id){
+  const el=document.getElementById(id); if(!el) return 0;
+  return Number((el.value||'').replace(/\D/g,''))||0;
+}
+function text(id){const el=document.getElementById(id);return el?(el.value||'').trim():''}
+function clean(v){return v||'—'}
+// YENİ (01.10.2026): özet ekranı kullanıcı girdisini doğrudan innerHTML'e
+// basıyordu (kaçışsız) — form şu an statik/kayıtsız olduğu için pratik
+// risk düşüktü, ama ileride gerçek bir veritabanı kaydına (başka
+// danışmanların göreceği bir panele) bağlanırsa bu, saklı/stored XSS
+// riski taşırdı. Artık özet HTML'e basılmadan önce kaçışlanıyor.
+function escapeHtml(v){
+  return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function specificSummary(){
+  const a=[];
+  if(S.prop==='Konut'){
+    if(S.rooms)a.push('Oda: '+S.rooms);
+    if(text('homeM2'))a.push('Min. net m²: '+text('homeM2'));
+    if(S.delivery)a.push('Teslim: '+S.delivery);
+    if(S.tenantedHome)a.push('Kiracılı mülk: '+S.tenantedHome);
+  }
+  if(S.prop==='Ticari'){
+    if(S.ctype)a.push('Tip: '+S.ctype);
+    if(text('commM2'))a.push('Min. alan: '+text('commM2'));
+    if(S.tenantedComm)a.push('Kiracılı mülk: '+S.tenantedComm);
+  }
+  if(S.prop==='Arsa'){
+    if(S.landgoal)a.push('Yaklaşım: '+S.landgoal);
+    if(S.zoning)a.push('İmar: '+S.zoning);
+    if(text('landM2'))a.push('Min. alan: '+text('landM2'));
+  }
+  if(S.prop==='Arazi'){
+    if(S.fieldgoal)a.push('Yaklaşım: '+S.fieldgoal);
+    if(text('fieldM2'))a.push('Min. alan: '+text('fieldM2'));
+  }
+  return a.join(' · ')||'—';
+}
+function buildRows(){
+  let must=[...S.must]; if(text('mustOther'))must.push(text('mustOther'));
+  return [
+    ['Müşteri',clean(text('name'))],
+    ['Yatırım türü',clean(S.prop)],
+    ['Öncelik',clean(S.goal)],
+    ['Yatırım süresi',clean(S.horizon)],
+    ['Beklenen aylık kira',moneyNumber('rent')?document.getElementById('rent').value+' TL':'—'],
+    ['Öncelikli bölge',clean(text('region1'))],
+    ['Alternatif bölge',clean(text('region2'))],
+    ['Bölge esnekliği',clean(S.flex)],
+    ['Bütçe',(text('bmin')||'—')+' – '+(text('bmax')||'—')+' TL'],
+    ['Ödeme',clean(S.pay)],
+    ['Mülk detayları',specificSummary()],
+    ['Olmazsa olmazlar',must.length?must.join(', '):'—'],
+    ['Karar',clean(S.decider)],
+    ['Hazır oluş',clean(S.ready)],
+    ['Daha önce baktı mı?',clean(S.prior)],
+    ['Beğendiği özellikler',clean(text('liked'))],
+    ['Vazgeçme nedeni',clean(text('rejected'))],
+    ['İlan / örnek link',clean(text('listing'))],
+    ['Telefon',clean(text('phone'))],
+    ['E-posta',clean(text('email'))]
+  ];
+}
+function profileSentence(){
+  const bits=[];
+  if(S.goal)bits.push(S.goal.toLowerCase()+' odaklı');
+  if(S.prop)bits.push(S.prop.toLowerCase()+' yatırımı');
+  if(text('region1'))bits.push(text('region1')+' öncelikli');
+  if(S.flex==='Getirisi uygunsa farklı bölge olabilir')bits.push('lokasyonda esnek');
+  if(S.ready)bits.push(S.ready.toLowerCase()+' hareket edebilir');
+  return bits.length?bits.join(' · '):'Yatırım ihtiyacı kaydedildi.';
+}
+function finish(){
+  // YENİ (01.10.2026): isim ve telefon artık zorunlu — önceden hiçbir
+  // kontrol yoktu, danışmana iletişim bilgisi olmayan bir "tamamlanmış"
+  // talep gidebiliyordu.
+  if(!text('name')){
+    alert('Lütfen Ad Soyad alanını doldurun.');
+    return;
+  }
+  if(!text('phone')){
+    alert('Lütfen telefon numaranızı girin — danışmanınızın size ulaşabilmesi için gerekli.');
+    return;
+  }
+  // YENİ (01.10.2026): alt sınır üst sınırdan büyük girilirse uyar.
+  const bminN=moneyNumber('bmin'), bmaxN=moneyNumber('bmax');
+  if(bminN>0 && bmaxN>0 && bminN>bmaxN){
+    alert('Bütçe alt sınırı üst sınırdan büyük olamaz — lütfen kontrol edin.');
+    return;
+  }
+  if(!consent.checked){
+    alert('Devam etmek için iletişim izni kutusunu işaretleyin.');
+    return;
+  }
+  // YENİ (01.10.2026, hızlı test turu): tüm doğrulamalar geçtikten SONRA,
+  // özet ekranına geçmeden HEMEN ÖNCE kaydet() tetiklenir — await
+  // EDİLMİYOR (bilerek): müşteri ağ isteğini beklemeden özetini görsün,
+  // kayıt arka planda tamamlanır.
+  kaydet();
+  const rows=buildRows();
+  summary.innerHTML=rows.map(r=>`<div class="row"><span>${escapeHtml(r[0])}</span><strong>${escapeHtml(r[1])}</strong></div>`).join('');
+  profileTitle.textContent=(text('name')||'Müşteri')+' · Yatırım Profili';
+  profileText.textContent=profileSentence();
+
+  const rentN=moneyNumber('rent'), budgetMax=moneyNumber('bmax');
+  if(rentN>0 && budgetMax>0 && (S.prop==='Konut'||S.prop==='Ticari')){
+    const gross=(rentN*12/budgetMax*100).toFixed(1).replace('.',',');
+    yieldNote.textContent='Girdiğiniz aylık kira ve maksimum bütçe üzerinden basit yıllık brüt kira oranı yaklaşık %'+gross+' olur. Bu yalnızca yön gösteren kaba bir hesaplamadır; boşluk, aidat, vergi ve diğer giderleri içermez.';
+    yieldNote.classList.remove('hidden');
+  }else yieldNote.classList.add('hidden');
+  go(9);
+}
+function summaryText(){
+  const rows=buildRows();
+  return `YATIRIM ALICISI İHTİYAÇ ÖZETİ\nDanışman: ${ADVISOR}\n\n`+rows.map(r=>`${r[0]}: ${r[1]}`).join('\n');
+}
+async function copySummary(){
+  const t=summaryText();
+  try{await navigator.clipboard.writeText(t);shareHint.textContent='Özet panoya kopyalandı.'}
+  catch(e){shareHint.textContent='Kopyalama desteklenmedi. Paylaş düğmesini kullanabilirsiniz.'}
+}
+async function shareSummary(){
+  const t=summaryText();
+  if(WA){
+    location.href='https://wa.me/'+WA+'?text='+encodeURIComponent(t);
+    return;
+  }
+  if(navigator.share){
+    try{await navigator.share({title:'Yatırım Alıcısı İhtiyaç Özeti',text:t});return}catch(e){}
+  }
+  await copySummary();
+  shareHint.textContent='Danışman WhatsApp numarası linke tanımlı değil; özet kopyalandı.';
+}
+</script>
+</body>
+</html>
