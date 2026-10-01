@@ -46,6 +46,7 @@ from core.danisman_ortak import (
 from core.bolge_secici import (
     bolgelerini_cek, bolgelerini_kaydet, etkin_ilceler, pazar_ilanlarini_cek,
     ilcenin_mahalleleri, ilce_mahallelerini_ayarla, mahalle_ile_filtrele,
+    ilce_bildirim_ayarla,
 )
 
 if not oturum_kontrol():
@@ -85,6 +86,25 @@ with st.expander(
             st.rerun()
         except Exception as e:
             st.error(f"Kaydedilemedi: {e}")
+
+# ── İLÇE BAZLI BİLDİRİMLER — FSBO İlanları'ndaki AYNI ekleme (bkz. o
+# dosyadaki 01.10.2026, 2. tur notu), sadece tablo farklı.
+if kalici_ilceler:
+    with st.expander("İlçe bazlı bildirimler", expanded=False):
+        st.caption(
+            "Kapattığın bir ilçe için ilanları görmeye devam edersin — "
+            "sadece o ilçe için 'yeni ilan' bildirimi gelmez."
+        )
+        _bildirim_durumu = {k["ilce"]: k.get("bildirim_acik", True) for k in mevcut_kayitlar}
+        for _ilce in kalici_ilceler:
+            _onceki_durum = _bildirim_durumu.get(_ilce, True)
+            _yeni_durum = st.toggle(_ilce, value=_onceki_durum, key=f"startkey_bildirim_{_ilce}")
+            if _yeni_durum != _onceki_durum:
+                try:
+                    ilce_bildirim_ayarla(TABLO_ADI, _ilce, _yeni_durum)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Kaydedilemedi: {e}")
 
 # ── MAHALLE BAZLI DARALTMA — FSBO İlanları'ndaki AYNI düzeltme (bkz. o
 # dosyadaki 01.10.2026 tarihli not), sadece tablo/marka farklı.
