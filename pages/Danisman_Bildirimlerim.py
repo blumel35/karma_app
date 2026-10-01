@@ -17,12 +17,13 @@ Diğer Danışman ekranlarıyla AYNI iskelet: oturum_kontrol + hide_sidebar_css
 
 import streamlit as st
 from datetime import datetime, timezone
-from urllib.parse import urlparse, parse_qs
 
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import oturum_kontrol
-from core.danisman_ortak import su_anki_danisman, render_topbar, hide_sidebar_css
+from core.danisman_ortak import (
+    su_anki_danisman, render_topbar, hide_sidebar_css, bildirim_url_coz,
+)
 from core.push_bildirim import bildirimlerimi_cek
 
 if not oturum_kontrol():
@@ -76,37 +77,13 @@ def _zaman_once(iso_str):
 # yazılıyor (Danisman_FSBOIlanlari.py/Danisman_StartkeyIlanlari.py zaten
 # "fsbo_zaman"/"startkey_zaman" session_state anahtarını okuyor) — push
 # bildirimindeki ?zaman=bugun ile AYNI sonucu, daha güvenilir şekilde verir.
-_URL_SAYFA_HARITASI = {
-    "/Danisman_Talep": "pages/Danisman_Talep.py",
-    "/Danisman_Portfoy": "pages/Danisman_Portfoy.py",
-    "/Danisman_FSBOIlanlari": "pages/Danisman_FSBOIlanlari.py",
-    "/Danisman_StartkeyIlanlari": "pages/Danisman_StartkeyIlanlari.py",
-}
-_URL_ZAMAN_SESSION_ANAHTARI = {
-    "/Danisman_FSBOIlanlari": "fsbo_zaman",
-    "/Danisman_StartkeyIlanlari": "startkey_zaman",
-}
-
-
-def _bildirim_url_coz(url):
-    """url'i (core/bildirim_tetikleyici.py'nin ürettiği birkaç sabit
-    kalıptan biri) uygulama içi bir sayfaya çözer. Eşleşme yoksa (None,
-    None) döner — çağıran taraf bu durumda eski dış-link davranışına
-    (st.link_button) düşer, ileride eklenecek tanınmayan bir url türü
-    sessizce kırılmasın diye."""
-    if not url:
-        return None, None
-    try:
-        parcalar = urlparse(url)
-    except Exception:
-        return None, None
-    hedef_sayfa = _URL_SAYFA_HARITASI.get(parcalar.path)
-    if not hedef_sayfa:
-        return None, None
-    bugun_mu = parse_qs(parcalar.query).get("zaman") == ["bugun"]
-    session_anahtari = _URL_ZAMAN_SESSION_ANAHTARI.get(parcalar.path) if bugun_mu else None
-    return hedef_sayfa, session_anahtari
-
+#
+# DÜZELTME (01.10.2026, 4. tur): url çözümleme mantığı (eski adıyla
+# _bildirim_url_coz) artık BURADA tanımlı değil — ana sayfadaki
+# "Bildirimlerim" önizlemesi de (core/danisman_ortak.py:
+# render_bildirim_onizleme) AYNI ihtiyaca sahip olunca, iki ayrı kopyanın
+# birbirinden sapması riskini önlemek için core.danisman_ortak.bildirim_url_coz
+# olarak PAYLAŞILAN tek yere taşındı — bkz. o dosyadaki ayrıntılı not.
 
 su_kullanici = su_anki_danisman()
 bildirimler = bildirimlerimi_cek(su_kullanici, limit=30)
@@ -149,7 +126,7 @@ st.markdown(
 for b in bildirimler:
     with st.container(border=True, key=f"bildirim_{b.get('id')}"):
         hedef_sayfa, session_anahtari = (
-            _bildirim_url_coz(b["url"]) if b.get("url") else (None, None)
+            bildirim_url_coz(b["url"]) if b.get("url") else (None, None)
         )
         ust_col, zaman_col = st.columns([5, 2])
         with ust_col:
