@@ -83,7 +83,18 @@ try:
     _html_icerik = _js_const_enjekte(_html_icerik, "WA", _wa)
     _html_icerik = _js_const_enjekte(_html_icerik, "DANISMAN", _danisman)
 
-    components.html(_html_icerik, height=2400, scrolling=True)
+    # DÜZELTME (02.10.2026, 4. tur, Meltem: "şıkları işaretlerken ekranı
+    # sürekli kaydırmak gerekiyor") — form artık (bkz. assets/yatirim-
+    # formu.html) tek soru/adım olacak şekilde bölündüğü için tek bir
+    # adımın içeriği eskisinden ÇOK daha kısa; ama bu components.html()
+    # iframe'i hâlâ SABİT 2400px yükseklikteydi — her adımda devasa bir
+    # boş alan kalıyor, bu da sayfanın dış scroll konumunu tutarsız
+    # kılıp "sürekli kaydırma" hissi yaratıyordu. 820px, en uzun tek-soru
+    # adımını (masaüstünde) rahatça karşılıyor; daha uzun kalan nadir
+    # durumlarda (ör. dar mobil ekranda "vazgeçilmezler" ızgarası)
+    # scrolling=True zaten iframe'in KENDİ İÇİNDE bir kaydırma çubuğu
+    # sağlıyor — dış sayfa boyu artık gereksiz yere şişmiyor.
+    components.html(_html_icerik, height=820, scrolling=True)
 except FileNotFoundError:
     st.error(
         "Form dosyası bulunamadı (assets/yatirim-formu.html) — "
