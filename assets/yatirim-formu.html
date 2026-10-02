@@ -463,8 +463,15 @@ label{display:block;font-weight:800;margin-bottom:8px}
         <div class="profileText" id="profileText"></div>
       </div>
       <div id="summary" class="summary"></div>
-      <div id="yieldNote" class="notice hidden"></div>
 
+      <!-- DÜZELTME (02.10.2026, 5. tur, Meltem: "böyle kalabilir müşteri
+      son dk yok kaydetmeyim vazgeçtim fikrine kapılmaz") — bir önceki
+      turda eklenen ayrı/zorunlu "Kaydet" butonu GERİ ALINDI: kayıt yine
+      "Özetimi oluştur"a basılır basılmaz, kullanıcı hiçbir şeye basmadan,
+      otomatik tetikleniyor (bkz. finish()). Tek fark — ve asıl amaç —
+      artık bu otomatik kaydın SONUCU (başarılı/başarısız) aşağıdaki
+      #kayitDurum alanına yazılıyor; önceden ikisi de tamamen sessizdi,
+      bu yüzden "kayıt oldu mu olmadı mı" hiç anlaşılamıyordu. -->
       <div class="nav" style="flex-wrap:wrap">
         <button class="btn" onclick="go(19)">‹ Düzenle</button>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -473,13 +480,11 @@ label{display:block;font-weight:800;margin-bottom:8px}
         </div>
       </div>
       <div class="mini" id="shareHint"></div>
-      <!-- YENİ (01.10.2026, 3. tur, Meltem: "özet bana geliyor ama sisteme
-      kayıt olmuyor esas amacımız o") — kaydet() artık BAŞARISIZ olursa
-      (önceden tamamen sessizce yutuluyordu, hiçbir iz kalmıyordu) burada
-      küçük bir "(Test notu)" satırı gösteriyor; başarılıysa hiçbir şey
-      görünmez. SADECE bu test turu için — gerçek müşteri kullanımına
-      geçmeden önce bu satır kaldırılmalı/sessize alınmalı. -->
       <div class="mini" id="kayitDurum"></div>
+      <!-- YENİ (02.10.2026, 5. tur) — otomatik kayıt başarısız olursa bu
+      küçük buton görünür hale gelip tek tıkla yeniden dener; başarılıysa
+      (normal durumda) hiç görünmez, kullanıcıyı rahatsız etmez. -->
+      <button id="kayitTekrarBtn" class="btn soft hidden" style="margin-top:8px" onclick="kaydetTikla()">Tekrar gönder</button>
     </section>
 
   </main>
@@ -513,10 +518,16 @@ document.getElementById('advisorLabel').textContent=ADVISOR;
 const SUPABASE_URL='https://lfpnkuldlirnljsrkkyf.supabase.co';
 const SUPABASE_ANON_KEY='sb_publishable_LwnIYzskXmuq6BLNYI5ngw_JUk0TMgj';
 
+// DÜZELTME (02.10.2026, 5. tur) — kaydet() true/false DÖNDÜRÜYOR ve HER
+// İKİ sonucu da (başarılı/başarısız) #kayitDurum'a yazıyor — önceden
+// başarı durumu tamamen sessizdi, "kayıt oldu mu" hiçbir şekilde
+// anlaşılamıyordu (Meltem: "özet bana geliyor ama sisteme kayıt
+// olmuyor"). finish() bunu otomatik (butonsuz) çağırıyor; sonuç yine de
+// görünür.
 async function kaydet(){
   // Placeholder'lar doldurulmadan deploy edilirse sessizce atla — müşteri
   // deneyimini hiçbir şekilde bozmasın.
-  if(!SUPABASE_URL || SUPABASE_URL.indexOf('__')===0) return;
+  if(!SUPABASE_URL || SUPABASE_URL.indexOf('__')===0) return false;
   try{
     const alanlar={}; buildRows().forEach(r=>{alanlar[r[0]]=r[1];});
     const govde={
@@ -555,10 +566,29 @@ async function kaydet(){
       const hataMetni=await res.text().catch(()=>'');
       console.error('musteri_talepleri kayıt hatası:', res.status, hataMetni);
       if(kayitDurum) kayitDurum.textContent='(Test notu) Kayıt başarısız — HTTP '+res.status+(hataMetni?': '+hataMetni.slice(0,220):'');
+      return false;
     }
+    if(kayitDurum) kayitDurum.textContent='✓ Bilgileriniz danışmanınıza iletildi.';
+    return true;
   }catch(e){
     console.error('musteri_talepleri kayıt istisnası:', e);
     if(kayitDurum) kayitDurum.textContent='(Test notu) Kayıt isteği gönderilemedi: '+(e&&e.message?e.message:String(e));
+    return false;
+  }
+}
+
+// YENİ (02.10.2026, 5. tur) — finish() artık yine OTOMATİK çağırıyor
+// (bkz. aşağıda), bu fonksiyon SADECE otomatik kayıt başarısız olup
+// #kayitTekrarBtn görünür hale geldiğinde, kullanıcı o butona basarsa
+// çalışıyor — manuel bir "yeniden dene" yolu.
+async function kaydetTikla(){
+  const rbtn=document.getElementById('kayitTekrarBtn');
+  if(rbtn){ rbtn.disabled=true; rbtn.textContent='Gönderiliyor...'; }
+  const basarili=await kaydet();
+  if(basarili){
+    if(rbtn){ rbtn.classList.add('hidden'); }
+  }else{
+    if(rbtn){ rbtn.disabled=false; rbtn.textContent='Tekrar gönder'; rbtn.classList.remove('hidden'); }
   }
 }
 
@@ -587,6 +617,19 @@ function go(n){
   bar.style.width=(n/(names.length-1)*100)+'%';
   stepName.textContent=names[n]||'';
   scrollTo({top:0,behavior:'smooth'});
+  // YENİ (02.10.2026, 4. tur, Meltem: "şıkları işaretlerken ekranı
+  // sürekli kaydırmak gerekiyor") — bu form components.html() ile SABİT
+  // yükseklikte bir iframe içinde gömülü (bkz. Yatirim_Formu.py); yukarıdaki
+  // scrollTo() SADECE iframe'in kendi iç scroll'unu sıfırlıyor, dış
+  // (Streamlit) sayfanın scroll konumuna dokunmuyor — bu da kart her adımda
+  // görünür alanın dışında kalıp elle kaydırmayı gerektirebiliyordu. Aynı
+  // kaynak sayılırsa (components.html genelde öyle kurar) dış sayfayı da
+  // kartın başına getirmeyi DENE; erişilemezse (farklı sandbox/kaynak)
+  // sessizce geç — zaten iframe yüksekliği de ayrıca küçültüldü (2400→820),
+  // bu da boş alanı büyük ölçüde ortadan kaldırıyor.
+  try{
+    if(window.frameElement) window.frameElement.scrollIntoView({behavior:'smooth', block:'start'});
+  }catch(e){}
 }
 function single(cls,b,key){
   document.querySelectorAll('.'+cls).forEach(x=>x.classList.remove('selected'));
@@ -603,6 +646,18 @@ document.querySelectorAll('.money').forEach(i=>{
     const d=i.value.replace(/\D/g,''); i.value=d?Number(d).toLocaleString('tr-TR'):'';
   });
 });
+// YENİ (02.10.2026, 6. tur, Meltem: "seçeneği seçince doğrudan 2. soruya
+// geçme şansı var mı, alta geçip devam et butonuna gerek kalmadan en
+// azından tekli seçeneklerde") — bu form artık tek-soru/adım olduğu için
+// (bkz. yukarıdaki 4. tur düzeltmesi) her adımda TEK bir seçim alanı var;
+// o yüzden TEKLİ seçim (radyo benzeri — "must" HARİÇ, o çoklu seçim)
+// yapıldığı anda otomatik bir sonraki adıma geçiliyor, "Devam et"e
+// basmaya/kaydırmaya gerek kalmıyor. Seçimin kısa bir an görünür kalması
+// için (tamamen anlık geçiş kafa karıştırabilir) autoNext() 180ms'lik
+// küçük bir gecikmeyle go()'ya geçiyor. "Devam et" butonları yine de
+// olduğu gibi duruyor — manuel bir yedek yol olarak (zarar vermiyor).
+function autoNext(n){ setTimeout(()=>go(n), 180); }
+
 document.querySelectorAll('.prop').forEach(b=>b.onclick=()=>{
   single('prop',b,'prop'); next1.disabled=false;
   // DÜZELTME (01.10.2026, 2. tur): prepareSpecific() artık Bütçe adımından
@@ -610,18 +665,31 @@ document.querySelectorAll('.prop').forEach(b=>b.onclick=()=>{
   // fazla kez değiştirilse/geri dönülse bile mülk-kriterleri adımları
   // (9-14) hep doğru/güncel içerikle gösterilir.
   prepareSpecific();
+  autoNext(2);
 });
 document.querySelectorAll('.goal').forEach(b=>b.onclick=()=>{
   single('goal',b,'goal'); next2.disabled=false;
+  autoNext(goalNeedsRent()?3:4);
 });
-document.querySelectorAll('.horizon').forEach(b=>b.onclick=()=>single('horizon',b,'horizon'));
-document.querySelectorAll('.flex').forEach(b=>b.onclick=()=>single('flex',b,'flex'));
-document.querySelectorAll('.pay').forEach(b=>b.onclick=()=>single('pay',b,'pay'));
-document.querySelectorAll('.decider').forEach(b=>b.onclick=()=>single('decider',b,'decider'));
-document.querySelectorAll('.ready').forEach(b=>b.onclick=()=>single('ready',b,'ready'));
-document.querySelectorAll('.prior').forEach(b=>b.onclick=()=>single('prior',b,'prior'));
+document.querySelectorAll('.horizon').forEach(b=>b.onclick=()=>{single('horizon',b,'horizon'); autoNext(5);});
+document.querySelectorAll('.flex').forEach(b=>b.onclick=()=>{single('flex',b,'flex'); autoNext(7);});
+document.querySelectorAll('.pay').forEach(b=>b.onclick=()=>{single('pay',b,'pay'); autoNext(9);});
+document.querySelectorAll('.decider').forEach(b=>b.onclick=()=>{single('decider',b,'decider'); autoNext(16);});
+document.querySelectorAll('.ready').forEach(b=>b.onclick=()=>{single('ready',b,'ready'); autoNext(17);});
+document.querySelectorAll('.prior').forEach(b=>b.onclick=()=>{single('prior',b,'prior'); autoNext(priorNext());});
+// Mülk türüne özel tekli seçimler — her biri kendi adımından sonraki
+// doğru adıma, mevcut specNextFromPrimary()/sabit hedeflerle (bkz.
+// yukarıdaki 4. tur yardımcı fonksiyonları) ilerliyor.
+const _SPEC_AUTO_NEXT={
+  rooms:()=>specNextFromPrimary(), ctype:()=>specNextFromPrimary(),
+  landgoal:()=>specNextFromPrimary(), fieldgoal:()=>specNextFromPrimary(),
+  delivery:()=>12, tenantedHome:()=>14, tenantedComm:()=>14, zoning:()=>10,
+};
 ['rooms','delivery','tenantedHome','tenantedComm','ctype','landgoal','zoning','fieldgoal'].forEach(cls=>{
-  document.querySelectorAll('.'+cls).forEach(b=>b.onclick=()=>single(cls,b,cls));
+  document.querySelectorAll('.'+cls).forEach(b=>b.onclick=()=>{
+    single(cls,b,cls);
+    autoNext(_SPEC_AUTO_NEXT[cls]());
+  });
 });
 document.querySelectorAll('.must').forEach(b=>b.onclick=()=>{
   const v=b.dataset.v;
@@ -755,22 +823,38 @@ function finish(){
     alert('Devam etmek için iletişim izni kutusunu işaretleyin.');
     return;
   }
-  // YENİ (01.10.2026, hızlı test turu): tüm doğrulamalar geçtikten SONRA,
-  // özet ekranına geçmeden HEMEN ÖNCE kaydet() tetiklenir — await
-  // EDİLMİYOR (bilerek): müşteri ağ isteğini beklemeden özetini görsün,
-  // kayıt arka planda tamamlanır.
-  kaydet();
+  // DÜZELTME (02.10.2026, 5. tur, Meltem: "böyle kalabilir müşteri son dk
+  // yok kaydetmeyim vazgeçtim fikrine kapılmaz ama sorun şu ki uygulamaya
+  // düşmedi hiç") — bir önceki turda kaldırılan otomatik kaydet() çağrısı
+  // GERİ GETİRİLDİ: kullanıcı hiçbir şeye basmadan, özet oluşturulur
+  // oluşturulmaz arka planda tetikleniyor (await EDİLMİYOR — özet hemen
+  // görünsün, kayıt isteği arka planda tamamlansın). Fark şu: kaydet()
+  // artık sonucu (başarılı/başarısız) #kayitDurum'a YAZIYOR — önceden
+  // ikisi de sessizdi, "kayıt oldu mu" hiç anlaşılamıyordu. Başarısız
+  // olursa aşağıdaki #kayitTekrarBtn otomatik görünür olur.
+  kaydet().then(basarili=>{
+    if(!basarili){
+      const rbtn=document.getElementById('kayitTekrarBtn');
+      if(rbtn) rbtn.classList.remove('hidden');
+    }
+  });
   const rows=buildRows();
   summary.innerHTML=rows.map(r=>`<div class="row"><span>${escapeHtml(r[0])}</span><strong>${escapeHtml(r[1])}</strong></div>`).join('');
   profileTitle.textContent=(text('name')||'Müşteri')+' · Yatırım Profili';
   profileText.textContent=profileSentence();
 
-  const rentN=moneyNumber('rent'), budgetMax=moneyNumber('bmax');
-  if(rentN>0 && budgetMax>0 && (S.prop==='Konut'||S.prop==='Ticari')){
-    const gross=(rentN*12/budgetMax*100).toFixed(1).replace('.',',');
-    yieldNote.textContent='Girdiğiniz aylık kira ve maksimum bütçe üzerinden basit yıllık brüt kira oranı yaklaşık %'+gross+' olur. Bu yalnızca yön gösteren kaba bir hesaplamadır; boşluk, aidat, vergi ve diğer giderleri içermez.';
-    yieldNote.classList.remove('hidden');
-  }else yieldNote.classList.add('hidden');
+  // DÜZELTME (02.10.2026, 6. tur, Meltem: "bu ifadenin anlamını anlamadım
+  // gereksiz geldi") — özet ekranındaki "basit yıllık brüt kira oranı"
+  // hesaplaması/notu (eski #yieldNote) tamamen kaldırıldı; kafa karıştırıyordu
+  // ve forma bir değer katmıyordu.
+
+  // YENİ (02.10.2026, 5. tur): kullanıcı "‹ Düzenle" ile geri dönüp tekrar
+  // bu ekrana gelirse, bir önceki turdan kalma durum metni/"Tekrar gönder"
+  // butonu görünür kalmasın — özet her yeniden oluşturulduğunda sıfırlanır
+  // (yukarıdaki yeni kaydet().then(...) zaten tazeden değerlendirecek).
+  if(kayitDurum) kayitDurum.textContent='';
+  const rbtn0=document.getElementById('kayitTekrarBtn');
+  if(rbtn0) rbtn0.classList.add('hidden');
   go(20);
 }
 function summaryText(){
