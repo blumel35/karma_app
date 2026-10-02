@@ -186,6 +186,24 @@ def portfoyleri_cek():
     return [v for v in tumu if _tarihte_mi(v.get("kayit_tarihi"), esik)]
 
 
+# YENİ (02.10.2026, Meltem: "kaydet butonu ile oluşan bilginin uygulamaya
+# kayıtlarım bölümüne düşmesini istiyorum") — Yatırım Alıcısı İhtiyaç
+# Formu'nun (assets/yatirim-formu.html) müşteri tarafında doğrudan
+# Supabase'e yazdığı "musteri_talepleri" tablosunu, su_anki_danisman()'a
+# göre filtreleyip Kendi Kayıtlarım ekranındaki yeni "Yatırım Talepleri"
+# sekmesine çekiyor. talep_tipi filtresi bilinçli — ileride bu tabloya
+# başka form varyantları (satıcı/kiracı vb.) eklenirse birbirine
+# karışmasınlar diye.
+@st.cache_data(ttl=60, show_spinner="Yatırım talepleri yükleniyor...")
+def yatirim_taleplerini_cek(danisman):
+    if not danisman:
+        return []
+    return _tum_sayfalari_cek(
+        "musteri_talepleri", "*",
+        filtreler={"danisman": danisman, "talep_tipi": "yatirim_alici"},
+    )
+
+
 # ── FİLTRELER ──────────────────────────────────────────────────────────
 
 def kaynak_filtrele(kayitlar, secim):
