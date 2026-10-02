@@ -9,10 +9,18 @@ GÜVENLİK SINIRI (değişmedi): yalnız "kaynak" alanı Zeta değerlerinden
 biri (Danışman Panosu'ndan girilmiş) VE "talep_eden_danisan" şu an
 giriş yapmış kullanıcıyla eşleşen kayıtlar silinebilir. Startkey/mail
 kaynaklı hiçbir kayıda bu ekrandan asla dokunulamaz.
+
+YENİ (02.10.2026, Meltem: "kaydet butonu ile oluşan bilginin uygulamaya
+kayıtlarım bölümüne düşmesini istiyorum") — dördüncü bir sekme eklendi:
+"Yatırım Talepleri". Yatırım Alıcısı İhtiyaç Formu'nda (bkz. assets/
+yatirim-formu.html) müşteri "Kaydet"e bastığında doğrudan Supabase'deki
+musteri_talepleri tablosuna yazıyor; bu sekme o tabloyu su_anki_danisman()'a
+göre filtreleyip (core.danisman_ortak.yatirim_taleplerini_cek) listeliyor.
 """
 
 import streamlit as st
 from html import escape as _esc
+from datetime import datetime, timezone
 
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -20,8 +28,38 @@ from core.auth import oturum_kontrol
 from core.danisman_ortak import (
     talepleri_cek, portfoyleri_cek, kaynak_filtrele, su_anki_danisman,
     kayit_sil, kayit_notunu_guncelle, render_topbar, hide_sidebar_css,
-    ILAN_PORTAL_DEGERLERI,
+    ILAN_PORTAL_DEGERLERI, yatirim_taleplerini_cek,
 )
+
+
+def _yatirim_zaman_once(iso_str):
+    """created_at (Supabase ISO 8601 timestamptz) → 'X gün önce' gibi okunaklı
+    bir metin. pages/Danisman_Bildirimlerim.py'deki _zaman_once ile AYNI
+    mantık — küçük/self-contained bir yardımcı olduğu için burada da ayrı
+    tutuldu (bu kod tabanındaki yerleşik desen)."""
+    if not iso_str:
+        return ""
+    try:
+        temiz = iso_str.replace("Z", "+00:00")
+        zaman = datetime.fromisoformat(temiz)
+        if zaman.tzinfo is None:
+            zaman = zaman.replace(tzinfo=timezone.utc)
+        fark = datetime.now(timezone.utc) - zaman
+        saniye = fark.total_seconds()
+        if saniye < 60:
+            return "az önce"
+        dakika = int(saniye // 60)
+        if dakika < 60:
+            return f"{dakika} dakika önce"
+        saat = int(dakika // 60)
+        if saat < 24:
+            return f"{saat} saat önce"
+        gun = int(saat // 24)
+        if gun < 7:
+            return f"{gun} gün önce"
+        return zaman.strftime("%d.%m.%Y")
+    except Exception:
+        return iso_str
 
 if not oturum_kontrol():
     st.switch_page("pages/Danisman_Giris.py")
@@ -105,14 +143,26 @@ kendi_portfoyler = [
     and str(v.get("kaynak") or "").strip().lower() not in ILAN_PORTAL_DEGERLERI
 ]
 
-if not kendi_ilanlarim and not kendi_talepler and not kendi_portfoyler:
+# YENİ (02.10.2026, Meltem: "kaydet butonu ile oluşan bilginin uygulamaya
+# kayıtlarım bölümüne düşmesini istiyorum") — Yatırım Alıcısı İhtiyaç
+# Formu üzerinden (bkz. assets/yatirim-formu.html, pages/Yatirim_Formu.py)
+# "Kaydet" butonuna basan müşterilerin talepleri, diğer üç sekmeyle AYNI
+# ekranda, dördüncü bir sekme olarak. yatirim_taleplerini_cek() zaten
+# su_anki_danisman()'a göre filtreli dönüyor — burada ayrıca filtrelemeye
+# gerek yok (talep/portföy'den farkı: orada tek tablo HERKESİN kayıtlarını
+# tutuyor ve burada elle filtreleniyor, musteri_talepleri'nde filtre zaten
+# sorgu seviyesinde).
+kendi_yatirim_talepleri = yatirim_taleplerini_cek(su_kullanici)
+
+if not kendi_ilanlarim and not kendi_talepler and not kendi_portfoyler and not kendi_yatirim_talepleri:
     st.info("Henüz Danışman Panosu'ndan eklediğin bir kayıt yok.")
     st.stop()
 
-sekme_ilan, sekme_talep, sekme_portfoy = st.tabs([
+sekme_ilan, sekme_talep, sekme_portfoy, sekme_yatirim = st.tabs([
     f"Zeta Portföylerim ({len(kendi_ilanlarim)})",
     f"Taleplerim ({len(kendi_talepler)})",
     f"Portföylerim ({len(kendi_portfoyler)})",
+    f"Yatırım Talepleri ({len(kendi_yatirim_talepleri)})",
 ])
 
 with sekme_ilan:
@@ -202,3 +252,53 @@ with sekme_portfoy:
                 portfoyleri_cek.clear()
                 st.success("Not kaydedildi.")
                 st.rerun()
+
+with sekme_yatirim:
+    if not kendi_yatirim_talepleri:
+        st.caption("Henüz Yatırım Alıcısı İhtiyaç Formu üzerinden eklenen bir talep yok.")
+    for v in kendi_yatirim_talepleri:
+        with st.container(border=True, key=f"dp_kayit_card_yatirim_{v['id']}"):
+            c1, c2 = st.columns([5, 1])
+            with c1:
+                st.markdown(f"**{_esc(v.get('musteri_adi') or 'İsimsiz')}** · {_esc(v.get('mulk_turu') or '—')}")
+                alt_satir = []
+                if v.get("telefon"):
+                    alt_satir.append(f"📞 {v['telefon']}")
+                if v.get("eposta"):
+                    alt_satir.append(f"✉️ {v['eposta']}")
+                bmin, bmax = v.get("butce_min"), v.get("butce_max")
+                if bmin or bmax:
+                    bmin_g = f"{int(bmin):,}".replace(",", ".") if bmin else "—"
+                    bmax_g = f"{int(bmax):,}".replace(",", ".") if bmax else "—"
+                    alt_satir.append(f"💰 {bmin_g} – {bmax_g} TL")
+                if v.get("oncelikli_bolge"):
+                    alt_satir.append(f"📍 {v['oncelikli_bolge']}")
+                if alt_satir:
+                    st.caption(" · ".join(alt_satir))
+                st.caption(_yatirim_zaman_once(v.get("created_at")))
+                # YENİ: danışmanın tek tıkla müşteriyi WhatsApp'tan
+                # arayabilmesi için — Danisman_ZetaPortfoyleri.py'deki
+                # "↗ İlana Git" linkiyle AYNI görsel dil (.dp-ilan-link).
+                tel_rakam = "".join(ch for ch in str(v.get("telefon") or "") if ch.isdigit())
+                if tel_rakam:
+                    st.markdown(
+                        f"<a class='dp-ilan-link' href='https://wa.me/{tel_rakam}' target='_blank' "
+                        f"rel='noopener noreferrer'>↗ WhatsApp'ta Aç</a>",
+                        unsafe_allow_html=True,
+                    )
+            with c2:
+                if st.button("Sil", key=f"dp_kayit_sil_yatirim_{v['id']}", use_container_width=True):
+                    kayit_sil("musteri_talepleri", v["id"])
+                    yatirim_taleplerini_cek.clear()
+                    st.rerun()
+            # Formun TÜM cevapları — client-side buildRows() ile AYNI
+            # Türkçe etiketlerle "detaylar.alanlar" içinde zaten hazır
+            # geliyor (bkz. yatirim-formu.html:kaydet()); burada sadece
+            # bir expander'da listeleniyor, ayrı bir render fonksiyonu
+            # yazmaya gerek kalmadı.
+            detaylar = v.get("detaylar") or {}
+            alanlar = detaylar.get("alanlar") if isinstance(detaylar, dict) else None
+            if alanlar:
+                with st.expander("Tüm detaylar"):
+                    for k, val in alanlar.items():
+                        st.markdown(f"**{_esc(str(k))}:** {_esc(str(val)) if val else '—'}")
