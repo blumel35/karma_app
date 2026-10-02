@@ -3,7 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Yatırım Amaçlı Gayrimenkul İhtiyaç Analizi</title>
+<!-- NOT: bu <title> fiilen görünmüyor — bu HTML Yatirim_Formu.py'de
+components.html() ile bir iframe'e (srcdoc) gömülü render ediliyor,
+iframe'in kendi <title>'ı hiçbir yerde gösterilmez. Tarayıcı sekme
+başlığını app.py'deki global st.set_page_config(page_title=...)
+belirliyor. Yine de tutarlılık için güncellendi. -->
+<title>Startkey Zeta Yatırımcı Bilgi Formu</title>
 <style>
 :root{
   --bg:#f6f7f9;--card:#fff;--ink:#171922;--muted:#6c7180;--line:#e5e7ed;
@@ -130,10 +135,18 @@ label{display:block;font-weight:800;margin-bottom:8px}
     specificSummary() gibi mevcut fonksiyonlar dokunulmadan çalışıyor. -->
 
     <section class="step active" data-step="0">
-      <div class="eyebrow">Yatırım İhtiyaç Analizi</div>
+      <!-- DÜZELTME (02.10.2026, 7. tur, Meltem: "linkin üzerine kurumsal bir
+      açıklama yazabilir miyiz örn startkey zeta yatırımcı bilgi formu")
+      — müşterinin linki açar açmaz gördüğü İLK metin artık bu kurumsal
+      başlık. Tarayıcı sekme başlığı (app.py'deki tek/global
+      st.set_page_config(page_title="Startkey Zeta") tüm sayfalarda
+      AYNI olduğu için bu form sayfasına ÖZEL bir sekme başlığı
+      verilemiyor — bkz. aşağıdaki yanıt) ile karıştırılmasın diye
+      ayrıca belirtildi. -->
+      <div class="eyebrow">Startkey Zeta Yatırımcı Bilgi Formu</div>
       <h1>Doğru yatırım fırsatını birlikte tarif edelim.</h1>
       <p class="lead">Birkaç kısa soruyla bütçenizi, getiri beklentinizi ve sizin için gerçekten önemli kriterleri anlayalım. Böylece size daha isabetli seçenekler sunabiliriz.</p>
-      <div class="notice">Burada “doğru cevap” yok. Sorular tek tek ilerler; emin olmadığınız soruları boş bırakabilirsiniz.</div>
+      <div class="notice">Sorular tek tek ilerler; emin olmadığınız soruları boş bırakabilirsiniz.</div>
       <div class="nav"><span></span><button class="btn primary" onclick="go(1)">Başlayalım ›</button></div>
     </section>
 
@@ -249,11 +262,11 @@ label{display:block;font-weight:800;margin-bottom:8px}
       <p class="lead">Yalnızca seçtiğiniz yatırım türüyle ilgili soruyu gösteriyoruz.</p>
 
       <div class="specific sp-home hidden field">
-        <label>Tercih ettiğiniz oda sayısı</label>
+        <label>Ne tür bir konut?</label>
         <div class="pills">
-          <button class="chip rooms" data-v="1+1">1+1</button><button class="chip rooms" data-v="2+1">2+1</button>
-          <button class="chip rooms" data-v="3+1">3+1</button><button class="chip rooms" data-v="4+1 ve üzeri">4+1+</button>
-          <button class="chip rooms" data-v="Fark etmez">Fark etmez</button>
+          <button class="chip hometype" data-v="Daire">Daire</button><button class="chip hometype" data-v="Villa">Villa</button>
+          <button class="chip hometype" data-v="Müstakil Ev">Müstakil Ev</button><button class="chip hometype" data-v="Yazlık">Yazlık</button>
+          <button class="chip hometype" data-v="Fark etmez">Fark etmez</button>
         </div>
       </div>
 
@@ -288,6 +301,20 @@ label{display:block;font-weight:800;margin-bottom:8px}
     </section>
 
     <section class="step" data-step="10">
+      <div class="eyebrow">Oda Sayısı</div>
+      <h2>Tercih ettiğiniz oda sayısı</h2>
+      <p class="lead">Birden fazla seçebilirsiniz.</p>
+      <div class="boxchips">
+        <button class="boxchip rooms" data-v="1+1">1+1</button>
+        <button class="boxchip rooms" data-v="2+1">2+1</button>
+        <button class="boxchip rooms" data-v="3+1">3+1</button>
+        <button class="boxchip rooms" data-v="4+1 ve üzeri">4+1+</button>
+        <button class="boxchip rooms" data-v="Fark etmez">Fark etmez</button>
+      </div>
+      <div class="nav"><button class="btn" onclick="go(9)">‹ Geri</button><button class="btn primary" onclick="go(11)">Devam et ›</button></div>
+    </section>
+
+    <section class="step" data-step="11">
       <div class="eyebrow">Büyüklük</div>
       <h2>Yaklaşık büyüklük beklentiniz nedir?</h2>
       <p class="lead">Net bir rakamınız yoksa boş bırakabilirsiniz.</p>
@@ -300,7 +327,7 @@ label{display:block;font-weight:800;margin-bottom:8px}
       <div class="nav"><button class="btn" onclick="go(specBackFromM2())">‹ Geri</button><button class="btn primary" onclick="go(specNextFromM2())">Devam et ›</button></div>
     </section>
 
-    <section class="step" data-step="11">
+    <section class="step" data-step="12">
       <div class="eyebrow">Teslim Durumu</div>
       <h2>Teslim / kullanım durumu önemli mi?</h2>
       <p class="lead">Konut yatırımınız için geçerli bir soru.</p>
@@ -311,10 +338,10 @@ label{display:block;font-weight:800;margin-bottom:8px}
           <button class="chip delivery" data-v="Fark etmez">Fark etmez</button>
         </div>
       </div>
-      <div class="nav"><button class="btn" onclick="go(10)">‹ Geri</button><button class="btn primary" onclick="go(12)">Devam et ›</button></div>
+      <div class="nav"><button class="btn" onclick="go(11)">‹ Geri</button><button class="btn primary" onclick="go(13)">Devam et ›</button></div>
     </section>
 
-    <section class="step" data-step="12">
+    <section class="step" data-step="13">
       <div class="eyebrow">Kiracı Durumu</div>
       <h2>Kiracılı mülk değerlendirir misiniz?</h2>
       <p class="lead">Mevcut bir kiracısı olan mülkler de seçeneklerinize dahil olsun mu?</p>
@@ -326,20 +353,20 @@ label{display:block;font-weight:800;margin-bottom:8px}
         <div class="pills"><button class="chip tenantedComm" data-v="Evet">Evet</button><button class="chip tenantedComm" data-v="Hayır">Hayır</button><button class="chip tenantedComm" data-v="Koşullara göre">Koşullara göre</button></div>
       </div>
 
-      <div class="nav"><button class="btn" onclick="go(specBackFromTenanted())">‹ Geri</button><button class="btn primary" onclick="go(14)">Devam et ›</button></div>
+      <div class="nav"><button class="btn" onclick="go(specBackFromTenanted())">‹ Geri</button><button class="btn primary" onclick="go(15)">Devam et ›</button></div>
     </section>
 
-    <section class="step" data-step="13">
+    <section class="step" data-step="14">
       <div class="eyebrow">İmar Durumu</div>
       <h2>Tercih ettiğiniz imar türü nedir?</h2>
       <p class="lead">Net bir tercihiniz yoksa boş bırakabilirsiniz.</p>
       <div class="field">
         <div class="pills"><button class="chip zoning" data-v="Konut">Konut</button><button class="chip zoning" data-v="Ticaret">Ticaret</button><button class="chip zoning" data-v="Karma">Karma</button><button class="chip zoning" data-v="Fark etmez">Fark etmez</button></div>
       </div>
-      <div class="nav"><button class="btn" onclick="go(9)">‹ Geri</button><button class="btn primary" onclick="go(10)">Devam et ›</button></div>
+      <div class="nav"><button class="btn" onclick="go(9)">‹ Geri</button><button class="btn primary" onclick="go(11)">Devam et ›</button></div>
     </section>
 
-    <section class="step" data-step="14">
+    <section class="step" data-step="15">
       <div class="eyebrow">Vazgeçilmezler</div>
       <h2>Yatırımda vazgeçemeyeceğiniz özellikler var mı?</h2>
       <p class="lead">Birden fazla seçebilirsiniz.</p>
@@ -388,10 +415,10 @@ label{display:block;font-weight:800;margin-bottom:8px}
         <label>Listede olmayan başka bir olmazsa olmazınız var mı? <span style="font-weight:500;color:var(--muted)">(opsiyonel)</span></label>
         <input id="mustOther" class="input" placeholder="Kısaca yazabilirsiniz">
       </div>
-      <div class="nav"><button class="btn" onclick="go(specBackFromMust())">‹ Geri</button><button class="btn primary" onclick="go(15)">Devam et ›</button></div>
+      <div class="nav"><button class="btn" onclick="go(specBackFromMust())">‹ Geri</button><button class="btn primary" onclick="go(16)">Devam et ›</button></div>
     </section>
 
-    <section class="step" data-step="15">
+    <section class="step" data-step="16">
       <div class="eyebrow">Karar</div>
       <h2>Satın alma kararını kim verecek?</h2>
       <p class="lead">Süreci kiminle birlikte yürüteceğinizi bilmek bize yardımcı olur.</p>
@@ -402,10 +429,10 @@ label{display:block;font-weight:800;margin-bottom:8px}
           <button class="chip decider" data-v="Ortak / şirketle birlikte">Ortak / şirketle birlikte</button>
         </div>
       </div>
-      <div class="nav"><button class="btn" onclick="go(14)">‹ Geri</button><button class="btn primary" onclick="go(16)">Devam et ›</button></div>
+      <div class="nav"><button class="btn" onclick="go(15)">‹ Geri</button><button class="btn primary" onclick="go(17)">Devam et ›</button></div>
     </section>
 
-    <section class="step" data-step="16">
+    <section class="step" data-step="17">
       <div class="eyebrow">Zamanlama</div>
       <h2>Doğru fırsatı bugün bulsak ne kadar hızlı ilerleyebilirsiniz?</h2>
       <p class="lead">Bu, size hangi hızda seçenek sunmamız gerektiğini anlamamız için.</p>
@@ -415,10 +442,10 @@ label{display:block;font-weight:800;margin-bottom:8px}
         <button class="choice ready" data-v="1–3 ay"><strong>1–3 ay</strong><small>Alternatifleri karşılaştırarak ilerliyorum.</small></button>
         <button class="choice ready" data-v="Araştırma aşamasındayım"><strong>Araştırma aşamasındayım</strong><small>Önce piyasayı ve fırsatları görmek istiyorum.</small></button>
       </div>
-      <div class="nav"><button class="btn" onclick="go(15)">‹ Geri</button><button class="btn primary" onclick="go(17)">Devam et ›</button></div>
+      <div class="nav"><button class="btn" onclick="go(16)">‹ Geri</button><button class="btn primary" onclick="go(18)">Devam et ›</button></div>
     </section>
 
-    <section class="step" data-step="17">
+    <section class="step" data-step="18">
       <div class="eyebrow">Deneyiminiz</div>
       <h2>Daha önce yatırım için mülk baktınız mı?</h2>
       <p class="lead">Beğendiğiniz ve vazgeçtiğiniz seçenekler, beklentinizi çok daha hızlı anlamamıza yardımcı olur.</p>
@@ -426,23 +453,22 @@ label{display:block;font-weight:800;margin-bottom:8px}
         <button class="chip prior" data-v="Evet">Evet</button>
         <button class="chip prior" data-v="Hayır">Hayır</button>
       </div>
-      <div class="nav"><button class="btn" onclick="go(16)">‹ Geri</button><button class="btn primary" onclick="go(priorNext())">Devam et ›</button></div>
+      <div class="nav"><button class="btn" onclick="go(17)">‹ Geri</button><button class="btn primary" onclick="go(priorNext())">Devam et ›</button></div>
     </section>
 
-    <section class="step" data-step="18">
+    <section class="step" data-step="19">
       <div class="eyebrow">Deneyim Detayı</div>
       <h2>Beğendiğiniz ve vazgeçtiğiniz noktaları kısaca anlatın.</h2>
       <p class="lead">Hepsi opsiyonel; dolduramadıklarınızı boş bırakabilirsiniz.</p>
       <div class="field"><label>Beğendiğiniz özellikler nelerdi?</label><textarea id="liked" class="textarea" placeholder="Örn. konumu, kira potansiyeli, fiyatı..."></textarea></div>
       <div class="field"><label>Neden vazgeçtiniz?</label><textarea id="rejected" class="textarea" placeholder="Örn. aidat yüksek, kira getirisi düşük, bina eski..."></textarea></div>
       <div class="field"><label>İlan linki varsa eklemek ister misiniz? <span style="font-weight:500;color:var(--muted)">(opsiyonel)</span></label><input id="listing" class="input" placeholder="https://..."></div>
-      <div class="nav"><button class="btn" onclick="go(17)">‹ Geri</button><button class="btn primary" onclick="go(19)">Devam et ›</button></div>
+      <div class="nav"><button class="btn" onclick="go(18)">‹ Geri</button><button class="btn primary" onclick="go(20)">Devam et ›</button></div>
     </section>
 
-    <section class="step" data-step="19">
+    <section class="step" data-step="20">
       <div class="eyebrow">İletişim</div>
       <h2>Size uygun seçenekleri kaydedebilmemiz için son bir adım.</h2>
-      <p class="lead">İletişim bilgilerinizi en sona bıraktık; önce yatırım ihtiyacınızı anlamak istedik.</p>
       <div class="field"><label>Ad Soyad <span style="font-weight:500;color:var(--muted)">(zorunlu)</span></label><input id="name" class="input" autocomplete="name" placeholder="Adınız Soyadınız"></div>
       <div class="field"><label>Telefon <span style="font-weight:500;color:var(--muted)">(zorunlu)</span></label><input id="phone" class="input" autocomplete="tel" inputmode="tel" placeholder="05xx xxx xx xx"></div>
       <div class="field"><label>E-posta <span style="font-weight:500;color:var(--muted)">(opsiyonel)</span></label><input id="email" class="input" autocomplete="email" inputmode="email" placeholder="ornek@mail.com"></div>
@@ -451,10 +477,10 @@ label{display:block;font-weight:800;margin-bottom:8px}
         <input id="consent" type="checkbox">
         <span>Gayrimenkul ihtiyacım kapsamında benimle iletişim kurulması amacıyla iletişim bilgilerimin kullanılmasını kabul ediyorum. <strong>Gerçek kullanımda kurumunuzun onaylı KVKK Aydınlatma Metni bu alana bağlanmalıdır.</strong></span>
       </label>
-      <div class="nav"><button class="btn" onclick="go(S.prior==='Evet'?18:17)">‹ Geri</button><button class="btn primary" onclick="finish()">Özetimi oluştur ›</button></div>
+      <div class="nav"><button class="btn" onclick="go(S.prior==='Evet'?19:18)">‹ Geri</button><button class="btn primary" onclick="finish()">Özetimi oluştur ›</button></div>
     </section>
 
-    <section class="step" data-step="20">
+    <section class="step" data-step="21">
       <div class="eyebrow">Tamamlandı</div>
       <h2>Sizi şöyle anladık.</h2>
       <p class="lead">Aşağıdaki bilgiler danışmanınızın size daha uygun yatırım seçenekleri araştırmasına yardımcı olacak.</p>
@@ -473,7 +499,7 @@ label{display:block;font-weight:800;margin-bottom:8px}
       #kayitDurum alanına yazılıyor; önceden ikisi de tamamen sessizdi,
       bu yüzden "kayıt oldu mu olmadı mı" hiç anlaşılamıyordu. -->
       <div class="nav" style="flex-wrap:wrap">
-        <button class="btn" onclick="go(19)">‹ Düzenle</button>
+        <button class="btn" onclick="go(20)">‹ Düzenle</button>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn soft" onclick="copySummary()">Özeti kopyala</button>
           <button class="btn primary" onclick="shareSummary()">Danışmanımla paylaş</button>
@@ -593,24 +619,37 @@ async function kaydetTikla(){
 }
 
 const S={prop:'',goal:'',horizon:'',flex:'',pay:'',decider:'',ready:'',prior:'',must:[],
-        rooms:'',delivery:'',tenantedHome:'',tenantedComm:'',ctype:'',landgoal:'',zoning:'',fieldgoal:''};
-const names=['Başlangıç','Yatırım türü','Yatırım hedefi','Kira beklentisi','Yatırım süresi','Bölge','Bölge esnekliği','Bütçe','Ödeme','Mülk kriterleri','Büyüklük','Teslim durumu','Kiracı durumu','İmar durumu','Vazgeçilmezler','Karar','Hazır oluş','Deneyim','Deneyim detayı','İletişim','Özet'];
+        hometype:'',rooms:[],delivery:'',tenantedHome:'',tenantedComm:'',ctype:'',landgoal:'',zoning:'',fieldgoal:''};
+const names=['Başlangıç','Yatırım türü','Yatırım hedefi','Kira beklentisi','Yatırım süresi','Bölge','Bölge esnekliği','Bütçe','Ödeme','Mülk kriterleri','Oda sayısı','Büyüklük','Teslim durumu','Kiracı durumu','İmar durumu','Vazgeçilmezler','Karar','Hazır oluş','Deneyim','Deneyim detayı','İletişim','Özet'];
 
 // YENİ (01.10.2026, 2. tur) — adım akışı artık dallanıyor (mülk türüne/
 // hedefe göre bazı adımlar atlanıyor), bu küçük yardımcı fonksiyonlar her
 // dallanma noktasında "sıradaki/önceki doğru adım" hangisi sorusuna cevap
 // veriyor. Tek yerden yönetildiği için go(n) çağrıları HTML'de hâlâ sade.
 function goalNeedsRent(){return S.goal==='Düzenli kira geliri'||S.goal==='Kira + değer artışı';}
-function specNextFromPrimary(){return S.prop==='Arsa'?13:10;}
-function specBackFromM2(){return S.prop==='Arsa'?13:9;}
-function specNextFromM2(){
-  if(S.prop==='Konut')return 11;
-  if(S.prop==='Ticari')return 12;
-  return 14;
+// DÜZELTME (02.10.2026, 8. tur, Meltem: "konut seçtik diyelim ticarideki
+// gibi seçenekler olmalı ... oda sayısında 2 seçenek seçilebilmeli") —
+// Konut için artık ayrı bir "oda sayısı" adımı (10, çoklu seçim) var;
+// bu adıma SADECE Konut giriyor, diğer türler doğrudan büyüklük adımına
+// (11) geçiyor. Bu yüzden eski sabit 10/13 hedefleri bir kaydırıldı.
+function specNextFromPrimary(){
+  if(S.prop==='Konut')return 10;
+  if(S.prop==='Arsa')return 14;
+  return 11;
 }
-function specBackFromTenanted(){return S.prop==='Konut'?11:10;}
-function specBackFromMust(){return (S.prop==='Konut'||S.prop==='Ticari')?12:10;}
-function priorNext(){return S.prior==='Evet'?18:19;}
+function specBackFromM2(){
+  if(S.prop==='Arsa')return 14;
+  if(S.prop==='Konut')return 10;
+  return 9;
+}
+function specNextFromM2(){
+  if(S.prop==='Konut')return 12;
+  if(S.prop==='Ticari')return 13;
+  return 15;
+}
+function specBackFromTenanted(){return S.prop==='Konut'?12:11;}
+function specBackFromMust(){return (S.prop==='Konut'||S.prop==='Ticari')?13:11;}
+function priorNext(){return S.prior==='Evet'?19:20;}
 
 function go(n){
   document.querySelectorAll('.step').forEach(x=>x.classList.toggle('active',+x.dataset.step===n));
@@ -674,18 +713,22 @@ document.querySelectorAll('.goal').forEach(b=>b.onclick=()=>{
 document.querySelectorAll('.horizon').forEach(b=>b.onclick=()=>{single('horizon',b,'horizon'); autoNext(5);});
 document.querySelectorAll('.flex').forEach(b=>b.onclick=()=>{single('flex',b,'flex'); autoNext(7);});
 document.querySelectorAll('.pay').forEach(b=>b.onclick=()=>{single('pay',b,'pay'); autoNext(9);});
-document.querySelectorAll('.decider').forEach(b=>b.onclick=()=>{single('decider',b,'decider'); autoNext(16);});
-document.querySelectorAll('.ready').forEach(b=>b.onclick=()=>{single('ready',b,'ready'); autoNext(17);});
+document.querySelectorAll('.decider').forEach(b=>b.onclick=()=>{single('decider',b,'decider'); autoNext(17);});
+document.querySelectorAll('.ready').forEach(b=>b.onclick=()=>{single('ready',b,'ready'); autoNext(18);});
 document.querySelectorAll('.prior').forEach(b=>b.onclick=()=>{single('prior',b,'prior'); autoNext(priorNext());});
 // Mülk türüne özel tekli seçimler — her biri kendi adımından sonraki
 // doğru adıma, mevcut specNextFromPrimary()/sabit hedeflerle (bkz.
 // yukarıdaki 4. tur yardımcı fonksiyonları) ilerliyor.
+// DÜZELTME (02.10.2026, 8. tur) — Konut'un adım 9'daki sorusu artık
+// "oda sayısı" değil "konut türü" (hometype); oda sayısı kendi ÇOKLU
+// seçim adımına (10) taşındı, bu yüzden 'rooms' burada YOK — kendi toggle
+// handler'ı aşağıda, .must ile aynı desende.
 const _SPEC_AUTO_NEXT={
-  rooms:()=>specNextFromPrimary(), ctype:()=>specNextFromPrimary(),
+  hometype:()=>specNextFromPrimary(), ctype:()=>specNextFromPrimary(),
   landgoal:()=>specNextFromPrimary(), fieldgoal:()=>specNextFromPrimary(),
-  delivery:()=>12, tenantedHome:()=>14, tenantedComm:()=>14, zoning:()=>10,
+  delivery:()=>13, tenantedHome:()=>15, tenantedComm:()=>15, zoning:()=>11,
 };
-['rooms','delivery','tenantedHome','tenantedComm','ctype','landgoal','zoning','fieldgoal'].forEach(cls=>{
+['hometype','delivery','tenantedHome','tenantedComm','ctype','landgoal','zoning','fieldgoal'].forEach(cls=>{
   document.querySelectorAll('.'+cls).forEach(b=>b.onclick=()=>{
     single(cls,b,cls);
     autoNext(_SPEC_AUTO_NEXT[cls]());
@@ -695,6 +738,18 @@ document.querySelectorAll('.must').forEach(b=>b.onclick=()=>{
   const v=b.dataset.v;
   if(b.classList.contains('selected')){b.classList.remove('selected');S.must=S.must.filter(x=>x!==v)}
   else{b.classList.add('selected');S.must.push(v)}
+});
+// YENİ (02.10.2026, 8. tur, Meltem: "oda sayısında 2 seçenek
+// seçilebilmeli") — oda sayısı artık .must ile AYNI çoklu-seçim
+// (toggle) desenini kullanıyor; tek seçime kilitli değil, birden fazla
+// seçenek işaretlenebiliyor. Çoklu seçim olduğu için autoNext YOK —
+// kullanıcı "Devam et"e kendisi basıyor (tek seçimdeki gibi anında
+// ilerlemek, henüz ikinci seçeneği işaretleyemeden bir sonraki adıma
+// atlamaya yol açardı).
+document.querySelectorAll('.rooms').forEach(b=>b.onclick=()=>{
+  const v=b.dataset.v;
+  if(b.classList.contains('selected')){b.classList.remove('selected');S.rooms=S.rooms.filter(x=>x!==v)}
+  else{b.classList.add('selected');S.rooms.push(v)}
 });
 
 // DÜZELTME (01.10.2026): "Kiracılı mülk değerlendirir misiniz?" sorusu
@@ -720,11 +775,14 @@ document.querySelectorAll('.must').forEach(b=>b.onclick=()=>{
 const _TYPE_KEY={'Konut':'home','Ticari':'comm','Arsa':'land','Arazi':'field'};
 function prepareSpecific(){
   document.querySelectorAll('.specific').forEach(x=>x.classList.add('hidden'));
-  ['rooms','delivery','tenantedHome','tenantedComm','ctype','landgoal','zoning','fieldgoal'].forEach(cls=>{
+  ['hometype','delivery','tenantedHome','tenantedComm','ctype','landgoal','zoning','fieldgoal'].forEach(cls=>{
     S[cls]='';
     document.querySelectorAll('.'+cls).forEach(x=>x.classList.remove('selected'));
   });
   S.must=[]; document.querySelectorAll('.must').forEach(x=>x.classList.remove('selected'));
+  // YENİ (02.10.2026, 8. tur) — oda sayısı artık çoklu seçim (dizi);
+  // diğer tekli alanlar gibi '' değil [] olarak sıfırlanıyor.
+  S.rooms=[]; document.querySelectorAll('.rooms').forEach(x=>x.classList.remove('selected'));
   const key=_TYPE_KEY[S.prop];
   if(key) document.querySelectorAll('.specific.sp-'+key).forEach(x=>x.classList.remove('hidden'));
 }
@@ -746,7 +804,8 @@ function escapeHtml(v){
 function specificSummary(){
   const a=[];
   if(S.prop==='Konut'){
-    if(S.rooms)a.push('Oda: '+S.rooms);
+    if(S.hometype)a.push('Konut türü: '+S.hometype);
+    if(S.rooms.length)a.push('Oda: '+S.rooms.join(', '));
     if(text('homeM2'))a.push('Min. net m²: '+text('homeM2'));
     if(S.delivery)a.push('Teslim: '+S.delivery);
     if(S.tenantedHome)a.push('Kiracılı mülk: '+S.tenantedHome);
@@ -855,7 +914,7 @@ function finish(){
   if(kayitDurum) kayitDurum.textContent='';
   const rbtn0=document.getElementById('kayitTekrarBtn');
   if(rbtn0) rbtn0.classList.add('hidden');
-  go(20);
+  go(21);
 }
 function summaryText(){
   const rows=buildRows();
