@@ -123,16 +123,20 @@ def giris_yap(email: str, sifre: str, beni_hatirla: bool = True) -> dict | None:
             # auth.audit_log_entries tablosu bu projede boş çıktı
             # (muhtemelen retention/plan kısıtı), o yüzden kendi basit
             # tablomuzu tutuyoruz: public.giris_loglari (SQL: bkz.
-            # giris_loglari_TABLO.sql). Yalnızca GERÇEK giriş (bu
-            # fonksiyon) loglanıyor — tarayıcı cookie'sinden sessiz
-            # oturum geri yükleme (_tarayici_oturumu_yukle) burayı hiç
-            # çağırmaz, bu yüzden sayaç şişmez. Log yazımı başarısız
-            # olsa bile giriş ASLA engellenmemeli — bu yüzden sessizce
-            # yutuluyor.
+            # giris_loglari_TABLO.sql).
+            # GÜNCELLEME (04.10.2026, Meltem): "giriş" artık her uygulama
+            # açılışı/kullanımı sayılsın — bu yüzden _tarayici_oturumu_yukle()
+            # (çerezle sessiz oturum açma) de artık aynı tabloya yazıyor
+            # (bkz. o fonksiyon, tur='cerez'); burası tur='sifre' ile
+            # işaretleniyor ki istenirse ileride ikisi ayrı da
+            # raporlanabilsin (bkz. giris_loglari_tur_kolonu_migration.sql).
+            # Log yazımı başarısız olsa bile giriş ASLA engellenmemeli —
+            # bu yüzden sessizce yutuluyor.
             try:
                 supa.table("giris_loglari").insert({
                     "kullanici_id": kullanici["id"],
                     "email": kullanici["email"],
+                    "tur": "sifre",
                 }).execute()
             except Exception:
                 pass
@@ -555,6 +559,26 @@ def _tarayici_oturumu_yukle() -> dict | None:
         }
         if not _valid_actor(kullanici):
             return None
+
+        # GİRİŞ LOGLAMA (04.10.2026, Meltem: "giriş" artık her uygulama
+        # açılışı/kullanımı sayılsın — çerezle sessiz oturum açma da
+        # dahil). Önceden burası bilerek loglanmıyordu (sayaç şişmesin
+        # diye); ama "beni hatırla" sayesinde kullanıcılar haftalarca
+        # şifre yazmadığı için public.giris_loglari pratikte hep boş
+        # kalıyordu — Meltem'in gerçek ihtiyacı (kullanım sıklığı) bu
+        # şekilde ölçülemiyordu. Artık burası da yazıyor, tur='cerez'
+        # ile işaretli (bkz. giris_yap(), tur='sifre', ve
+        # giris_loglari_tur_kolonu_migration.sql). Log yazımı başarısız
+        # olsa bile oturum geri yükleme ASLA engellenmemeli — bu yüzden
+        # sessizce yutuluyor.
+        try:
+            supa.table("giris_loglari").insert({
+                "kullanici_id": kullanici["id"],
+                "email": kullanici["email"],
+                "tur": "cerez",
+            }).execute()
+        except Exception:
+            pass
 
         # Supabase token rotation yapmış olabilir (yeni refresh_token
         # dönmüş olabilir) — cookie'yi güncel tut, aksi hâlde bir
