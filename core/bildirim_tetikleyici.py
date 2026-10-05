@@ -266,7 +266,21 @@ def _pazar_ilk_gorulme_gun(v):
         return None
 
 
+def _pazar_bugun_ilanlari(tablo_adi, marka):
+    """_pazar_bugun_sayilari ile AYNI hesap (kullanıcının ilçe + mahalle +
+    bildirim anahtarı ayarlarına göre BUGÜN ilk kez görülen ilanlar), ama
+    sayı yerine İLAN LİSTESİ döner: {kullanici: [ilan_satiri, ...]}.
+    Listesi boş kullanıcılar sonuca dahil edilmez. (05.10.2026 — bildirimden
+    açılan, o kullanıcının o günkü ilanlarını gösteren link için.)"""
+    return _pazar_bugun_hesapla(tablo_adi, marka)
+
+
 def _pazar_bugun_sayilari(tablo_adi, marka):
+    """{kullanici: sayı} — _pazar_bugun_hesapla'nın sayı özeti."""
+    return {k: len(v) for k, v in _pazar_bugun_hesapla(tablo_adi, marka).items()}
+
+
+def _pazar_bugun_hesapla(tablo_adi, marka):
     """tablo_adi'na (fsbo_bolgeleri | startkey_ilan_bolgeleri) kayıtlı HER
     kullanıcı için, KENDİ seçtiği ilçelerde (varsa KENDİ mahalle alt-
     filtresiyle) BUGÜN veritabanına İLK KEZ yazılan (ilk_gorulme_tarihi
@@ -308,10 +322,38 @@ def _pazar_bugun_sayilari(tablo_adi, marka):
         ilce_mahalle_haritasi = {k["ilce"]: (k.get("mahalleler") or []) for k in kayitlar}
         ilanlar_kullanici = mahalle_ile_filtrele(ilanlar, ilce_mahalle_haritasi)
 
-        sayi = len([v for v in ilanlar_kullanici if _pazar_ilk_gorulme_gun(v) == bugun])
-        if sayi:
-            sonuc[kullanici] = sayi
+        bugunku = [v for v in ilanlar_kullanici if _pazar_ilk_gorulme_gun(v) == bugun]
+        if bugunku:
+            sonuc[kullanici] = bugunku
     return sonuc
+
+
+# TEST AŞAMASI (05.10.2026 — Meltem: "linkleri bildirimlerin içine
+# yerleştirebilir miyiz"): bildirime dokununca, o kullanıcının O GÜNKÜ yeni
+# ilanlarının donmuş bir kopyasını gösteren, oturumsuz açılan bir link
+# (Pano_Goruntule) kullanılır. Şimdilik YALNIZCA bu kullanıcılar için;
+# diğer herkes eskisi gibi uygulama içi "Bugün" filtreli sayfaya gider.
+# Genişletmek için bu küme genişletilir ya da None yapılıp herkese açılır.
+_SNAPSHOT_LINK_KULLANICILARI = {"Meltem Bulu"}
+
+
+def _bildirim_hedef_url(kullanici, ilanlar, pano_basligi, dosya_on_eki, varsayilan_url):
+    """Bildirimin dokunma adresini döner. Test kümesindeki kullanıcılar için
+    ilan listesinin anlık görüntüsünü üretip yükler ve onun linkini verir;
+    herhangi bir hata olursa (veya kullanıcı kümede değilse)
+    varsayilan_url'e (uygulama içi sayfa) düşer — bildirim ASLA gitmemezlik
+    etmez."""
+    if _SNAPSHOT_LINK_KULLANICILARI is not None and kullanici not in _SNAPSHOT_LINK_KULLANICILARI:
+        return varsayilan_url
+    try:
+        from core.pano_export import pazar_ilan_pano_html_olustur, pano_yukle_ve_link_al
+        html_buf = pazar_ilan_pano_html_olustur(ilanlar, pano_basligi, baslik_goster=False)
+        return pano_yukle_ve_link_al(
+            html_buf.getvalue(), dosya_on_eki, app_base_url=KARMA_APP_URL
+        )
+    except Exception as e:
+        print(f"⚠️ Anlık görüntü linki üretilemedi ({kullanici}), varsayılan adres kullanılacak: {e}", flush=True)
+        return varsayilan_url
 
 
 def pazar_yeni_ilan_bildirimleri_gonder(progress_cb=None):
@@ -345,17 +387,20 @@ def pazar_yeni_ilan_bildirimleri_gonder(progress_cb=None):
 
     # ── C) FSBO İlanları
     try:
-        fsbo_sayilar = _pazar_bugun_sayilari("fsbo_bolgeleri", "mulk_sahibi")
+        fsbo_ilanlar = _pazar_bugun_ilanlari("fsbo_bolgeleri", "mulk_sahibi")
     except Exception as e:
         _bildir(f"⚠️ FSBO sayıları hesaplanamadı: {e}")
-        fsbo_sayilar = {}
+        fsbo_ilanlar = {}
+    fsbo_sayilar = {k: len(v) for k, v in fsbo_ilanlar.items()}
     for kullanici, sayi in fsbo_sayilar.items():
         try:
             bildirim_gonder(
                 kullanici,
                 "📋 FSBO İlanları",
                 f"Bölgelerinde bugün {sayi} yeni FSBO ilanı yayınlandı.",
-                url=_FSBO_BUGUN_URL,
+                url=_bildirim_hedef_url(
+                    kullanici, fsbo_ilanlar[kullanici], "FSBO İlanları", "fsbo", _FSBO_BUGUN_URL
+                ),
             )
             _bildir(f"✅ FSBO bildirimi gönderildi: {kullanici} ({sayi} ilan)")
         except Exception as e:
@@ -363,17 +408,20 @@ def pazar_yeni_ilan_bildirimleri_gonder(progress_cb=None):
 
     # ── B) Startkey İlanları
     try:
-        startkey_sayilar = _pazar_bugun_sayilari("startkey_ilan_bolgeleri", "startkey")
+        startkey_ilanlar = _pazar_bugun_ilanlari("startkey_ilan_bolgeleri", "startkey")
     except Exception as e:
         _bildir(f"⚠️ Startkey sayıları hesaplanamadı: {e}")
-        startkey_sayilar = {}
+        startkey_ilanlar = {}
+    startkey_sayilar = {k: len(v) for k, v in startkey_ilanlar.items()}
     for kullanici, sayi in startkey_sayilar.items():
         try:
             bildirim_gonder(
                 kullanici,
                 "🏢 Startkey İlanları",
                 f"Bölgelerinde bugün {sayi} yeni Startkey ilanı yayınlandı.",
-                url=_STARTKEY_BUGUN_URL,
+                url=_bildirim_hedef_url(
+                    kullanici, startkey_ilanlar[kullanici], "Startkey İlanları", "startkey", _STARTKEY_BUGUN_URL
+                ),
             )
             _bildir(f"✅ Startkey bildirimi gönderildi: {kullanici} ({sayi} ilan)")
         except Exception as e:
