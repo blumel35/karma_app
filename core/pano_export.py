@@ -1130,6 +1130,72 @@ def pano_yukle_ve_link_al(html_bytes, dosya_on_eki="pano"):
     return goruntuleme_url
 
 
+_PAYLASIM_TEST_ISIMLERI = {"meltem bulu"}
+
+
+def pazar_pano_paylasim_blogu(ilanlar, pano_basligi, mesaj_ozeti, key_prefix, dosya_on_eki="pazar"):
+    """FSBO İlanları / Startkey İlanları ekranlarında, EKRANDA O AN
+    GÖRÜNEN (filtrelenmiş) ilan listesinin bir "anlık görüntüsünü" tek
+    tıkla paylaşılabilir bir linke çeviren blok. YENİ (05.10.2026 —
+    Meltem: "WhatsApp'tan 'bölgenizde bugün 3 yeni FSBO ilanı yayınlandı'
+    mesajının altına, sadece o 3 ilanı gösteren bir link koymak").
+
+    Talep/Portföy panolarındaki pano_export_butonu_goster ile AYNI altyapı
+    (pano_yukle_ve_link_al -> Supabase Storage + Pano_Goruntule sayfası,
+    linki bilen herkes oturum açmadan görür) — tek fark içerik:
+    pazar_ilan_pano_html_olustur ile izmir_pazar_ilanlar satırlarından
+    üretilen pano. Link o anki liste için DONDURULMUŞ bir kopyadır (sonra
+    yeni ilan çıksa o linke eklenmez); yeni ilan olunca yeniden link
+    üretilir. Filtre değişirse (ilan kümesi farklılaşırsa) eski link
+    ekranda gösterilmez, yeniden oluşturmak gerekir.
+
+    TEST AŞAMASINDA yalnızca Meltem Bulu (admin) görür — bkz. aşağıdaki
+    _PAYLASIM_TEST_ISIMLERI kontrolü.
+
+    mesaj_ozeti: linkin üstüne yazılacak cümle, örn. "Bölgenizde bugün 3
+    yeni FSBO ilanı yayınlandı." — çağıran taraf filtreye göre kurar."""
+    # TEST AŞAMASI (05.10.2026 — Meltem: "şimdilik sadece bende çalışacak,
+    # test amaçlı"): şimdilik YALNIZCA Meltem Bulu (admin) görür. Daha
+    # geniş açmak için _PAYLASIM_TEST_ISIMLERI boşaltılıp rol kümesine
+    # (admin/broker/yonetici) dönülür.
+    kullanici = st.session_state.get("kullanici", {}) or {}
+    ad = str(st.session_state.get("user_name") or kullanici.get("ad") or "").strip().lower()
+    if kullanici.get("rol", "") != "admin" or ad not in _PAYLASIM_TEST_ISIMLERI:
+        return
+    if not ilanlar:
+        return
+
+    # Ekrandaki ilan kümesinin parmak izi — filtre değişince eski link
+    # yanlışlıkla yeni listeyle eşleşmiş gibi gösterilmesin.
+    parmak_izi = "|".join(sorted(str(v.get("id")) for v in ilanlar))
+    url_key = f"{key_prefix}_paylasim_url"
+    fp_key = f"{key_prefix}_paylasim_fp"
+
+    with st.expander(f"🔗 Bu listeyi paylaş ({len(ilanlar)} ilan) — WhatsApp için link"):
+        st.caption(
+            "Ekranda şu an görünen ilanların bir kopyasını linke çevirir; link "
+            "oturum açmadan, telefondan da açılır ve sadece bu ilanları gösterir."
+        )
+        if st.button("🔗 Paylaşım Linki Oluştur", key=f"{key_prefix}_paylasim_btn"):
+            with st.spinner("Link oluşturuluyor..."):
+                try:
+                    html_buf = pazar_ilan_pano_html_olustur(ilanlar, pano_basligi, baslik_goster=False)
+                    url = pano_yukle_ve_link_al(html_buf.getvalue(), dosya_on_eki)
+                    st.session_state[url_key] = url
+                    st.session_state[fp_key] = parmak_izi
+                except Exception as e:
+                    st.error(f"Link oluşturulamadı: {e}")
+
+        url = st.session_state.get(url_key)
+        if url and st.session_state.get(fp_key) == parmak_izi:
+            st.success("Link hazır — aşağıdaki metni WhatsApp'a yapıştırabilirsin:")
+            st.code(f"{mesaj_ozeti}\n{url}", language=None)
+            st.caption(
+                "⚠️ Bu link'i bilen herkes (şifre/giriş gerekmeden) bu ilanları görebilir. "
+                "Link sabit bir kopyadır — sonradan çıkan yeni ilanlar ona eklenmez."
+            )
+
+
 def pano_export_butonu_goster(kayitlar, pano_basligi, kayit_tipi="talep", dosya_on_eki="pano", key_prefix="pano"):
     """Sayfaya '🗂️ İlan Panosu' üretme, indirme ve paylaşım linki alma
     seçeneklerini ekler."""
