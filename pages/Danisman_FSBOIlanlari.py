@@ -30,7 +30,7 @@ from datetime import date, datetime, timedelta
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import oturum_kontrol
-from core.pano_export import pazar_ilan_pano_html_olustur
+from core.pano_export import pazar_ilan_pano_html_olustur, pazar_pano_paylasim_blogu
 from core.danisman_ortak import (
     su_anki_danisman, IZMIR_ILCELERI, render_topbar, hide_sidebar_css,
     islem_tipi_filtrele, mulk_tipi_filtrele, ilce_ile_filtrele,
@@ -317,6 +317,15 @@ st.caption(f"{len(ilanlar)} / {len(ilanlar_ham)} ilan gösteriliyor")
 if not ilanlar:
     st.info("Bu zaman aralığında ilan yok — 'Zaman aralığı' filtresinden 'Tümü'nü dene.")
     st.stop()
+
+# YENİ (05.10.2026 — Meltem): ekrandaki listeyi WhatsApp'ta paylaşılabilir
+# bir linke çevirir (bkz. core/pano_export.py: pazar_pano_paylasim_blogu).
+_n = len(ilanlar)
+if zaman_secim == "Bugün":
+    _mesaj = f"Bölgenizde bugün {_n} yeni FSBO ilanı yayınlandı."
+else:
+    _mesaj = f"Bölgenizde {_n} FSBO ilanı:"
+pazar_pano_paylasim_blogu(ilanlar, "FSBO İlanları", _mesaj, key_prefix="fsbo", dosya_on_eki="fsbo")
 
 html_buf = pazar_ilan_pano_html_olustur(ilanlar, "FSBO İlanları", baslik_goster=False)
 components.html(html_buf.getvalue().decode("utf-8"), height=1800, scrolling=True)
