@@ -1063,7 +1063,7 @@ function panoyaKaydir(harf) {{
 PANO_BUCKET = "pano-paylasim"
 
 
-def pano_yukle_ve_link_al(html_bytes, dosya_on_eki="pano"):
+def pano_yukle_ve_link_al(html_bytes, dosya_on_eki="pano", app_base_url=None):
     """
     Üretilen HTML panoyu Supabase Storage'daki public bucket'a yükler ve
     kalıcı, tahmin edilmesi güç (rastgele token'lı) bir public URL döner.
@@ -1111,10 +1111,16 @@ def pano_yukle_ve_link_al(html_bytes, dosya_on_eki="pano"):
     # linkini değil, Karma App içindeki Pano_Goruntule sayfasının linkini
     # veriyoruz — o sayfa dosyayı backend'de çekip kendi içinde render
     # ediyor, Supabase'in kısıtlamasını by-pass ediyor.
-    try:
-        app_base_url = st.secrets["app"]["base_url"].rstrip("/")
-    except Exception:
-        app_base_url = None
+    # app_base_url dışarıdan verilirse (ör. GitHub Actions'taki bildirim
+    # işi — orada st.secrets["app"] yok) o kullanılır; verilmezse eski
+    # davranış: st.secrets["app"]["base_url"].
+    if app_base_url:
+        app_base_url = app_base_url.rstrip("/")
+    else:
+        try:
+            app_base_url = st.secrets["app"]["base_url"].rstrip("/")
+        except Exception:
+            app_base_url = None
 
     if not app_base_url:
         st.warning(
