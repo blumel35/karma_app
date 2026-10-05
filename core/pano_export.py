@@ -1155,12 +1155,19 @@ def pazar_pano_paylasim_blogu(ilanlar, pano_basligi, mesaj_ozeti, key_prefix, do
     mesaj_ozeti: linkin üstüne yazılacak cümle, örn. "Bölgenizde bugün 3
     yeni FSBO ilanı yayınlandı." — çağıran taraf filtreye göre kurar."""
     # TEST AŞAMASI (05.10.2026 — Meltem: "şimdilik sadece bende çalışacak,
-    # test amaçlı"): şimdilik YALNIZCA Meltem Bulu (admin) görür. Daha
-    # geniş açmak için _PAYLASIM_TEST_ISIMLERI boşaltılıp rol kümesine
-    # (admin/broker/yonetici) dönülür.
+    # test amaçlı"): şimdilik YALNIZCA "Meltem Bulu" adlı hesap görür.
+    # (İlk sürümde ayrıca rol == "admin" şartı vardı; Meltem'in danışman
+    # paneli oturumunda rol farklı geldiği için blok hiç görünmedi, bu
+    # yüzden şart kaldırıldı — yalnızca ad kontrolü yapılıyor.) Daha geniş
+    # açmak için _PAYLASIM_TEST_ISIMLERI boşaltılıp rol kontrolü eklenir.
     kullanici = st.session_state.get("kullanici", {}) or {}
-    ad = str(st.session_state.get("user_name") or kullanici.get("ad") or "").strip().lower()
-    if kullanici.get("rol", "") != "admin" or ad not in _PAYLASIM_TEST_ISIMLERI:
+    ad = str(
+        st.session_state.get("user_name")
+        or kullanici.get("ad_soyad")
+        or kullanici.get("ad")
+        or ""
+    ).strip().lower()
+    if ad not in _PAYLASIM_TEST_ISIMLERI:
         return
     if not ilanlar:
         return
