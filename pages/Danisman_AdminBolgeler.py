@@ -33,6 +33,7 @@ from core.bolge_secici import ilcenin_mahalleleri
 from core.admin_bolge import (
     BOLGE_TURLERI, MAX_BOLGE, bolgeleri_cek, tum_bolgeleri_cek, cihaz_sayilari,
     bolgeleri_kaydet, ilce_bildirim_ayarla, ilce_mahallelerini_ayarla,
+    sifre_belirle,
 )
 
 if not oturum_kontrol():
@@ -244,3 +245,31 @@ sekmeler = st.tabs([cfg["etiket"] for cfg in BOLGE_TURLERI.values()])
 for sekme, tur in zip(sekmeler, BOLGE_TURLERI):
     with sekme:
         _tur_sekmesi(tur)
+
+# ── GİRİŞ ŞİFRESİ BELİRLE ────────────────────────────────────────────
+# YENİ (06.10.2026, Meltem: "şifre değiştirmek isteyen bana müracaat etsin").
+# Danışman panosunda "şifremi unuttum" / şifre değiştirme ekranı YOK; bu
+# yüzden yönetici, seçili danışmanın giriş şifresini buradan belirler.
+# Şifre kaydedilmez/gösterilmez, yalnızca Supabase Auth'a gönderilir.
+with st.expander("Giriş şifresi belirle", expanded=False):
+    _hesap_email = (secili.get("email") or "").strip()
+    if not _hesap_email:
+        st.warning("Bu danışmanın personel listesinde e-posta adresi yok.")
+    else:
+        st.caption(
+            f"Hesap: {_hesap_email}. Belirlediğin şifreyi danışmana sen iletirsin; "
+            "danışmanın kendi başına değiştireceği bir ekran şu an yok."
+        )
+        with st.form(f"ab_sifre_form_{ad}", clear_on_submit=True):
+            _sifre1 = st.text_input("Yeni şifre (en az 8 karakter)", type="password")
+            _sifre2 = st.text_input("Yeni şifre (tekrar)", type="password")
+            _gonder = st.form_submit_button("Şifreyi belirle", type="primary")
+        if _gonder:
+            if _sifre1 != _sifre2:
+                st.error("Şifreler aynı değil.")
+            else:
+                try:
+                    sifre_belirle(_hesap_email, _sifre1)
+                    st.success(f"{ad} için giriş şifresi belirlendi.")
+                except Exception as e:
+                    st.error(f"Şifre belirlenemedi: {e}")
