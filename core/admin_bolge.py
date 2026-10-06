@@ -172,6 +172,45 @@ def ilce_bildirim_ayarla(tur, kullanici, ilce, acik):
     )
 
 
+MIN_SIFRE_UZUNLUGU = 8
+
+
+def giris_hesabi_id_bul(email):
+    """E-postaya karşılık gelen Supabase Auth kullanıcısının id'sini döner
+    (yoksa None). Yönetici API'sinde e-postayla doğrudan arama olmadığı için
+    kullanıcılar sayfa sayfa taranır — 15 kişilik bir ekipte tek sayfa yeter,
+    büyürse döngü devam eder."""
+    email = (email or "").strip().lower()
+    if not email:
+        return None
+    sayfa, sayfa_boyutu = 1, 100
+    while True:
+        kullanicilar = supabase.auth.admin.list_users(page=sayfa, per_page=sayfa_boyutu)
+        for u in kullanicilar:
+            if (getattr(u, "email", "") or "").strip().lower() == email:
+                return u.id
+        if len(kullanicilar) < sayfa_boyutu:
+            return None
+        sayfa += 1
+
+
+def sifre_belirle(email, yeni_sifre):
+    """YÖNETİCİ, danışmanın giriş şifresini belirler (06.10.2026, Meltem:
+    "şifre değiştirmek isteyen bana müracaat etsin"). Supabase yönetici
+    API'sini (servis anahtarı) kullanır; şifre HİÇBİR yere yazılmaz/loglanmaz.
+    email_confirm=True: daveti hiç tamamlamamış (ör. hiç giriş yapmamış) bir
+    hesap, şifre belirlenince 'e-posta onaylanmadı' hatasına takılmasın."""
+    yeni_sifre = str(yeni_sifre or "")
+    if len(yeni_sifre) < MIN_SIFRE_UZUNLUGU:
+        raise ValueError(f"Şifre en az {MIN_SIFRE_UZUNLUGU} karakter olmalı.")
+    uid = giris_hesabi_id_bul(email)
+    if not uid:
+        raise LookupError(f"'{email}' e-postasıyla bir giriş hesabı bulunamadı.")
+    supabase.auth.admin.update_user_by_id(
+        uid, {"password": yeni_sifre, "email_confirm": True}
+    )
+
+
 def ilce_mahallelerini_ayarla(tur, kullanici, ilce, mahalleler):
     """Tek bir ilçenin mahalle alt-filtresi (boş liste = tüm mahalleler).
     Uzmanlık tablosunda mahalle sütunu olmadığı için reddedilir."""
