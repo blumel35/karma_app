@@ -1498,31 +1498,6 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                     st.switch_page("pages/Danisman_Paylasimlar.py")
                 if st.button("🧮 Senaryo Hesaplayıcı", use_container_width=True, key="dp_menu_senaryo"):
                     st.switch_page("pages/Danisman_SenaryoOlustur.py")
-                # YENİ (17.09.2026, Meltem: "hamburger menüye ofis sayfası
-                # ekleyelim. içinde bu prim hesaplama tablosu da olsun").
-                # DÜZELTME (17.09.2026, 2. TUR — Meltem: "ofis panosunda
-                # sadece senaryo hesaplayıcı olmayacaktı, o bir bölüm
-                # olacaktı ve link oluştur diyerek göndermeyi
-                # düşünüyordum"): Buton artık OTURUMLU HUB sayfasına
-                # (pages/Danisman_OfisPano.py) gidiyor — ileride birden
-                # fazla bölüm/araç barındıracak. Prim Hesaplayıcı'nın
-                # girişsiz/paylaşılabilir kendi sayfası ayrı:
-                # pages/Prim_Hesaplayici.py — hub'daki "🔗 Link Oluştur"
-                # o sayfanın linkini gösteriyor. "4_Ofis_Paneli.py"
-                # (admin, farklı bir sayfa) ile KARIŞTIRILMASIN diye isim
-                # bilerek farklı tutuldu ("Ofis Panosu" burada, "Ofis
-                # Paneli" orada).
-                # YETKİ KONTROLÜ (21.09.2026 — Meltem: "danısman panosunda
-                # ofis panosu ekranını sadece admin ve yönetici ve
-                # brokerlara açık hale getirir misin"): Asıl erişim engeli
-                # hedef sayfada (pages/Danisman_OfisPano.py, aynı tarihli
-                # değişiklik) olsa da, menüdeki bu link de aynı 3 rolle
-                # sınırlandırıldı — yetkisi olmayan bir danışmanın tıklayıp
-                # "yetkin yok" mesajıyla karşılaşacağı ölü bir link
-                # görmesini istemiyoruz.
-                if st.session_state.get("kullanici", {}).get("rol", "") in ("admin", "broker", "yonetici"):
-                    if st.button("🏢 Ofis Panosu", use_container_width=True, key="dp_menu_ofis_panosu"):
-                        st.switch_page("pages/Danisman_OfisPano.py")
                 st.divider()
                 if st.button("🚪 Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
                     cikis_yap()
