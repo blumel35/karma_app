@@ -33,7 +33,7 @@ from core.bolge_secici import ilcenin_mahalleleri
 from core.admin_bolge import (
     BOLGE_TURLERI, MAX_BOLGE, bolgeleri_cek, tum_bolgeleri_cek, cihaz_sayilari,
     bolgeleri_kaydet, ilce_bildirim_ayarla, ilce_mahallelerini_ayarla,
-    sifre_belirle,
+    sifre_belirle, giris_hesaplari,
 )
 
 if not oturum_kontrol():
@@ -86,27 +86,49 @@ _tum_kisiler = [
 ]
 
 
+_TR_ALFABE = "abcçdefgğhıijklmnoöprsştuüvyz"
+
+
+def _tr_anahtar(metin):
+    """Türkçe alfabe sırası (ı/i, ö, ş, ü... doğru yerde)."""
+    kucuk = str(metin).replace("İ", "i").replace("I", "ı").lower()
+    return [_TR_ALFABE.find(ch) if ch in _TR_ALFABE else 100 + ord(ch) for ch in kucuk]
+
+
 def _sirala(kisiler):
     pilot = [k for ad in PILOT_ISIMLERI for k in kisiler if k["ad_soyad"] == ad]
     diger = sorted(
         (k for k in kisiler if k["ad_soyad"] not in PILOT_ISIMLERI),
-        key=lambda k: k["ad_soyad"],
+        key=lambda k: _tr_anahtar(k["ad_soyad"]),
     )
     return pilot + diger
 
 
-with ustte:
-    sadece_pilot = st.toggle("Sadece pilot grup", value=True, key="ab_sadece_pilot")
+def _zeta1_gd_mi(k):
+    ofis = (k.get("ofis_id", "") or k.get("ofis_adi", "")).replace(" ", "").lower()
+    return k.get("rol", "").strip().lower() == "gd" and ofis == "zeta1"
 
-kisiler = _sirala(
-    [k for k in _tum_kisiler if (not sadece_pilot) or k["ad_soyad"] in PILOT_ISIMLERI]
-)
+
+LISTE_SECENEKLERI = ["Zeta 1 GD'leri", "Pilot grup", "Tüm personel"]
+with ustte:
+    liste_secimi = st.radio(
+        "Liste", LISTE_SECENEKLERI, horizontal=True, key="ab_liste",
+        label_visibility="collapsed",
+    )
+
+if liste_secimi == "Zeta 1 GD'leri":
+    _secilenler = [k for k in _tum_kisiler if _zeta1_gd_mi(k)]
+elif liste_secimi == "Pilot grup":
+    _secilenler = [k for k in _tum_kisiler if k["ad_soyad"] in PILOT_ISIMLERI]
+else:
+    _secilenler = _tum_kisiler
+kisiler = _sirala(_secilenler)
 if not kisiler:
     st.warning("Listede gösterilecek danışman yok.")
     st.stop()
 
 eksik_pilot = [ad for ad in PILOT_ISIMLERI if ad not in {k["ad_soyad"] for k in _tum_kisiler}]
-if eksik_pilot:
+if eksik_pilot and liste_secimi == "Pilot grup":
     st.warning(
         "Pilot gruptan personel listesinde bulunmayanlar: " + ", ".join(eksik_pilot)
     )
@@ -114,6 +136,23 @@ if eksik_pilot:
 # ── GENEL DURUM TABLOSU ──────────────────────────────────────────────
 _veri = {tur: tum_bolgeleri_cek(tur) for tur in BOLGE_TURLERI}
 _cihaz = cihaz_sayilari()
+_hesaplar = giris_hesaplari()
+
+
+def _hesap_durumu(k):
+    """'var · son giriş 30.09' / 'var · hiç girmemiş' / 'yok' / '?'"""
+    if _hesaplar is None:
+        return "?"
+    e = (k.get("email") or "").strip().lower()
+    if e not in _hesaplar:
+        return "yok"
+    son = _hesaplar[e]
+    if not son:
+        return "var · hiç girmemiş"
+    try:
+        return f"var · son giriş {son.strftime('%d.%m')}"
+    except AttributeError:
+        return f"var · son giriş {str(son)[8:10]}.{str(son)[5:7]}"
 
 
 def _ilce_ozeti(satirlar, mahalle_var):
@@ -135,6 +174,7 @@ with st.expander("Genel durum", expanded=True):
         satir = {"Danışman": ad, "Ofis": k.get("ofis_adi", "")}
         for tur, cfg in BOLGE_TURLERI.items():
             satir[cfg["etiket"]] = _ilce_ozeti(_veri[tur].get(ad, []), cfg["mahalle"])
+        satir["Uygulama hesabı"] = _hesap_durumu(k)
         satir["Bildirim cihazı"] = _cihaz.get(ad, 0)
         satir["Telefon"] = "var" if k.get("telefon", "").strip() else "yok"
         tablo_satirlari.append(satir)
@@ -155,6 +195,7 @@ if secili.get("rol"):
     bilgi.append(f"rol: {secili['rol']}")
 if secili.get("telefon", "").strip():
     bilgi.append(f"telefon: {secili['telefon']}")
+bilgi.append(f"hesap: {_hesap_durumu(secili)}")
 bilgi.append(f"bildirim cihazı: {_cihaz.get(ad, 0)}")
 st.caption(" · ".join(bilgi))
 
