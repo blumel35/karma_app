@@ -172,6 +172,27 @@ def ilce_bildirim_ayarla(tur, kullanici, ilce, acik):
     )
 
 
+def giris_hesaplari():
+    """{e-posta (küçük harf): son giriş zamanı veya None} — Supabase Auth'ta
+    hesabı olan herkes. Hesabı olmayan danışmanın bölgesi yine girilebilir
+    (kayıtlar ada göre tutulur) ama uygulamayı açana kadar uygulama içi
+    görünüm/bildirim olmaz. Alınamazsa None döner (sayfa bozulmasın)."""
+    sonuc, sayfa, sayfa_boyutu = {}, 1, 100
+    try:
+        while True:
+            liste = supabase.auth.admin.list_users(page=sayfa, per_page=sayfa_boyutu)
+            for u in liste:
+                e = (getattr(u, "email", "") or "").strip().lower()
+                if e:
+                    sonuc[e] = getattr(u, "last_sign_in_at", None)
+            if len(liste) < sayfa_boyutu:
+                break
+            sayfa += 1
+    except Exception:
+        return None
+    return sonuc
+
+
 MIN_SIFRE_UZUNLUGU = 8
 
 
