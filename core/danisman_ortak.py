@@ -1512,6 +1512,9 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                 if _menu_ad == "meltem bulu":
                     if st.button("🗂️ Danışman Bölgeleri", use_container_width=True, key="dp_menu_admin_bolgeler"):
                         st.switch_page("pages/Danisman_AdminBolgeler.py")
+                    # YENİ (07.10.2026): Startkey ofis analizi verisi (yalnızca yönetici).
+                    if st.button("📊 Startkey Ofis Verisi", use_container_width=True, key="dp_menu_startkey_ofis_veri"):
+                        st.switch_page("pages/Admin_StartkeyOfisVeri.py")
                 st.divider()
                 if st.button("🚪 Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
                     cikis_yap()

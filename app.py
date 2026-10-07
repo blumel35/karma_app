@@ -487,6 +487,17 @@ danisman_admin_bolgeler = st.Page(
     icon=":material/pin_drop:",
 )
 
+# ── Startkey Ofis Verisi (YÖNETİCİ) — YENİ (07.10.2026, Meltem: "ofis
+# yönetimi için bir Startkey ofisleri analizi... veriyi eksiksiz doğru
+# çekebilmek"). Yalnızca "Meltem Bulu" adlı hesap görür (hamburger menüde
+# kısayol + sayfanın kendi içinde ad kontrolü). navigation() listesine
+# eklenmesi UNUTULURSA "Could not find page" hatası verir.
+admin_startkey_ofis_veri = st.Page(
+    "pages/Admin_StartkeyOfisVeri.py",
+    title="Startkey Ofis Verisi",
+    icon=":material/analytics:",
+)
+
 # ─────────────────────────────────────────────────────
 # NAVIGATION
 # ─────────────────────────────────────────────────────
@@ -516,6 +527,7 @@ pg = st.navigation(
             danisman_bildirimlerim,
             yatirim_formu,
             danisman_admin_bolgeler,
+            admin_startkey_ofis_veri,
         ],
 
         "Danışman": [
