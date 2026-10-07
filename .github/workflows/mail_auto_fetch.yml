@@ -55,6 +55,7 @@ jobs:
           # tavan 48 çalıştırma × 20 kayıt = 960 kayıt, bolca pay var.
           AI_KATEGORIZASYON_AKTIF: "true"
           AI_ISLEME_LIMITI: "20"
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
         run: |
           python scripts/mail_auto_job.py
 
