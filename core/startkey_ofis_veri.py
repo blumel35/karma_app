@@ -25,7 +25,163 @@ BEKLENEN_KOMBINASYON = ILCE_SAYISI * 3 * 2 * 2     # ilçe x mülk x işlem x du
 EK_KOLONLAR = [
     "Durum (sistem)", "İlan Tarihi (gerçek tarih)",
     "Yayından Kalkış Tarihi (hesaplanan)", "Ofis Eşleşme", "Son Görülme",
+    "Ofis (birleştirilmiş)", "Ofis İli (resmi liste)", "Ofis İlçesi (resmi liste)",
 ]
+
+# ── Ofis adı birleştirme ────────────────────────────────────────────────
+# Revy'de aynı ofis farklı yazılabiliyor: "STARTKEY MACRO GAYRİMENKUL",
+# "Startkey macro", "STARTKEY MUGA GAYRİMENKUL" ve başında/sonunda boşluklu
+# " STARTKEY MUGA GAYRİMENKUL"; "EVKA 3" / "EVKA3"; "PREMIUM" / "Premium";
+# "… GAYRİMENKUL" eki var/yok. Analizde ofis başına doğru sayı için bunların
+# tek ofis sayılması gerekir. Anahtar: Türkçe harfleri sadeleştir, küçük harf,
+# "startkey" ve "gayrimenkul" sözcüklerini at, harf/rakam dışını at.
+# BİLEREK yapılmayan: "MEGAPOL" ile "MEGAPOL 2", "ALTUNSU" ile "ALTUNSU 2" gibi
+# numaralı şubeler AYRI ofistir; "TİM" ile "TIME", "HAYAT" ile "HAYAT KUŞADASI"
+# gibi belirsiz olanlar OTOMATİK birleştirilmez — "Ofis Eşleme" sayfasından
+# gözden geçirilir, birleştirilecekse OFIS_ELLE_ESLEME'ye eklenir.
+_TR_SADE = str.maketrans("İIıiĞğÜüŞşÖöÇç", "iiiigguussoocc")
+
+# Elle birleştirme: {sadeleştirilmiş_anahtar: hedef_anahtar}
+# 'HAYAT KUŞADASI' = Hayat, 'ANKA BURHANİYE' = Anka (resmi listede il/ilçe eki olmadan yazılı).
+OFIS_ELLE_ESLEME = {"hayatkusadasi": "hayat", "ankaburhaniye": "anka"}
+
+# Startkey Türkiye resmi ofis listesi (startkey.com.tr/tr/ofisler, 85 ofis) —
+# 07.10.2026 tarihli anlık görüntü. (ad, il, ilçe). Listede olmayan ofis adları
+# kapanmış/yeniden adlandırılmış/eski ofis olabilir; Ofis Özeti'nde "Resmi listede = Hayır".
+RESMI_OFISLER = [
+    ('1872', 'İzmir', 'Foça'),
+    ('A Plus', 'İzmir', 'Konak'),
+    ('A Plus 2', 'İzmir', 'Balçova'),
+    ('Ada', 'İzmir', 'Karaburun'),
+    ('Akın', 'İzmir', 'Karşıyaka'),
+    ('Alfa', 'İzmir', 'Karşıyaka'),
+    ('Altunsu', 'İzmir', 'Karşıyaka'),
+    ('Anka', 'Balıkesir', 'Burhaniye'),
+    ('Artı', 'İzmir', 'Karşıyaka'),
+    ('Astra', 'İzmir', 'Karşıyaka'),
+    ('Ata', 'İzmir', 'Karşıyaka'),
+    ('Batı', 'İstanbul', 'Beylikdüzü'),
+    ('Baytu Realty', 'United Kingdom', 'London'),
+    ('Casa', 'İzmir', 'Çiğli'),
+    ('City', 'İzmir', 'Çiğli'),
+    ('Corner', 'İzmir', 'Bornova'),
+    ('Çapa', 'İzmir', 'Bergama'),
+    ('Çözüm', 'İzmir', 'Karabağlar'),
+    ('Ege', 'İzmir', 'Karşıyaka'),
+    ('Eksper', 'İzmir', 'Karşıyaka'),
+    ('Elit', 'Manisa', 'Şehzadeler'),
+    ('Eliza Real Estate', 'Greece', 'Athens'),
+    ('Evka 3', 'İzmir', 'Bornova'),
+    ('Final', 'İzmir', 'Çiğli'),
+    ('Focus', 'İzmir', 'Bayraklı'),
+    ('Haktan', 'İzmir', 'Bayraklı'),
+    ('Hayat', 'Aydın', 'Kuşadası'),
+    ('İlke', 'İzmir', 'Gaziemir'),
+    ('Kaynak', 'İzmir', 'Konak'),
+    ('Kuzey', 'İzmir', 'Menemen'),
+    ('Kuzey2', 'İzmir', 'Menemen'),
+    ('Laya', 'Aydın', 'Kuşadası'),
+    ('Lider', 'İzmir', 'Bayraklı'),
+    ('Life', 'İzmir', 'Narlıdere'),
+    ('Little', 'İzmir', 'Buca'),
+    ('Loft', 'Ankara', 'Çankaya'),
+    ('Lotus', 'Denizli', 'Merkezefendi'),
+    ('Macro', 'İzmir', 'Çiğli'),
+    ('Marin', 'İzmir', 'Karabağlar'),
+    ('Mavi', 'İzmir', 'Aliağa'),
+    ('Maya', 'İzmir', 'Karşıyaka'),
+    ('Maya 2', 'İzmir', 'Çiğli'),
+    ('Mega', 'İzmir', 'Karşıyaka'),
+    ('Motto', 'Kocaeli', 'Başiskele'),
+    ('Muga', 'İzmir', 'Karşıyaka'),
+    ('Nar Ofis', 'İzmir', 'Konak'),
+    ('Neta', 'İzmir', 'Konak'),
+    ('Parla', 'İzmir', 'Güzelbahçe'),
+    ('Pars', 'İzmir', 'Karşıyaka'),
+    ('Pearl', 'Girne (K.K.T.C.)', 'Girne'),
+    ('Pelit', 'Muğla', 'Datça'),
+    ('Pera', 'İzmir', 'Buca'),
+    ('Platin', 'Manisa', 'Yunusemre'),
+    ('Point', 'Antalya', 'Muratpaşa'),
+    ('Premium', 'İzmir', 'Güzelbahçe'),
+    ('Prestige', 'İzmir', 'Bayraklı'),
+    ('Puzzle', 'İzmir', 'Karşıyaka'),
+    ('Ref', 'İzmir', 'Foça'),
+    ('Ref 2', 'İzmir', 'Karşıyaka'),
+    ('Rose', 'İzmir', 'Foça'),
+    ('Rover', 'İzmir', 'Çiğli'),
+    ('Sasalı', 'İzmir', 'Çiğli'),
+    ('Sembol', 'İzmir', 'Konak'),
+    ('Sembol 2', 'İzmir', 'Menderes'),
+    ('Sirius', 'İzmir', 'Bornova'),
+    ('Sky', 'İzmir', 'Karşıyaka'),
+    ('Star', 'Manisa', 'Turgutlu'),
+    ('Su', 'İzmir', 'Aliağa'),
+    ("Sui's", 'İzmir', 'Konak'),
+    ('Tarih', 'İzmir', 'Konak'),
+    ('Tim', 'İzmir', 'Konak'),
+    ('Time', 'İzmir', 'Karşıyaka'),
+    ('Trend', 'İzmir', 'Karşıyaka'),
+    ('Umay', 'İzmir', 'Karşıyaka'),
+    ('Vadi', 'İstanbul', 'Kağıthane'),
+    ('Vega', 'İzmir', 'Konak'),
+    ('Vizyon', 'İzmir', 'Gaziemir'),
+    ('Yalı', 'İzmir', 'Karşıyaka'),
+    ('Yalı 2', 'İzmir', 'Güzelbahçe'),
+    ('Yalı Vira', 'İzmir', 'Urla'),
+    ('Yatırım', 'Balıkesir', 'Ayvalık'),
+    ('Yön', 'Balıkesir', 'Altıeylül'),
+    ('Zeta', 'İzmir', 'Bornova'),
+    ('Zeta 2', 'İzmir', 'Konak'),
+    ('Zirve', 'İzmir', 'Çiğli'),
+]
+
+
+def ofis_anahtari(ofis):
+    """Ofis adının birleştirme anahtarı (aynı ofisin yazım farkları aynı anahtarı verir)."""
+    if ofis is None or (isinstance(ofis, float) and pd.isna(ofis)):
+        return ""
+    t = str(ofis).translate(_TR_SADE).lower()
+    k = "".join(ch for ch in t if ch.isalnum())      # 'START KEY' de 'startkey' olur
+    for sozcuk in ("startkey", "gayrimenkul", "gayrimenku"):
+        k = k.replace(sozcuk, "")
+    return OFIS_ELLE_ESLEME.get(k, k)
+
+
+def _resmi_sozluk():
+    return {ofis_anahtari(ad): (ad, il, ilce) for ad, il, ilce in RESMI_OFISLER}
+
+
+def ofis_esleme_tablosu(satirlar):
+    """Her ham ofis adı → birleştirilmiş ad. Birleştirilmiş ad = grubun en çok
+    ilanı olan yazımı (boşlukları kırpılmış). Döner: (ad→birleştirilmiş sözlüğü, DataFrame)."""
+    sayac = {}
+    for r in satirlar:
+        ad = r.get("ofis")
+        ad = None if ad is None or (isinstance(ad, float) and pd.isna(ad)) else str(ad)
+        sayac[ad] = sayac.get(ad, 0) + 1
+    gruplar = {}
+    for ad, n in sayac.items():
+        gruplar.setdefault(ofis_anahtari(ad), []).append((ad, n))
+    resmi = _resmi_sozluk()
+    harita, satir = {}, []
+    for anahtar, uyeler in gruplar.items():
+        uyeler.sort(key=lambda x: (-x[1], str(x[0])))
+        if anahtar in resmi:
+            temsilci = "Startkey " + resmi[anahtar][0]
+            r_il, r_ilce, r_var = resmi[anahtar][1], resmi[anahtar][2], "Evet"
+        else:
+            temsilci = (str(uyeler[0][0]).strip() if uyeler[0][0] is not None else "(ofis adı yok)")
+            r_il, r_ilce, r_var = None, None, "Hayır"
+        for ad, n in uyeler:
+            harita[ad] = temsilci
+            satir.append({"Birleştirilmiş ofis": temsilci, "Revy'deki yazım": ad, "İlan sayısı": n,
+                          "Gruptaki yazım sayısı": len(uyeler), "Resmi listede": r_var,
+                          "Ofis ili (resmi)": r_il, "Ofis ilçesi (resmi)": r_ilce})
+    df = pd.DataFrame(satir)
+    if len(df):
+        df = df.sort_values(["Birleştirilmiş ofis", "İlan sayısı"], ascending=[True, False]).reset_index(drop=True)
+    return harita, df
 
 
 def _sayfali(supa, tablo, kolonlar="*", filtre=None, sirala=None, ilerleme=None):
@@ -158,6 +314,11 @@ def _tarih(v):
 def ilanlar_dataframe(satirlar):
     """Revy'nin TÜM ham kolonları + eklenen sütunlar."""
     ham_kolonlar, kayitlar = [], []
+    harita, _esl = ofis_esleme_tablosu(satirlar)
+    ofis_il_ilce = {
+        r["Birleştirilmiş ofis"]: (r["Ofis ili (resmi)"], r["Ofis ilçesi (resmi)"])
+        for _, r in _esl.iterrows()
+    } if len(_esl) else {}
     for r in satirlar:
         ham = dict(r.get("ham") or {})
         for k in ham:
@@ -168,6 +329,9 @@ def ilanlar_dataframe(satirlar):
         ham["Yayından Kalkış Tarihi (hesaplanan)"] = _tarih(r.get("kalkis_tarihi"))
         ham["Ofis Eşleşme"] = r.get("ofis_eslesme")
         ham["Son Görülme"] = str(r.get("son_gorulme") or "")[:19].replace("T", " ")
+        _b = harita.get(None if r.get("ofis") is None else str(r.get("ofis")))
+        ham["Ofis (birleştirilmiş)"] = _b
+        ham["Ofis İli (resmi liste)"], ham["Ofis İlçesi (resmi liste)"] = ofis_il_ilce.get(_b, (None, None))
         kayitlar.append(ham)
     df = pd.DataFrame(kayitlar)
     sirali = [c for c in ham_kolonlar if c in df.columns] + [c for c in EK_KOLONLAR if c in df.columns]
@@ -177,8 +341,10 @@ def ilanlar_dataframe(satirlar):
 def ofis_ozeti(satirlar):
     if not satirlar:
         return pd.DataFrame()
+    harita, esleme = ofis_esleme_tablosu(satirlar)
     df = pd.DataFrame([{
-        "ofis": r.get("ofis"), "durum": r.get("durum"), "ilan_sahibi": r.get("ilan_sahibi"),
+        "ofis": harita.get(None if r.get("ofis") is None else str(r.get("ofis"))),
+        "durum": r.get("durum"), "ilan_sahibi": r.get("ilan_sahibi"),
         "yayin_suresi": r.get("yayin_suresi"), "ilan_tarihi": r.get("ilan_tarihi"),
     } for r in satirlar])
     g = df.groupby("ofis", dropna=False)
@@ -194,6 +360,14 @@ def ofis_ozeti(satirlar):
             include_groups=False),
     })
     out["Toplam ilan"] = out["Aktif ilan"] + out["Yayından kalkmış ilan"]
+    varyantlar = esleme.groupby("Birleştirilmiş ofis")["Revy'deki yazım"].apply(
+        lambda x: " | ".join(str(v) for v in x))
+    out["Revy'deki yazımlar"] = [varyantlar.get(i, "") for i in out.index]
+    out["Yazım sayısı"] = [int(esleme[esleme["Birleştirilmiş ofis"] == i].shape[0]) for i in out.index]
+    _bilgi = esleme.drop_duplicates("Birleştirilmiş ofis").set_index("Birleştirilmiş ofis")
+    out["Resmi listede"] = [_bilgi["Resmi listede"].get(i, "") for i in out.index]
+    out["Ofis ili"] = [_bilgi["Ofis ili (resmi)"].get(i) for i in out.index]
+    out["Ofis ilçesi"] = [_bilgi["Ofis ilçesi (resmi)"].get(i) for i in out.index]
     out = out.reset_index().rename(columns={"ofis": "Ofis"})
     return out.sort_values("Toplam ilan", ascending=False).reset_index(drop=True)
 
@@ -222,7 +396,8 @@ ACIKLAMA = [
     ("İlan tarihi", "Yalnızca İLAN TARİHİ 01.01.2025 ve sonrası olan ilanlar. Daha önce girilip sonradan kalkanlar/hâlâ yayında olanlar kapsam dışıdır."),
     ("Durum", "Aktif = Revy'de şu an yayında. Yayından kalkmış = Revy arşiv (suspended) sekmesinde. Bir ilan her ikisinde de görünürse 'yayından kalkmış' sayılır."),
     ("Yayından Kalkış Tarihi (hesaplanan)", "Revy bu tarihi vermez. İlan Tarihi + 'İlan Yayın Süresi' (gün) olarak HESAPLANIR; yalnızca yayından kalkmış ilanlar için doludur."),
-    ("Revy sütunları", "Revy export'unun tüm sütunları olduğu gibi korunur. Sağdaki 5 sütun (Durum (sistem), İlan Tarihi (gerçek tarih), Yayından Kalkış Tarihi (hesaplanan), Ofis Eşleşme, Son Görülme) sistem tarafından eklenmiştir."),
+    ("Revy sütunları", "Revy export'unun tüm sütunları olduğu gibi korunur. Sağdaki 8 sütun (Durum (sistem), İlan Tarihi (gerçek tarih), Yayından Kalkış Tarihi (hesaplanan), Ofis Eşleşme, Son Görülme, Ofis (birleştirilmiş), Ofis İli (resmi liste), Ofis İlçesi (resmi liste)) sistem tarafından eklenmiştir."),
+    ("Ofis (birleştirilmiş)", "Revy'de aynı ofis farklı yazılabiliyor (büyük/küçük harf, 'GAYRİMENKUL' eki, baştaki/sondaki boşluk, 'EVKA 3' / 'EVKA3'). Bu sütun yazım farklarını tek ofis olarak birleştirir; Ofis Özeti buna göre sayar. Numaralı şubeler (MEGAPOL / MEGAPOL 2) ayrı ofistir. 'TİM' / 'TIME' gibi belirsiz olanlar birleştirilmez — 'Ofis Eşleme' sayfasından gözden geçirin. Revy'nin özgün 'Ofis' sütunu değiştirilmez. Resmi listede (startkey.com.tr/tr/ofisler, 07.10.2026'daki 85 ofis) olan ofisler için ofisin ili/ilçesi de eklenir; listede olmayanlar kapanmış, yeniden adlandırılmış ya da eski ofis olabilir (Ofis Özeti'nde 'Resmi listede = Hayır')."),
     ("Ofis Eşleşme", "'startkey' = ofis adında 'startkey' geçiyor. 'gevsek' = adı ancak boşluk/tire/harf farkı yok sayılınca eşleşiyor (ör. 'START KEY'); sayıca azdır, analizden önce gözden geçirilmesi önerilir."),
     ("Son Görülme", "Bu ilanı en son gören çekimin zamanı. Çekimler elle çalıştırıldığı için, uzun süre güncellenmemiş verideki 'aktif' ilanlar bayat olabilir."),
     ("Çekim Raporu", "Her ilçe/mülk/işlem/durum kombinasyonunun ham ve Startkey satır sayısı, istek sayısı, hata ve uyarıları. 'Sonuç' = eksik olan kombinasyonlar tamamlanmadan veri eksiksiz sayılmamalıdır."),
@@ -230,18 +405,19 @@ ACIKLAMA = [
 
 
 def excel_uret(ilan_satirlari, son_kombinasyonlar):
-    """Döner: xlsx bayt dizisi (sayfalar: Açıklama, İlanlar, Ofis Özeti, Çekim Raporu)."""
+    """Döner: xlsx bayt dizisi (sayfalar: Açıklama, İlanlar, Ofis Özeti, Ofis Eşleme, Çekim Raporu)."""
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl", datetime_format="DD.MM.YYYY", date_format="DD.MM.YYYY") as xw:
         pd.DataFrame(ACIKLAMA, columns=["Konu", "Açıklama"]).to_excel(xw, sheet_name="Açıklama", index=False)
         ilanlar_dataframe(ilan_satirlari).to_excel(xw, sheet_name="İlanlar", index=False)
         ofis_ozeti(ilan_satirlari).to_excel(xw, sheet_name="Ofis Özeti", index=False)
+        ofis_esleme_tablosu(ilan_satirlari)[1].to_excel(xw, sheet_name="Ofis Eşleme", index=False)
         cekim_raporu(son_kombinasyonlar).to_excel(xw, sheet_name="Çekim Raporu", index=False)
         for ad, genislik in (("Açıklama", {"A": 34, "B": 120}),):
             ws = xw.sheets[ad]
             for kol, w in genislik.items():
                 ws.column_dimensions[kol].width = w
-        for ad in ("İlanlar", "Ofis Özeti", "Çekim Raporu"):
+        for ad in ("İlanlar", "Ofis Özeti", "Ofis Eşleme", "Çekim Raporu"):
             ws = xw.sheets[ad]
             ws.freeze_panes = "A2"
             ws.auto_filter.ref = ws.dimensions
