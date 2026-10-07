@@ -1498,6 +1498,20 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                     st.switch_page("pages/Danisman_Paylasimlar.py")
                 if st.button("🧮 Senaryo Hesaplayıcı", use_container_width=True, key="dp_menu_senaryo"):
                     st.switch_page("pages/Danisman_SenaryoOlustur.py")
+                # YENİ (07.10.2026, Meltem: "admin panosunu göremiyorum, linke
+                # tıklamam gerekiyor, böyle kullanışlı değil"): yönetici bölge
+                # sayfasına menü kısayolu. Yalnızca "Meltem Bulu" adlı hesap
+                # görür — hedef sayfa (pages/Danisman_AdminBolgeler.py) aynı
+                # ad kontrolünü kendi içinde de yapar.
+                _menu_ad = str(
+                    st.session_state.get("user_name")
+                    or st.session_state.get("kullanici", {}).get("ad_soyad")
+                    or st.session_state.get("kullanici", {}).get("ad")
+                    or ""
+                ).strip().lower()
+                if _menu_ad == "meltem bulu":
+                    if st.button("🗂️ Danışman Bölgeleri", use_container_width=True, key="dp_menu_admin_bolgeler"):
+                        st.switch_page("pages/Danisman_AdminBolgeler.py")
                 st.divider()
                 if st.button("🚪 Çıkış Yap", use_container_width=True, key="dp_menu_cikis"):
                     cikis_yap()
