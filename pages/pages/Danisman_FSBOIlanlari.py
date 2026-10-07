@@ -1,0 +1,331 @@
+"""
+pages/Danisman_FSBOIlanlari.py
+
+Danışman FSBO İlanları ekranı (30.08.2026) — Uzmanlık Bölgelerim ile AYNI
+"kalıcı 5-ilçe seçimi" iskeletini kullanır, ama FSBO'ya özel iki farkla:
+
+1) Kalıcı seçim KENDİ tablosunda (fsbo_bolgeleri) tutulur — Uzmanlık
+   Bölgelerim'den ve (ileride gelecek) Startkey İlanları ekranından
+   TAMAMEN BAĞIMSIZ (core/bolge_secici.py'de gerekçesi var).
+2) Kalıcı seçime EK, bu ekrana özel bir "geçici bölge" filtresi var —
+   oturum boyunca geçerli, hiçbir yere kaydedilmeyen, "bugün sadece bakmak
+   istediğim" bir ilçeyi kalıcı 5'liği bozmadan görmeye yarar. Meltem'in
+   isteği: "sırayla başlayalım. özellikle fsbo ekranında kullanım
+   pratiğine göre eklemeler yapabiliriz" — bu yüzden bu ekran BİLEREK
+   basit tutuldu, gerçek kullanımdan gelecek geri bildirime göre
+   genişletilecek.
+
+Veri kaynağı, danışmanın kendi girdiği talep/portföy kayıtları DEĞİL —
+core/izmir_pazar_sync.py'nin (günlük GitHub Actions işi ile) doldurduğu
+izmir_pazar_ilanlar merkezi tablosu, marka='mulk_sahibi' (mülk sahibinden
+/ FSBO) ile filtrelenmiş hali. Kart görünümü Talep/Portföy panolarıyla
+GÖRSEL olarak aynı ama favori/danışman-sahipliği kavramı yok — bkz.
+core/pano_export.py: pazar_ilan_pano_html_olustur().
+"""
+
+import streamlit as st
+import streamlit.components.v1 as components
+from datetime import date, datetime, timedelta
+
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from core.auth import oturum_kontrol
+from core.pano_export import pazar_ilan_pano_html_olustur, pazar_pano_paylasim_blogu
+from core.danisman_ortak import (
+    su_anki_danisman, IZMIR_ILCELERI, render_topbar, hide_sidebar_css,
+    islem_tipi_filtrele, mulk_tipi_filtrele, ilce_ile_filtrele,
+)
+from core.bolge_secici import (
+    bolgelerini_cek, bolgelerini_kaydet, etkin_ilceler, pazar_ilanlarini_cek,
+    ilcenin_mahalleleri, ilce_mahallelerini_ayarla, mahalle_ile_filtrele,
+    ilce_bildirim_ayarla,
+)
+
+if not oturum_kontrol():
+    st.switch_page("pages/Danisman_Giris.py")
+
+hide_sidebar_css()
+render_topbar("FSBO İlanları", ikon="🏷️", geri_hedefi="pages/Danisman_Secim.py")
+
+TABLO_ADI = "fsbo_bolgeleri"
+MARKA = "mulk_sahibi"
+
+su_kullanici = su_anki_danisman()
+mevcut_kayitlar = bolgelerini_cek(TABLO_ADI, su_kullanici)
+kalici_ilceler = [k["ilce"] for k in mevcut_kayitlar]
+
+# ── KALICI İLÇE SEÇİMİ ───────────────────────────────────────────────
+# Uzmanlık Bölgelerim'deki AYNI desen (09.08.2026'da netleşen, 12.08.2026'da
+# düzeltilen expander başlığı deseni) — sadece tablo adı farklı.
+secili_ozet = ", ".join(kalici_ilceler) if kalici_ilceler else "henüz seçim yok"
+with st.expander(
+    f"FSBO takip ettiğin ilçeleri seç (en fazla 5) — {secili_ozet}",
+    expanded=not kalici_ilceler,
+):
+    secim = st.multiselect(
+        "FSBO bölgelerin",
+        options=IZMIR_ILCELERI,
+        default=kalici_ilceler,
+        max_selections=5,
+        key="fsbo_kalici_secim",
+        label_visibility="collapsed",
+        placeholder="İlçe seç (en fazla 5)...",
+    )
+    if st.button("Kaydet", key="fsbo_kalici_kaydet", type="primary"):
+        try:
+            bolgelerini_kaydet(TABLO_ADI, secim)
+            st.success("FSBO bölgelerin kaydedildi.")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Kaydedilemedi: {e}")
+
+# ── İLÇE BAZLI BİLDİRİMLER — EKLENDİ (01.10.2026, 2. tur, Meltem:
+# "bildirimleri açıp kapama özelliği vardı hatırlarsan uzmanlık
+# bölgelerimde yapmışız onu fsbo ve startkey e de ekleyelim") —
+# Uzmanlık Bölgelerim'deki (Danisman_UzmanlikBolgeleri.py) AYNI desen:
+# 5-ilçe SEÇİMİNE dokunmaz, kapatılan bir ilçenin ilanları bu sayfada
+# görünmeye devam eder, sadece core/bildirim_tetikleyici.py o ilçe için
+# artık push göndermez.
+if kalici_ilceler:
+    with st.expander("İlçe bazlı bildirimler", expanded=False):
+        st.caption(
+            "Kapattığın bir ilçe için ilanları görmeye devam edersin — "
+            "sadece o ilçe için 'yeni ilan' bildirimi gelmez."
+        )
+        _bildirim_durumu = {k["ilce"]: k.get("bildirim_acik", True) for k in mevcut_kayitlar}
+        for _ilce in kalici_ilceler:
+            _onceki_durum = _bildirim_durumu.get(_ilce, True)
+            _yeni_durum = st.toggle(_ilce, value=_onceki_durum, key=f"fsbo_bildirim_{_ilce}")
+            if _yeni_durum != _onceki_durum:
+                try:
+                    ilce_bildirim_ayarla(TABLO_ADI, _ilce, _yeni_durum)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Kaydedilemedi: {e}")
+
+# ── MAHALLE BAZLI DARALTMA — EKLENDİ (01.10.2026, danışmanların yoğun
+# talebi: "sadece uzmanlık bölgesi değil aynı zamanda mahalle seçmek
+# istiyorlar... çoğu danışman birkaç mahalle üzerinden aktif çalışıyor")
+# — 5-ilçe SEÇİMİNE dokunmaz, her ilçenin İÇİNDE isteğe bağlı bir mahalle
+# alt-kümesi seçtirir. Seçim yapılmazsa (varsayılan) o ilçedeki TÜM
+# mahalleler geçerli — hiçbir danışman için geriye dönük davranış
+# değişmez. Hem bu sayfadaki listeyi HEM de push bildirimlerini
+# (core/bildirim_tetikleyici.py) daraltır (Meltem'in tercihi). Mahalle
+# seçenekleri izmir_mahalleler.json gibi sabit bir kaynaktan DEĞİL,
+# doğrudan izmir_pazar_ilanlar'daki gerçek verilerden geliyor (bkz.
+# core/bolge_secici.py:ilcenin_mahalleleri() — veri temizliği Meltem'in
+# Buca sorgusuyla doğrulandı).
+if kalici_ilceler:
+    with st.expander("Mahalle bazlı daraltma (isteğe bağlı)", expanded=False):
+        st.caption(
+            "Bir ilçede mahalle seçmezsen o ilçedeki tüm mahalleler geçerli "
+            "olmaya devam eder — hem listede hem bildirimlerde."
+        )
+        for _ilce in kalici_ilceler:
+            _onceki_secim = next(
+                (k.get("mahalleler") or [] for k in mevcut_kayitlar if k["ilce"] == _ilce), []
+            )
+            _secenekler = ilcenin_mahalleleri(_ilce, MARKA)
+            if not _secenekler:
+                st.caption(f"{_ilce}: bu ilçede henüz mahalle verisi yok.")
+                continue
+            _yeni_secim = st.multiselect(
+                _ilce, options=_secenekler, default=_onceki_secim,
+                key=f"fsbo_mahalle_{_ilce}",
+                placeholder="Tüm mahalleler (daraltma yok)",
+            )
+            if set(_yeni_secim) != set(_onceki_secim):
+                try:
+                    ilce_mahallelerini_ayarla(TABLO_ADI, _ilce, _yeni_secim)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Kaydedilemedi: {e}")
+
+# ── GEÇİCİ (AD-HOC) EK BÖLGE FİLTRESİ ────────────────────────────────
+# Kaydedilmez — sadece bu oturumda, kalıcı 5'liğe EK olarak ilçe(ler)
+# görmek için. "bugün sadece Çeşme'ye de bakayım" senaryosu.
+with st.expander("Bu oturuma özel ek ilçe göster (kaydedilmez)", expanded=False):
+    gecici_secim = st.multiselect(
+        "Geçici ek ilçeler",
+        options=[i for i in IZMIR_ILCELERI if i not in kalici_ilceler],
+        default=st.session_state.get("fsbo_gecici_secim", []),
+        key="fsbo_gecici_secim",
+        label_visibility="collapsed",
+        placeholder="Kalıcı seçime ek olarak görmek istediğin ilçe(ler)...",
+    )
+
+aktif_ilceler = etkin_ilceler(kalici_ilceler, gecici_secim)
+
+if not aktif_ilceler:
+    st.info("Henüz FSBO bölgesi seçmedin — yukarıdan en fazla 5 ilçe seçip kaydet.")
+    st.stop()
+
+# ── İLAN LİSTESİ ──────────────────────────────────────────────────────
+toolbar_col1, toolbar_col2 = st.columns([5, 1])
+with toolbar_col1:
+    st.caption(
+        f"📍 Gösterilen bölgeler: {', '.join(aktif_ilceler)}"
+        + (" *(geçici ek dahil)*" if gecici_secim else "")
+    )
+with toolbar_col2:
+    if st.button("↻ Yenile", key="fsbo_yenile", use_container_width=True):
+        pazar_ilanlarini_cek.clear()
+        st.rerun()
+
+ilanlar_ham = pazar_ilanlarini_cek(MARKA, aktif_ilceler)
+
+# DÜZELTME (01.10.2026): yukarıdaki "Mahalle bazlı daraltma" seçimi
+# burada uygulanıyor — SADECE kalıcı ilçeler için (geçici/ad-hoc
+# ilçelerde zaten kaydedilmiş bir mahalle tercihi olamaz, o yüzden
+# haritada hiç yer almıyorlar ve tüm mahalleleriyle görünmeye devam
+# ederler, bu kasıtlı).
+_ilce_mahalle_haritasi = {k["ilce"]: (k.get("mahalleler") or []) for k in mevcut_kayitlar}
+ilanlar_ham = mahalle_ile_filtrele(ilanlar_ham, _ilce_mahalle_haritasi)
+
+if not ilanlar_ham:
+    st.info("Seçili bölge(ler)de şu an aktif FSBO ilanı yok.")
+    st.stop()
+
+# ── İŞLEM TİPİ + ZAMAN + SIRALAMA FİLTRESİ (30-31.08.2026 — Meltem'in
+# geri bildirimi) ── İşlem Tipi, Uzmanlık Bölgelerim/Zeta Portföyleri ile
+# AYNI islem_tipi_filtrele() paylaşılan yardımcısını kullanıyor.
+# NOT: izmir_pazar_sync.py'de otomatik pasifleştirme BİLİNÇLİ OLARAK
+# kapalı (TUR 2A) — yani "aktif" alanı, bir ilan piyasadan gerçekten
+# kalksa bile şu an güvenilir şekilde değişmiyor. Bu yüzden tek başına
+# "aktif=True" filtresi hâlâ çok eski ilanları da getirebiliyor. Zaman
+# filtresi bunu TAM çözmüyor (o, ayrı bir senkronizasyon işi — TUR 2B),
+# ama pratikte listeyi güncel/anlamlı ilanlara indirgemenin en basit yolu
+# — bu yüzden varsayılan "Son 7 Gün" seçili geliyor, "Tümü" her zaman
+# bir tık uzakta.
+def _ilan_tarihi_gun(v):
+    t = v.get("ilan_tarihi")
+    if not t:
+        return None
+    try:
+        return datetime.strptime(str(t)[:10], "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
+
+# DÜZELTME (27.09.2026 — Meltem: "artık filtrede bugün seçince gelecek
+# mi ilanlar"): "Bugün" seçeneği ÖNCEDEN _ilan_tarihi_gun'a (Revy'nin
+# kendi "İlan tarihi" sütunu) bakıyordu — Supabase'te doğrulandı, bu
+# neredeyse hiç "bugün" eşleşmiyordu (core/bildirim_tetikleyici.py'deki
+# aynı düzeltmenin ayrıntılı açıklamasına bkz.). Artık yeni
+# ilk_gorulme_tarihi sütununa (bir ilan tabloya İLK YAZILDIĞINDA dolan,
+# sonraki güncellemelerde asla değişmeyen zaman damgası) bakıyor. "Son 7
+# Gün" seçeneği BİLEREK _ilan_tarihi_gun'da bırakıldı (aşağıda değişmedi).
+def _ilk_gorulme_gun(v):
+    t = v.get("ilk_gorulme_tarihi")
+    if not t:
+        return None
+    try:
+        return datetime.strptime(str(t)[:10], "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
+
+# YENİ (17.09.2026, 2. tur — Meltem: "fsbo ilanlarına da ilçe seçim
+# butonu ekleyelim"). Bu, sayfanın en üstündeki KALICI+GEÇİCİ bölge
+# seçiminin YERİNE değil, ONUN ÜZERİNE ek bir daraltma: aktif_ilceler
+# zaten çekilen havuzu belirliyor (en fazla ~10 ilçe) — buradaki filtre,
+# o havuzun İÇİNDE "şu an sadece şu ilçe(ler)e bakayım" demeye yarıyor.
+# Uzmanlık Bölgelerim'deki AYNI desen: seçenekler tüm İzmir değil, zaten
+# gösterilen bölgelerle sınırlı.
+ilce_filtre_secim = st.multiselect(
+    "İlçe (gösterilen bölgeler içinden)", aktif_ilceler,
+    key="fsbo_ilce_filtre", placeholder="Tüm gösterilen bölgeler",
+)
+
+# DÜZELTME (28.09.2026, Meltem: "bildirim sistemi başarılı oldu ama
+# panoyu aç dediğinde bildirimin bahsettiği ekranı açmıyor ana sayfayı
+# açıyor... hatta bugün 2 yeni ilan dediyse bugün filtresiyle ilgili
+# sayfa açılmalı"): core/bildirim_tetikleyici.py artık FSBO "bugün X
+# yeni ilan" bildirimini bu sayfaya ?zaman=bugun ile bağlıyor. Widget
+# key'i (fsbo_zaman) session_state'te YOKSA (yani sayfa bu oturumda İLK
+# kez yükleniyorsa), radio'nun başlangıç değerini "Bugün" yap — key zaten
+# varsa (kullanıcı filtreyi bu oturumda elle değiştirdiyse) dokunulmuyor,
+# sonraki reruns'larda kullanıcının kendi seçimi geçerliliğini korur.
+if st.query_params.get("zaman") == "bugun" and "fsbo_zaman" not in st.session_state:
+    st.session_state["fsbo_zaman"] = "Bugün"
+
+# YENİ (17.09.2026, Meltem: "... konut/ticari/arsa filtrelerininin
+# eklenmesi"). Mülk Tipi eksikti, mevcut 3'lü sütuna 4. sütun olarak
+# eklendi — mobilde Streamlit'in doğal sütun-yığma davranışı (bu sayfada
+# zaten hiç özel grid CSS'i yok) yeni sütunu da otomatik alt alta diziyor,
+# ayrı bir CSS kuralına gerek yok.
+islem_col, zaman_col, siralama_col, mulk_col = st.columns([1, 1, 1, 1])
+with islem_col:
+    islem_secim = st.radio(
+        "İşlem Tipi",
+        ["Tümü", "Satılık", "Kiralık"],
+        horizontal=True,
+        key="fsbo_islem",
+        label_visibility="collapsed",
+    )
+with mulk_col:
+    mulk_secim = st.radio(
+        "Mülk Tipi",
+        ["Tümü", "Konut", "Ticari", "Arsa"],
+        horizontal=True,
+        key="fsbo_mulk",
+        label_visibility="collapsed",
+    )
+with zaman_col:
+    # DÜZELTME (01.10.2026) — Startkey İlanları'ndaki AYNI düzeltme, bkz. o
+    # dosyadaki not: session_state'te zaten değer varken index=1 de vermek
+    # Streamlit uyarısına yol açıyordu ("created with a default value but
+    # also had its value set via the Session State API").
+    zaman_secim = st.radio(
+        "Zaman aralığı",
+        ["Tümü", "Son 7 Gün", "Bugün"],
+        index=None if "fsbo_zaman" in st.session_state else 1,
+        horizontal=True,
+        key="fsbo_zaman",
+        help=(
+            "'Bugün', bu ilanın sistemimize İLK KEZ bugün eklendiği "
+            "anlamına geliyor (ilanın kendi 'İlan tarihi'ne göre değil "
+            "— o bilgi kaynağa göre gecikmeli/güvenilmez çıktı)."
+        ),
+    )
+with siralama_col:
+    siralama_secim = st.selectbox(
+        "Sıralama",
+        ["En Yeni İlan", "En Eski İlan", "Fiyat: Düşükten Yükseğe", "Fiyat: Yüksekten Düşüğe"],
+        key="fsbo_siralama",
+    )
+
+ilanlar = islem_tipi_filtrele(ilanlar_ham, islem_secim)
+ilanlar = mulk_tipi_filtrele(ilanlar, mulk_secim)
+ilanlar = ilce_ile_filtrele(ilanlar, ilce_filtre_secim)
+if zaman_secim == "Son 7 Gün":
+    esik = date.today() - timedelta(days=7)
+    ilanlar = [v for v in ilanlar if (_ilan_tarihi_gun(v) or date.min) >= esik]
+elif zaman_secim == "Bugün":
+    bugun = date.today()
+    ilanlar = [v for v in ilanlar if _ilk_gorulme_gun(v) == bugun]
+
+if siralama_secim == "En Yeni İlan":
+    ilanlar = sorted(ilanlar, key=lambda v: v.get("ilan_tarihi") or "", reverse=True)
+elif siralama_secim == "En Eski İlan":
+    ilanlar = sorted(ilanlar, key=lambda v: v.get("ilan_tarihi") or "")
+elif siralama_secim == "Fiyat: Düşükten Yükseğe":
+    ilanlar = sorted(ilanlar, key=lambda v: (v.get("fiyat") is None, v.get("fiyat") or 0))
+elif siralama_secim == "Fiyat: Yüksekten Düşüğe":
+    ilanlar = sorted(ilanlar, key=lambda v: (v.get("fiyat") is None, -(v.get("fiyat") or 0)))
+
+st.caption(f"{len(ilanlar)} / {len(ilanlar_ham)} ilan gösteriliyor")
+
+if not ilanlar:
+    st.info("Bu zaman aralığında ilan yok — 'Zaman aralığı' filtresinden 'Tümü'nü dene.")
+    st.stop()
+
+# YENİ (05.10.2026 — Meltem): ekrandaki listeyi WhatsApp'ta paylaşılabilir
+# bir linke çevirir (bkz. core/pano_export.py: pazar_pano_paylasim_blogu).
+_n = len(ilanlar)
+if zaman_secim == "Bugün":
+    _mesaj = f"Bölgenizde bugün {_n} yeni FSBO ilanı eklendi."
+else:
+    _mesaj = f"Bölgenizde {_n} FSBO ilanı:"
+pazar_pano_paylasim_blogu(ilanlar, "FSBO İlanları", _mesaj, key_prefix="fsbo", dosya_on_eki="fsbo")
+
+html_buf = pazar_ilan_pano_html_olustur(ilanlar, "FSBO İlanları", baslik_goster=False)
+components.html(html_buf.getvalue().decode("utf-8"), height=1800, scrolling=True)
