@@ -10,6 +10,7 @@ Streamlit'e bağımlı değildir, bu yüzden testi kolaydır.
 """
 
 import io
+import re
 from datetime import date
 
 import pandas as pd
@@ -26,6 +27,7 @@ EK_KOLONLAR = [
     "Durum (sistem)", "İlan Tarihi (gerçek tarih)",
     "Yayından Kalkış Tarihi (hesaplanan)", "Ofis Eşleşme", "Son Görülme",
     "Ofis (birleştirilmiş)", "Ofis İli (resmi liste)", "Ofis İlçesi (resmi liste)",
+    "Ofis grubu (şubeler birleşik)",
 ]
 
 # ── Ofis adı birleştirme ────────────────────────────────────────────────
@@ -164,20 +166,39 @@ def ofis_esleme_tablosu(satirlar):
     for ad, n in sayac.items():
         gruplar.setdefault(ofis_anahtari(ad), []).append((ad, n))
     resmi = _resmi_sozluk()
-    harita, satir = {}, []
+    temsilciler = {}
     for anahtar, uyeler in gruplar.items():
         uyeler.sort(key=lambda x: (-x[1], str(x[0])))
         if anahtar in resmi:
-            temsilci = "Startkey " + resmi[anahtar][0]
+            temsilciler[anahtar] = "Startkey " + resmi[anahtar][0]
+        else:
+            temsilciler[anahtar] = (str(uyeler[0][0]).strip() if uyeler[0][0] is not None else "(ofis adı yok)")
+    bilinen = set(gruplar) | set(resmi)
+
+    def _grup_adi(anahtar):
+        # 'Ref 2', 'Altunsu 2' gibi numaralı şubeler, numarasız asıl ofisi biliniyorsa onun
+        # grubuna girer (Meltem: "ofisler 1-2 ayrılsa da ilanları tek isimle çıkabiliyor").
+        # 'Evka 3' gibi numarasız karşılığı olmayanlar kendi başına kalır.
+        m = re.match(r"^(.+?)(\d+)$", anahtar)
+        if m and m.group(1) in bilinen:
+            b = m.group(1)
+            return temsilciler.get(b) or ("Startkey " + resmi[b][0])
+        return temsilciler[anahtar]
+
+    harita, satir = {}, []
+    for anahtar, uyeler in gruplar.items():
+        temsilci = temsilciler[anahtar]
+        grup_adi = _grup_adi(anahtar)
+        if anahtar in resmi:
             r_il, r_ilce, r_var = resmi[anahtar][1], resmi[anahtar][2], "Evet"
         else:
-            temsilci = (str(uyeler[0][0]).strip() if uyeler[0][0] is not None else "(ofis adı yok)")
             r_il, r_ilce, r_var = None, None, "Hayır"
         for ad, n in uyeler:
             harita[ad] = temsilci
             satir.append({"Birleştirilmiş ofis": temsilci, "Revy'deki yazım": ad, "İlan sayısı": n,
                           "Gruptaki yazım sayısı": len(uyeler), "Resmi listede": r_var,
-                          "Ofis ili (resmi)": r_il, "Ofis ilçesi (resmi)": r_ilce})
+                          "Ofis ili (resmi)": r_il, "Ofis ilçesi (resmi)": r_ilce,
+                          "Ofis grubu (şubeler birleşik)": grup_adi})
     df = pd.DataFrame(satir)
     if len(df):
         df = df.sort_values(["Birleştirilmiş ofis", "İlan sayısı"], ascending=[True, False]).reset_index(drop=True)
@@ -200,6 +221,26 @@ def _sayfali(supa, tablo, kolonlar="*", filtre=None, sirala=None, ilerleme=None)
         if len(veri) < SAYFA:
             break
         bas += SAYFA
+    return sonuc
+
+
+def _sayfali_anahtar(supa, tablo, kolonlar, anahtar, filtre=None):
+    """Anahtar (birincil anahtar) üzerinden 'bundan büyük' sayfalaması.
+    Büyük OFFSET'li sayfalamanın tetiklediği Supabase zaman aşımını önler:
+    her sayfa indeksten doğrudan başlar."""
+    sonuc, son = [], None
+    kol = kolonlar if anahtar in kolonlar.split(",") else kolonlar + "," + anahtar
+    while True:
+        q = supa.table(tablo).select(kol)
+        if filtre:
+            q = filtre(q)
+        if son is not None:
+            q = q.gt(anahtar, son)
+        veri = q.order(anahtar).limit(SAYFA).execute().data or []
+        sonuc.extend(veri)
+        if len(veri) < SAYFA:
+            break
+        son = veri[-1][anahtar]
     return sonuc
 
 
@@ -284,10 +325,9 @@ def capraz_kontrol(supa, baslangic="2025-01-01"):
         filtre=lambda q: q.eq("durum", "aktif").eq("ofis_eslesme", "startkey").gte("ilan_tarihi", baslangic),
         sirala="ilan_url",
     )
-    eski = _sayfali(
-        supa, "izmir_pazar_ilanlar", "ilce,ilan_tarihi,ilan_linki",
+    eski = _sayfali_anahtar(
+        supa, "izmir_pazar_ilanlar", "ilce,ilan_tarihi,ilan_linki", "ilan_linki",
         filtre=lambda q: q.eq("marka", "startkey").eq("aktif", True).gte("ilan_tarihi", baslangic),
-        sirala="ilan_linki",
     )
     y = pd.DataFrame(yeni) if yeni else pd.DataFrame(columns=["ilce"])
     e = pd.DataFrame(eski) if eski else pd.DataFrame(columns=["ilce"])
@@ -319,6 +359,9 @@ def ilanlar_dataframe(satirlar):
         r["Birleştirilmiş ofis"]: (r["Ofis ili (resmi)"], r["Ofis ilçesi (resmi)"])
         for _, r in _esl.iterrows()
     } if len(_esl) else {}
+    ofis_grubu = {
+        r["Birleştirilmiş ofis"]: r["Ofis grubu (şubeler birleşik)"] for _, r in _esl.iterrows()
+    } if len(_esl) else {}
     for r in satirlar:
         ham = dict(r.get("ham") or {})
         for k in ham:
@@ -332,16 +375,23 @@ def ilanlar_dataframe(satirlar):
         _b = harita.get(None if r.get("ofis") is None else str(r.get("ofis")))
         ham["Ofis (birleştirilmiş)"] = _b
         ham["Ofis İli (resmi liste)"], ham["Ofis İlçesi (resmi liste)"] = ofis_il_ilce.get(_b, (None, None))
+        ham["Ofis grubu (şubeler birleşik)"] = ofis_grubu.get(_b)
         kayitlar.append(ham)
     df = pd.DataFrame(kayitlar)
     sirali = [c for c in ham_kolonlar if c in df.columns] + [c for c in EK_KOLONLAR if c in df.columns]
     return df[sirali] if len(df) else pd.DataFrame(columns=EK_KOLONLAR)
 
 
-def ofis_ozeti(satirlar):
+def ofis_ozeti(satirlar, gruplu=False):
+    """gruplu=False: birleştirilmiş ofis başına. gruplu=True: numaralı şubeler
+    (Ref / Ref 2 gibi) tek ofis grubu olarak toplanır."""
     if not satirlar:
         return pd.DataFrame()
     harita, esleme = ofis_esleme_tablosu(satirlar)
+    if gruplu:
+        _g = dict(zip(esleme["Birleştirilmiş ofis"], esleme["Ofis grubu (şubeler birleşik)"]))
+        harita = {k: _g.get(v, v) for k, v in harita.items()}
+        esleme = esleme.assign(**{"Birleştirilmiş ofis": esleme["Ofis grubu (şubeler birleşik)"]})
     df = pd.DataFrame([{
         "ofis": harita.get(None if r.get("ofis") is None else str(r.get("ofis"))),
         "durum": r.get("durum"), "ilan_sahibi": r.get("ilan_sahibi"),
@@ -366,8 +416,9 @@ def ofis_ozeti(satirlar):
     out["Yazım sayısı"] = [int(esleme[esleme["Birleştirilmiş ofis"] == i].shape[0]) for i in out.index]
     _bilgi = esleme.drop_duplicates("Birleştirilmiş ofis").set_index("Birleştirilmiş ofis")
     out["Resmi listede"] = [_bilgi["Resmi listede"].get(i, "") for i in out.index]
-    out["Ofis ili"] = [_bilgi["Ofis ili (resmi)"].get(i) for i in out.index]
-    out["Ofis ilçesi"] = [_bilgi["Ofis ilçesi (resmi)"].get(i) for i in out.index]
+    if not gruplu:   # grupta birden çok şube/ilçe olabilir; il/ilçe yalnız şube bazında anlamlı
+        out["Ofis ili"] = [_bilgi["Ofis ili (resmi)"].get(i) for i in out.index]
+        out["Ofis ilçesi"] = [_bilgi["Ofis ilçesi (resmi)"].get(i) for i in out.index]
     out = out.reset_index().rename(columns={"ofis": "Ofis"})
     return out.sort_values("Toplam ilan", ascending=False).reset_index(drop=True)
 
@@ -396,8 +447,9 @@ ACIKLAMA = [
     ("İlan tarihi", "Yalnızca İLAN TARİHİ 01.01.2025 ve sonrası olan ilanlar. Daha önce girilip sonradan kalkanlar/hâlâ yayında olanlar kapsam dışıdır."),
     ("Durum", "Aktif = Revy'de şu an yayında. Yayından kalkmış = Revy arşiv (suspended) sekmesinde. Bir ilan her ikisinde de görünürse 'yayından kalkmış' sayılır."),
     ("Yayından Kalkış Tarihi (hesaplanan)", "Revy bu tarihi vermez. İlan Tarihi + 'İlan Yayın Süresi' (gün) olarak HESAPLANIR; yalnızca yayından kalkmış ilanlar için doludur."),
-    ("Revy sütunları", "Revy export'unun tüm sütunları olduğu gibi korunur. Sağdaki 8 sütun (Durum (sistem), İlan Tarihi (gerçek tarih), Yayından Kalkış Tarihi (hesaplanan), Ofis Eşleşme, Son Görülme, Ofis (birleştirilmiş), Ofis İli (resmi liste), Ofis İlçesi (resmi liste)) sistem tarafından eklenmiştir."),
+    ("Revy sütunları", "Revy export'unun tüm sütunları olduğu gibi korunur. Sağdaki 9 sütun (Durum (sistem), İlan Tarihi (gerçek tarih), Yayından Kalkış Tarihi (hesaplanan), Ofis Eşleşme, Son Görülme, Ofis (birleştirilmiş), Ofis İli (resmi liste), Ofis İlçesi (resmi liste)) sistem tarafından eklenmiştir."),
     ("Ofis (birleştirilmiş)", "Revy'de aynı ofis farklı yazılabiliyor (büyük/küçük harf, 'GAYRİMENKUL' eki, baştaki/sondaki boşluk, 'EVKA 3' / 'EVKA3'). Bu sütun yazım farklarını tek ofis olarak birleştirir; Ofis Özeti buna göre sayar. Numaralı şubeler (MEGAPOL / MEGAPOL 2) ayrı ofistir. 'TİM' / 'TIME' gibi belirsiz olanlar birleştirilmez — 'Ofis Eşleme' sayfasından gözden geçirin. Revy'nin özgün 'Ofis' sütunu değiştirilmez. Resmi listede (startkey.com.tr/tr/ofisler, 07.10.2026'daki 85 ofis) olan ofisler için ofisin ili/ilçesi de eklenir; listede olmayanlar kapanmış, yeniden adlandırılmış ya da eski ofis olabilir (Ofis Özeti'nde 'Resmi listede = Hayır')."),
+    ("Ofis grubu (şubeler birleşik)", "Numaralı şubeler (Ref / Ref 2, Altunsu / Altunsu 2, Yalı / Yalı 2…) Revy'de çoğu zaman aynı adla görünür; ayrı yazılanlar da bu sütunda tek gruba toplanır. 'Ofis Grubu Özeti' sayfası ofis grubu bazında sayar; 'Ofis Özeti' ise şube bazındadır. Numarasız karşılığı olmayan ofisler (ör. Evka 3) kendi başına kalır."),
     ("Ofis Eşleşme", "'startkey' = ofis adında 'startkey' geçiyor. 'gevsek' = adı ancak boşluk/tire/harf farkı yok sayılınca eşleşiyor (ör. 'START KEY'); sayıca azdır, analizden önce gözden geçirilmesi önerilir."),
     ("Son Görülme", "Bu ilanı en son gören çekimin zamanı. Çekimler elle çalıştırıldığı için, uzun süre güncellenmemiş verideki 'aktif' ilanlar bayat olabilir."),
     ("Çekim Raporu", "Her ilçe/mülk/işlem/durum kombinasyonunun ham ve Startkey satır sayısı, istek sayısı, hata ve uyarıları. 'Sonuç' = eksik olan kombinasyonlar tamamlanmadan veri eksiksiz sayılmamalıdır."),
@@ -405,19 +457,20 @@ ACIKLAMA = [
 
 
 def excel_uret(ilan_satirlari, son_kombinasyonlar):
-    """Döner: xlsx bayt dizisi (sayfalar: Açıklama, İlanlar, Ofis Özeti, Ofis Eşleme, Çekim Raporu)."""
+    """Döner: xlsx bayt dizisi (sayfalar: Açıklama, İlanlar, Ofis Özeti, Ofis Grubu Özeti, Ofis Eşleme, Çekim Raporu)."""
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl", datetime_format="DD.MM.YYYY", date_format="DD.MM.YYYY") as xw:
         pd.DataFrame(ACIKLAMA, columns=["Konu", "Açıklama"]).to_excel(xw, sheet_name="Açıklama", index=False)
         ilanlar_dataframe(ilan_satirlari).to_excel(xw, sheet_name="İlanlar", index=False)
         ofis_ozeti(ilan_satirlari).to_excel(xw, sheet_name="Ofis Özeti", index=False)
+        ofis_ozeti(ilan_satirlari, gruplu=True).to_excel(xw, sheet_name="Ofis Grubu Özeti", index=False)
         ofis_esleme_tablosu(ilan_satirlari)[1].to_excel(xw, sheet_name="Ofis Eşleme", index=False)
         cekim_raporu(son_kombinasyonlar).to_excel(xw, sheet_name="Çekim Raporu", index=False)
         for ad, genislik in (("Açıklama", {"A": 34, "B": 120}),):
             ws = xw.sheets[ad]
             for kol, w in genislik.items():
                 ws.column_dimensions[kol].width = w
-        for ad in ("İlanlar", "Ofis Özeti", "Ofis Eşleme", "Çekim Raporu"):
+        for ad in ("İlanlar", "Ofis Özeti", "Ofis Grubu Özeti", "Ofis Eşleme", "Çekim Raporu"):
             ws = xw.sheets[ad]
             ws.freeze_panes = "A2"
             ws.auto_filter.ref = ws.dimensions
