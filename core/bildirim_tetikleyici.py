@@ -356,6 +356,101 @@ def _bildirim_hedef_url(kullanici, ilanlar, pano_basligi, dosya_on_eki, varsayil
         return varsayilan_url
 
 
+def _mail_kayit_taze_mi(kayit, saat=48):
+    """Mail kaydının (kayit_tarihi, RFC 2822) son `saat` saat içinde olup
+    olmadığı. AI kredisi bitmesi gibi bir kesintiden sonra birikmiş ESKİ
+    raw kayıtlar işlenince "yeni kayıt eklendi" bildirimi yağmasın diye.
+    Tarih ayrıştırılamazsa False (bildirim gitmez, kayıt zaten eklenir)."""
+    try:
+        from email.utils import parsedate_to_datetime
+        from datetime import timezone, timedelta
+        t = parsedate_to_datetime(str(kayit.get("kayit_tarihi") or ""))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - t) <= timedelta(hours=saat)
+    except Exception:
+        return False
+
+
+def mail_kayit_ozet_bildirimleri_gonder(talepler, portfoyler):
+    """YENİ (07.10.2026 — Meltem: "kesinlikle özetleme yapalım"): e-postadan
+    otomatik ayrıştırılan (core/mail_job.py: run_pending_ai_parse_job) YENİ
+    talep/portföy kayıtları için "📍 Uzmanlık Bölgeniz" bildirimi.
+
+    Önceden bu bildirim yalnızca Danışman Panosu'ndaki Kaydet formundan
+    girilen kayıtlar için gidiyordu (talep_portfoy_bildirim_gonder); Zeta'nın
+    asıl kayıtları ise mail hattından (kaynak_klasor=INBOX) geldiği için
+    bildirim hiç tetiklenmiyordu.
+
+    ÖZET: bir çalıştırmada (30 dk'lık mail işi, en fazla ~20 kayıt) aynı
+    danışmanın bölgelerine düşen kayıtlar TEK bildirimde toplanır:
+    "Balçova: 3 portföy, 1 talep; Buca: 2 portföy". Eşleşme kuralları
+    _uzmanlik_bolgesi_eslesenler ile aynı: ilçe adı (casefold) eşleşir,
+    bildirim_acik=False olan ilçe sayılmaz, bir kayıt bir danışman için
+    yalnızca İLK eşleşen ilçesinde sayılır.
+
+    talepler / portfoyler: kayıt sözlükleri (ilce, ilceler, kayit_tarihi).
+    Kayıt tarihi 48 saatten eskiyse (kesinti sonrası birikmiş) sayılmaz.
+    Döner: bildirim gönderilen kullanıcı listesi. Hata fırlatmaz."""
+    try:
+        talepler = [k for k in (talepler or []) if _mail_kayit_taze_mi(k)]
+        portfoyler = [k for k in (portfoyler or []) if _mail_kayit_taze_mi(k)]
+        if not talepler and not portfoyler:
+            return []
+
+        resp = supabase.table("uzmanlik_bolgeleri").select("kullanici, ilce, bildirim_acik").execute()
+        kullanici_ilceleri = {}
+        for row in (resp.data or []):
+            kullanici = (row.get("kullanici") or "").strip()
+            ilce = (row.get("ilce") or "").strip()
+            if not kullanici or not ilce or row.get("bildirim_acik") is False:
+                continue
+            kullanici_ilceleri.setdefault(kullanici, []).append(ilce)
+        if not kullanici_ilceleri:
+            return []
+
+        def _kayit_ilceleri(k):
+            ham = list(k.get("ilceler") or []) + [k.get("ilce")]
+            return {_ilce_normalize(i) for i in ham if i}
+
+        # {kullanici: {ilce: {"portföy": n, "talep": n}}}
+        sayac = {}
+        for tur, liste in (("portföy", portfoyler), ("talep", talepler)):
+            for k in liste:
+                kayit_ilceleri = _kayit_ilceleri(k)
+                if not kayit_ilceleri:
+                    continue
+                for kullanici, ilceler in kullanici_ilceleri.items():
+                    eslesen = next((i for i in ilceler if _ilce_normalize(i) in kayit_ilceleri), None)
+                    if eslesen:
+                        d = sayac.setdefault(kullanici, {}).setdefault(eslesen, {"portföy": 0, "talep": 0})
+                        d[tur] += 1
+
+        gonderilenler = []
+        for kullanici, ilce_sayilari in sayac.items():
+            parcalar = []
+            toplam_portfoy = 0
+            for ilce in sorted(ilce_sayilari):
+                d = ilce_sayilari[ilce]
+                toplam_portfoy += d["portföy"]
+                alt = [f"{d[t]} {t}" for t in ("portföy", "talep") if d[t]]
+                parcalar.append(f"{ilce}: " + ", ".join(alt))
+            govde = "Uzmanlık bölgenizde yeni kayıt eklendi — " + "; ".join(parcalar) + "."
+            try:
+                bildirim_gonder(
+                    kullanici,
+                    "📍 Uzmanlık Bölgeniz",
+                    govde,
+                    url=_PORTFOY_URL if toplam_portfoy else _TALEP_URL,
+                )
+                gonderilenler.append(kullanici)
+            except Exception:
+                pass
+        return gonderilenler
+    except Exception:
+        return []
+
+
 def pazar_yeni_ilan_bildirimleri_gonder(progress_cb=None):
     """FAZ 2 (27.09.2026 — Meltem onayı): FSBO İlanları ve Startkey
     İlanları için, HER danışmana KENDİ bölgelerinde BUGÜN yayınlanan yeni
@@ -397,7 +492,7 @@ def pazar_yeni_ilan_bildirimleri_gonder(progress_cb=None):
             bildirim_gonder(
                 kullanici,
                 "📋 FSBO İlanları",
-                f"Bölgelerinde bugün {sayi} yeni FSBO ilanı yayınlandı.",
+                f"Bölgelerinde bugün {sayi} yeni FSBO ilanı eklendi.",
                 url=_bildirim_hedef_url(
                     kullanici, fsbo_ilanlar[kullanici], "FSBO İlanları", "fsbo", _FSBO_BUGUN_URL
                 ),
@@ -418,7 +513,7 @@ def pazar_yeni_ilan_bildirimleri_gonder(progress_cb=None):
             bildirim_gonder(
                 kullanici,
                 "🏢 Startkey İlanları",
-                f"Bölgelerinde bugün {sayi} yeni Startkey ilanı yayınlandı.",
+                f"Bölgelerinde bugün {sayi} yeni Startkey ilanı eklendi.",
                 url=_bildirim_hedef_url(
                     kullanici, startkey_ilanlar[kullanici], "Startkey İlanları", "startkey", _STARTKEY_BUGUN_URL
                 ),

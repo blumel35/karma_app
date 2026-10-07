@@ -1149,6 +1149,34 @@ def bildirim_url_coz(url):
     return hedef_sayfa, session_anahtari
 
 
+def bildirim_zaman_etiketi(iso_str, kisa=False):
+    """YENİ (07.10.2026, Meltem: "bildirimlerim sayfasında tarih gözükmüyor,
+    takibi zorlaştırıyor"): bildirim_gecmisi.created_at (UTC, ISO 8601) →
+    TÜRKİYE saatiyle okunaklı tarih+saat. kisa=True: "07.10 09:12" (bu yılsa
+    yıl yazılmaz; ana sayfa önizlemesi dar), kisa=False: "07.10.2026 09:12".
+    Ayrıştırma başarısız olursa boş string döner (ekran bozulmasın)."""
+    if not iso_str:
+        return ""
+    try:
+        from datetime import datetime, timezone, timedelta
+        zaman = datetime.fromisoformat(str(iso_str).replace("Z", "+00:00"))
+        if zaman.tzinfo is None:
+            zaman = zaman.replace(tzinfo=timezone.utc)
+        try:
+            from zoneinfo import ZoneInfo
+            yerel = zaman.astimezone(ZoneInfo("Europe/Istanbul"))
+        except Exception:
+            yerel = zaman.astimezone(timezone(timedelta(hours=3)))  # TR sabit UTC+3
+        if kisa:
+            yil = datetime.now(timezone.utc).astimezone(yerel.tzinfo).year
+            bicim = "%d.%m %H:%M" if yerel.year == yil else "%d.%m.%Y %H:%M"
+        else:
+            bicim = "%d.%m.%Y %H:%M"
+        return yerel.strftime(bicim)
+    except Exception:
+        return ""
+
+
 def render_bildirim_onizleme():
     """YENİ (26.09.2026, Meltem: "bildirimlerim ana sayfada olmalı. son 24
     saat paylaşımının olduğu yerde bir de ayrıca tüm bildirimleri gösteren
@@ -1204,17 +1232,20 @@ def render_bildirim_onizleme():
         )
         for b in bildirimler:
             _govde = f" — {b['govde']}" if b.get("govde") else ""
+            # 07.10.2026: her bildirimin başına gönderildiği tarih+saat (TR).
+            _zaman = bildirim_zaman_etiketi(b.get("created_at"), kisa=True)
+            _zaman_on = f"{_zaman} · " if _zaman else ""
             hedef_sayfa, session_anahtari = bildirim_url_coz(b.get("url"))
             if hedef_sayfa:
                 if st.button(
-                    f"• {b.get('baslik') or ''}{_govde}",
+                    f"• {_zaman_on}{b.get('baslik') or ''}{_govde}",
                     key=f"dp_bildirim_onizleme_baslik_{b.get('id')}",
                 ):
                     if session_anahtari:
                         st.session_state[session_anahtari] = "Bugün"
                     st.switch_page(hedef_sayfa)
             else:
-                st.caption(f"• **{b.get('baslik') or ''}**{_govde}")
+                st.caption(f"• {_zaman_on}**{b.get('baslik') or ''}**{_govde}")
         if st.button("Tüm Bildirimler →", key="ds_tum_bildirimler", use_container_width=True):
             st.switch_page("pages/Danisman_Bildirimlerim.py")
 

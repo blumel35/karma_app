@@ -291,6 +291,7 @@ def run_pending_ai_parse_job(limit=50, durum_callback=None, max_workers=3, basla
 
     # portfoy_paylasimi sonuçları: insert + kaynak satırı GÜVENLİ şekilde işaretle
     portfoy_basarili = 0
+    yeni_portfoyler = []  # bildirim için (başarıyla eklenenler)
     for portfoy in portfoy_sonuclar:
         source_id = portfoy.pop("_source_alici_id", None)
         try:
@@ -305,6 +306,7 @@ def run_pending_ai_parse_job(limit=50, durum_callback=None, max_workers=3, basla
                 }).eq("id", source_id).execute()
 
             portfoy_basarili += 1
+            yeni_portfoyler.append(portfoy)
         except Exception as e:
             hata_metni = str(e)
             # Bu mail (message_id) daha önce zaten portfoyler tablosuna
@@ -358,6 +360,20 @@ def run_pending_ai_parse_job(limit=50, durum_callback=None, max_workers=3, basla
             }).eq("id", kayit_id).execute()
         except Exception as e:
             print(f"Hatalı kayıt işaretlenemedi (id={kayit_id}): {e}")
+
+    # YENİ (07.10.2026): e-postadan gelen yeni talep/portföy için
+    # "📍 Uzmanlık Bölgeniz" ÖZET bildirimi (ilçe bazlı, danışman başına
+    # tek bildirim). Best-effort: hata/eksik paket/secret mail akışını
+    # ASLA bozmaz. Yalnızca gerçek alıcı talepleri (kategori='alici_talebi')
+    # sayılır — 'diger' sınıfındaki mailler bildirim üretmez.
+    try:
+        from core.bildirim_tetikleyici import mail_kayit_ozet_bildirimleri_gonder
+        yeni_talepler = [k for k in alici_sonuclar if k.get("kategori") == "alici_talebi"]
+        gonderilen = mail_kayit_ozet_bildirimleri_gonder(yeni_talepler, yeni_portfoyler)
+        if durum_callback and gonderilen:
+            durum_callback(f"📍 Uzmanlık bölgesi özet bildirimi gitti: {', '.join(gonderilen)}")
+    except Exception as e:
+        print(f"Uzmanlık özet bildirimi atlandı: {e}")
 
     sure = round(time.time() - baslangic, 1)
     _log_yaz(

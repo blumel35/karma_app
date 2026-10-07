@@ -760,7 +760,44 @@ def _pazar_ilan_kart_html(v):
     bg, fg = _rozet_renk(islem)
     ilce_rengi = _ilce_renk(_ilce_al(v))
 
-    tarih = _esc(str(v.get("ilan_tarihi") or ""))
+    # 07.10.2026 (Meltem: "bugün için bildirim geldi ama kartta tarih 28
+    # Eylül"): kartta görünen tarih Revy'nin İLAN TARİHİ; bildirimdeki
+    # "bugün yeni" ise ilanı BİZİM sistemimizin ilk gördüğü gün
+    # (ilk_gorulme_tarihi). İkisi farklıysa (Revy ilanı geç yansıtmış) kart
+    # iki tarihi de açıkça etiketler — "bugün yeni" ile 28 Eylül çelişki
+    # gibi görünmesin.
+    _ilan_t = str(v.get("ilan_tarihi") or "")[:10]
+    _gorulme_t = str(v.get("ilk_gorulme_tarihi") or "")[:10]
+
+    def _gg_aa_yyyy(t):
+        try:
+            return f"{t[8:10]}.{t[5:7]}.{t[0:4]}"
+        except Exception:
+            return t
+
+    if _ilan_t and _gorulme_t and _ilan_t != _gorulme_t:
+        tarih = (
+            _esc(f"İlan tarihi: {_gg_aa_yyyy(_ilan_t)}") + "<br>"
+            + _esc(f"Sistemde: {_gg_aa_yyyy(_gorulme_t)}")
+        )
+    else:
+        tarih = _esc(_gg_aa_yyyy(_ilan_t) if _ilan_t else "")
+
+    # 07.10.2026 (Meltem: "Sadece söz ve kart etiketi"): sistemin ilk gördüğü
+    # gün ile ilan tarihi arasında 7 günden fazla varsa ("Revy geç yansıttı"
+    # ya da eski ilan yeniden listelendi) kart bunu açıkça yazar. İlan
+    # gizlenmez/elenmez — yalnızca etiket.
+    try:
+        from datetime import date as _date
+        _fark = (_date.fromisoformat(_gorulme_t) - _date.fromisoformat(_ilan_t)).days
+    except Exception:
+        _fark = 0
+    if _fark > 7:
+        tarih += (
+            '<br><span style="color:#b45309;font-weight:600">'
+            + _esc(f"{_fark} gün önce girilmiş")
+            + "</span>"
+        )
     mulk_turu = str(v.get("mulk_turu") or "").strip()
     mulk_tipi = str(v.get("mulk_tipi") or "").strip()
     oda = str(v.get("oda_sayisi") or "").strip()
@@ -830,7 +867,7 @@ def _pazar_ilan_kart_html(v):
     <div class="kart" style="--dist-color:{ilce_rengi}">
       <div class="kart-ust">
         <span class="rozet" style="background:{bg};color:{fg}">{_esc(islem or "Belirsiz")}</span>
-        <span class="kart-tarih">{tarih}</span>
+        <span class="kart-tarih" style="text-align:right">{tarih}</span>
       </div>
       {ilan_link_html}
       <div class="kart-baslik">{baslik}{durum_notu}</div>
@@ -1143,7 +1180,7 @@ def pazar_pano_paylasim_blogu(ilanlar, pano_basligi, mesaj_ozeti, key_prefix, do
     """FSBO İlanları / Startkey İlanları ekranlarında, EKRANDA O AN
     GÖRÜNEN (filtrelenmiş) ilan listesinin bir "anlık görüntüsünü" tek
     tıkla paylaşılabilir bir linke çeviren blok. YENİ (05.10.2026 —
-    Meltem: "WhatsApp'tan 'bölgenizde bugün 3 yeni FSBO ilanı yayınlandı'
+    Meltem: "WhatsApp'tan 'bölgenizde bugün 3 yeni FSBO ilanı eklendi'
     mesajının altına, sadece o 3 ilanı gösteren bir link koymak").
 
     Talep/Portföy panolarındaki pano_export_butonu_goster ile AYNI altyapı
@@ -1159,7 +1196,7 @@ def pazar_pano_paylasim_blogu(ilanlar, pano_basligi, mesaj_ozeti, key_prefix, do
     _PAYLASIM_TEST_ISIMLERI kontrolü.
 
     mesaj_ozeti: linkin üstüne yazılacak cümle, örn. "Bölgenizde bugün 3
-    yeni FSBO ilanı yayınlandı." — çağıran taraf filtreye göre kurar."""
+    yeni FSBO ilanı eklendi." — çağıran taraf filtreye göre kurar."""
     # TEST AŞAMASI (05.10.2026 — Meltem: "şimdilik sadece bende çalışacak,
     # test amaçlı"): şimdilik YALNIZCA "Meltem Bulu" adlı hesap görür.
     # (İlk sürümde ayrıca rol == "admin" şartı vardı; Meltem'in danışman
