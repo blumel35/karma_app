@@ -1,0 +1,70 @@
+name: Startkey Ofis Verisi Çekimi
+
+# Startkey ofisleri analizi için Revy ilan verisini (aktif + yayından kalkan,
+# ilan tarihi >= 2025-01-01, İzmir'in 30 ilçesi) çekip startkey_ofis_ilanlar
+# tablosuna yazar. Zamanlanmış DEĞİL — yalnızca elle tetiklenir
+# (Actions > "Startkey Ofis Verisi Çekimi" > Run workflow).
+#
+# İLK KULLANIM: önce "sadece_sinama" kutusunu işaretleyip çalıştır (birkaç
+# dakika; Revy girişini ve tarih sınırı varsayımını doğrular, veri çekmez).
+# Yeşil biterse kutuyu kaldırıp tam çekimi başlat. Süre sınırına gelirse iş
+# düzgünce durur; AYNI işi tekrar çalıştırınca kalan yerden devam eder
+# (son 24 saatte tamamlanan kombinasyonlar atlanır).
+on:
+  workflow_dispatch:
+    inputs:
+      ilan_baslangic:
+        description: "İlan tarihi bu günden itibaren (YYYY-AA-GG)"
+        default: "2025-01-01"
+      ilceler:
+        description: "'hepsi' veya virgüllü ilçe adları (ör. Balçova,Karşıyaka)"
+        default: "hepsi"
+      yeniden:
+        description: "Son 24 saatte tamamlananları da baştan çek"
+        type: boolean
+        default: false
+      sadece_sinama:
+        description: "Yalnızca kendi kendini sına, veri çekme"
+        type: boolean
+        default: false
+
+jobs:
+  startkey-ofis-cekim:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - name: Repoyu çek
+        uses: actions/checkout@v4
+
+      - name: Python kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Chrome kur (Selenium ile eşleşen sürüm)
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Bağımlılıkları kur
+        run: |
+          pip install --upgrade pip
+          pip install selenium pandas openpyxl supabase python-dateutil requests
+
+      - name: Startkey ofis verisini çek
+        env:
+          ILAN_BASLANGIC: ${{ inputs.ilan_baslangic }}
+          ILCELER: ${{ inputs.ilceler }}
+          YENIDEN: ${{ inputs.yeniden }}
+          SADECE_SINAMA: ${{ inputs.sadece_sinama }}
+          MAX_DAKIKA: "335"
+          REVY_GIRIS_URL: ${{ secrets.REVY_GIRIS_URL }}
+          REVY1_KULLANICI: ${{ secrets.REVY1_KULLANICI }}
+          REVY1_SIFRE: ${{ secrets.REVY1_SIFRE }}
+          REVY1_OFIS_AKTIF_URL: ${{ secrets.REVY1_OFIS_AKTIF_URL }}
+          REVY2_KULLANICI: ${{ secrets.REVY2_KULLANICI }}
+          REVY2_SIFRE: ${{ secrets.REVY2_SIFRE }}
+          REVY2_OFIS_AKTIF_URL: ${{ secrets.REVY2_OFIS_AKTIF_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: python startkey_ofis_job.py
