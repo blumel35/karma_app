@@ -289,7 +289,7 @@ if not ilanlar:
 # bir linke çevirir (bkz. core/pano_export.py: pazar_pano_paylasim_blogu).
 _n = len(ilanlar)
 if zaman_secim == "Bugün":
-    _mesaj = f"Bölgenizde bugün {_n} yeni Startkey ilanı yayınlandı."
+    _mesaj = f"Bölgenizde bugün {_n} yeni Startkey ilanı eklendi."
 else:
     _mesaj = f"Bölgenizde {_n} Startkey ilanı:"
 pazar_pano_paylasim_blogu(ilanlar, "Startkey İlanları", _mesaj, key_prefix="startkey", dosya_on_eki="startkey")

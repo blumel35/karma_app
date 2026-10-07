@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import oturum_kontrol
 from core.danisman_ortak import (
     su_anki_danisman, render_topbar, hide_sidebar_css, bildirim_url_coz,
+    bildirim_zaman_etiketi,
 )
 from core.push_bildirim import bildirimlerimi_cek
 
@@ -141,7 +142,12 @@ for b in bildirimler:
             else:
                 st.markdown(f"**{b.get('baslik') or ''}**")
         with zaman_col:
-            st.caption(_zaman_once(b.get("created_at")))
+            # 07.10.2026 (Meltem: "tarih gözükmüyor, takibi zorlaştırıyor"):
+            # göreli süre ("3 saat önce") tek başına yetmiyor — gönderildiği
+            # TARİH + SAAT (Türkiye saati) de yazılır.
+            _tarih_saat = bildirim_zaman_etiketi(b.get("created_at"))
+            _gorece = _zaman_once(b.get("created_at"))
+            st.caption(f"{_tarih_saat}  \n{_gorece}" if _tarih_saat else _gorece)
         if b.get("govde"):
             st.write(b["govde"])
         if b.get("url") and not hedef_sayfa:

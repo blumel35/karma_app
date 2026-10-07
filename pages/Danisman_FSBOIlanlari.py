@@ -322,7 +322,7 @@ if not ilanlar:
 # bir linke çevirir (bkz. core/pano_export.py: pazar_pano_paylasim_blogu).
 _n = len(ilanlar)
 if zaman_secim == "Bugün":
-    _mesaj = f"Bölgenizde bugün {_n} yeni FSBO ilanı yayınlandı."
+    _mesaj = f"Bölgenizde bugün {_n} yeni FSBO ilanı eklendi."
 else:
     _mesaj = f"Bölgenizde {_n} FSBO ilanı:"
 pazar_pano_paylasim_blogu(ilanlar, "FSBO İlanları", _mesaj, key_prefix="fsbo", dosya_on_eki="fsbo")
