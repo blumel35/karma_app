@@ -1541,41 +1541,12 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
         padding-bottom: 8px !important;
         margin-bottom: 8px !important;
     }
-    /* "← Panoya Dön" butonu — dar konteynerlerde metni dikey bölmesin
+    /* "← Ana Sayfa" butonu — dar konteynerlerde metni dikey bölmesin
        (Zeta Paylaşımları gibi sayfalarda gözlemlendi). Buton doğal
        genişliğini korusun, satır kırmasın. */
     div[class*="st-key-dp_geri_btn"] button {
         white-space: nowrap !important;
         width: auto !important;
-    }
-    /* 🏠 Ana Sayfa — YENİ (27.09.2026): ikon-only, dairesel, "← Panoya
-       Dön" ile aynı sırada ama görsel olarak ayrı bir "çip" — mobilde
-       tek dokunuşla, metin okumaya gerek kalmadan fark edilsin diye
-       bilinçli olarak yuvarlak/dolgu renkli (diğer sayfalardaki rozet/
-       çip deseniyle aynı dil). */
-    div[class*="st-key-dp_ana_sayfa_btn"] button {
-        width: 36px !important;
-        height: 36px !important;
-        min-height: 36px !important;
-        border-radius: 50% !important;
-        padding: 0 !important;
-        background: #eef0f3 !important;
-        border: 1px solid #dde1e6 !important;
-        font-size: 15px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }
-    div[class*="st-key-dp_ana_sayfa_btn"] button:hover {
-        background: #e2e5ea !important;
-    }
-    @media (max-width: 480px) {
-        div[class*="st-key-dp_ana_sayfa_btn"] button {
-            width: 32px !important;
-            height: 32px !important;
-            min-height: 32px !important;
-            font-size: 14px !important;
-        }
     }
     /* Başlık — grid sütunu içinde ortalı, satır kırmasın, sığmazsa
        kırpılıp "..." göstersin (satır kırıp dikey bölünmek yerine).
@@ -1649,7 +1620,7 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
             font-size: 0 !important;
         }
         div[class*="st-key-dp_geri_btn"] button p::before {
-            content: "←";
+            content: "← 🏠";
             font-size: 16px;
         }
         div[data-testid="stVerticalBlock"][class*="st-key-dp_topbar_wrap"] {
@@ -1729,7 +1700,7 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                     st.switch_page("pages/Danisman_Bildirimlerim.py")
                 if st.button("📂 Kendi Kayıtlarım", use_container_width=True, key="dp_menu_kayitlarim"):
                     st.switch_page("pages/Danisman_Kayitlarim.py")
-                if st.button("📇 Rehberim", use_container_width=True, key="dp_menu_musteriler"):
+                if st.button("📅 Ajandam ve Rehberim", use_container_width=True, key="dp_menu_musteriler"):
                     st.switch_page("pages/Danisman_Rehberim.py")
                 if st.button("📢 Zeta Portföyleri", use_container_width=True, key="dp_menu_zeta_ilan"):
                     st.switch_page("pages/Danisman_ZetaPortfoyleri.py")
@@ -1774,19 +1745,13 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                     st.switch_page("pages/Danisman_Giris.py")
 
             if geri_hedefi:
-                if st.button("← Panoya Dön", key="dp_geri_btn"):
+                # DEĞİŞTİ (09.10.2026, Meltem: "ana sayfa emojisini kaldıralım,
+                # panoya dön yerine ana sayfa yazsın, mobilde okun içinde ana
+                # sayfa emojisi olsun"): önceki "← Panoya Dön" + ayrı 🏠
+                # dairesel butonu TEK butonda birleştirildi. Masaüstünde
+                # "← Ana Sayfa", dar ekranda yalnızca "← 🏠" (CSS ile).
+                if st.button("← Ana Sayfa", key="dp_geri_btn", help="Ana Sayfa"):
                     st.switch_page(geri_hedefi)
-                # YENİ (27.09.2026, Meltem: "bir de ana sayfa butonu ekleyelim
-                # oklarla geri dönmek özellikle mobilde zor oluyor"): geri
-                # okunun YANINA, onu KALDIRMADAN (mockup karşılaştırmasında
-                # onaylanan seçenek) — geri oku "bir önceki adıma" döner,
-                # bu ikonlu buton HER ZAMAN doğrudan Ana Ekran'a. Hedef
-                # bilerek geri_hedefi PARAMETRESİNDEN bağımsız, sabit
-                # "pages/Danisman_Secim.py" — "Ana Sayfa" her sayfada aynı
-                # anlama gelsin diye (geri_hedefi ileride farklı bir sayfaya
-                # işaret edecek olsa bile, bu buton yine de eve gider).
-                if st.button("🏠", key="dp_ana_sayfa_btn", help="Ana Sayfa"):
-                    st.switch_page("pages/Danisman_Secim.py")
 
         # 2. GRID SÜTUNU — başlık. HER ZAMAN render edilir (boşsa bile
         # boş bir div) — sütun sayısı/sırası hiçbir zaman kaymasın diye.
