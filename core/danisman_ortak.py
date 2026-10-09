@@ -622,6 +622,43 @@ def musteri_sil(musteri_id):
     musterileri_cek.clear()
 
 
+def rehber_gorusme_ekle(musteri_id, tarih, not_metni=""):
+    """Rehberim kaydına görüşme günlüğü girdisi ekler (09.10.2026 — Meltem:
+    "görüşme geçmişi bölümü ... Rehberim'deki tüm kayıtlara"). Girdiler
+    kişinin 'gorusme_gecmisi' (jsonb) alanında tutulur; 'son_gorusme_tarihi'
+    en yeni girdinin tarihine güncellenir. Mevcut liste her seferinde
+    veritabanından taze okunur (önbellekten değil)."""
+    satir = (
+        supabase.table("danisman_kisiler")
+        .select("gorusme_gecmisi")
+        .eq("id", musteri_id).execute().data or [{}]
+    )[0]
+    liste = list(satir.get("gorusme_gecmisi") or [])
+    liste.append({
+        "id": uuid.uuid4().hex[:8],
+        "tarih": tarih.isoformat(),
+        "not": (not_metni or "").strip(),
+        "olusturma": datetime.now(timezone.utc).isoformat(),
+    })
+    musteri_guncelle(musteri_id, {
+        "gorusme_gecmisi": liste,
+        "son_gorusme_tarihi": max(g["tarih"] for g in liste),
+    })
+
+
+def rehber_gorusme_sil(musteri_id, gorusme_id):
+    satir = (
+        supabase.table("danisman_kisiler")
+        .select("gorusme_gecmisi")
+        .eq("id", musteri_id).execute().data or [{}]
+    )[0]
+    liste = [g for g in (satir.get("gorusme_gecmisi") or []) if g.get("id") != gorusme_id]
+    musteri_guncelle(musteri_id, {
+        "gorusme_gecmisi": liste,
+        "son_gorusme_tarihi": max((g["tarih"] for g in liste), default=None),
+    })
+
+
 def rehber_alarm_kur(musteri_id, yerel_zaman, alarm_notu=""):
     """Rehberim kaydına 'yeniden ara' alarmı kurar (09.10.2026 — Meltem:
     "alarm kurulan tarihte yeniden arama bildirimi versin").
