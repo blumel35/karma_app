@@ -630,10 +630,17 @@ def fsbo_kisisini_rehbere_ekle(danisman_adi, ad, telefon, ilan):
     bilgiler ile fsbo kaydı olarak eklenir"). Numara sistemde başka hiçbir
     yerde saklanmaz/gösterilmez — sadece bu danışmanın kendi rehberinde.
 
+    İlan bilgisi (konum · kiralık/satılık · mülk türü · ilan tarihi · ilan no ·
+    link) 'ilan_ozeti' alanına yazılır; danışmanın kendi 'Not'u (görüşme
+    notları) ve 'son_gorusme_tarihi' ayrı alanlardır, bu fonksiyon onlara
+    DOKUNMAZ. (Meltem: "balçova fevzi çakmak kiralık daire, ilan tarihi,
+    son görüşme tarihi, görüşme notları bölümü gibi" — m² istenmedi.)
+
     - Aynı numara (format farkı gözetmeksizin) zaten rehberdeyse YENİ kişi
-      açılmaz: 'FSBO' tipi eklenir, ilan bilgisi nota EKLENİR (öncekiler
-      silinmez). Aynı ilan no iki kez yazılmaz.
-    - ilan: izmir_pazar_ilanlar satırı (dict).
+      açılmaz: 'FSBO' tipi eklenir, yeni ilan özeti öncekilerin ÜSTÜNE eklenir.
+      Aynı ilan no iki kez yazılmaz.
+    - Veri tabanında yeni alanlar henüz yoksa (SQL çalıştırılmadıysa)
+      özet 'notlar' alanına yazılarak eski davranışa düşülür.
     Döner: ("yeni" | "guncellendi" | "ayni_ilan", kisi_adi)"""
     from core.pano_export import ilan_no_cikar, _sayi_ayikla, _sayi_formatla
     try:
@@ -646,62 +653,94 @@ def fsbo_kisisini_rehbere_ekle(danisman_adi, ad, telefon, ilan):
     telefon = (telefon or "").strip()
     telefon_norm = _telefon_normalize(telefon)
 
+    def _dolu(*alanlar):
+        return [str(ilan.get(x) or "").strip() for x in alanlar if str(ilan.get(x) or "").strip()]
+
+    def _gg_aa_yyyy(t):
+        t = str(t or "")[:10]
+        return f"{t[8:10]}.{t[5:7]}.{t[0:4]}" if len(t) == 10 and t[4] == "-" else ""
+
     ilan_no = ilan_no_cikar(ilan.get("ilan_linki")) or ""
-    parcalar = ["FSBO ilanı"]
-    if ilan_no:
-        parcalar.append(f"İlan No {ilan_no}")
-    konum = " / ".join(x for x in [str(ilan.get("ilce") or "").strip(),
-                                   str(ilan.get("mahalle") or "").strip()] if x)
+    ilan_linki = str(ilan.get("ilan_linki") or "").strip()
+
+    # Satır 1: "Balçova / Fevzi Çakmak · Kiralık Daire · 3+1 · 50.000 TL"
+    s1 = []
+    _mah = re.sub(r"\s+(Mah\.?|Mahallesi)$", "", (_dolu("mahalle") or [""])[0], flags=re.IGNORECASE)
+    konum = " / ".join(x for x in (_dolu("ilce") + [_mah]) if x)
     if konum:
-        parcalar.append(konum)
-    ozet = " ".join(x for x in [str(ilan.get("islem_tipi") or "").strip(),
-                                str(ilan.get("oda_sayisi") or "").strip()] if x)
-    if ozet:
-        parcalar.append(ozet)
+        s1.append(konum)
+    mulk = (_dolu("mulk_turu") or _dolu("mulk_tipi") or [""])[0]
+    tur = " ".join(x for x in (_dolu("islem_tipi") or [""])[:1] + [mulk] if x)
+    if tur:
+        s1.append(tur)
+    s1 += _dolu("oda_sayisi")
     fiyat = _sayi_ayikla(ilan.get("fiyat"))
     if fiyat is not None:
-        parcalar.append(f"{_sayi_formatla(fiyat)} TL")
-    parcalar.append(f"Kayıt: {bugun}")
-    not_satiri = " · ".join(parcalar)
-    ilan_linki = str(ilan.get("ilan_linki") or "").strip()
+        s1.append(f"{_sayi_formatla(fiyat)} TL")
+    # Satır 2: "İlan tarihi: 08.10.2026 · İlan No: 1344288155 · Kayıt: 09.10.2026"
+    s2 = []
+    if _gg_aa_yyyy(ilan.get("ilan_tarihi")):
+        s2.append(f"İlan tarihi: {_gg_aa_yyyy(ilan.get('ilan_tarihi'))}")
+    if ilan_no:
+        s2.append(f"İlan No: {ilan_no}")
+    s2.append(f"Kayıt: {bugun}")
+    satirlar = [" · ".join(x) for x in (s1, s2) if x]
     if ilan_linki:
-        not_satiri += f"\n{ilan_linki}"
+        satirlar.append(ilan_linki)
+    ozet = "\n".join(satirlar)
 
     adaylar = (
         supabase.table("danisman_kisiler")
-        .select("id, ad, telefon, tip, notlar")
+        .select("*")
         .eq("danisman", danisman_adi)
         .execute()
         .data or []
     )
     eslesen = None
-    for a in adaylar:
-        if _telefon_normalize(a.get("telefon")) == telefon_norm:
-            eslesen = a
+    for a_ in adaylar:
+        if telefon_norm and _telefon_normalize(a_.get("telefon")) == telefon_norm:
+            eslesen = a_
             break
 
+    def _yaz(islem):
+        try:
+            return islem(True)
+        except Exception as e:                      # yeni sütunlar yoksa
+            if "ilan_ozeti" in str(e) or "son_gorusme" in str(e):
+                return islem(False)
+            raise
+
     if eslesen:
+        mevcut_ozet = (eslesen.get("ilan_ozeti") or "").strip()
         mevcut_not = (eslesen.get("notlar") or "").strip()
-        if ilan_no and f"İlan No {ilan_no}" in mevcut_not:
+        tum = mevcut_ozet + "\n" + mevcut_not
+        if ilan_no and (f"İlan No: {ilan_no}" in tum or f"İlan No {ilan_no}" in tum):
             return "ayni_ilan", eslesen.get("ad") or ad
-        alanlar = {
-            "notlar": (not_satiri + ("\n\n" + mevcut_not if mevcut_not else "")),
-        }
         mevcut_tipler = _tip_listele(eslesen.get("tip"))
-        if "FSBO" not in mevcut_tipler:
-            alanlar["tip"] = mevcut_tipler + ["FSBO"]
-        musteri_guncelle(eslesen["id"], alanlar)
+
+        def _guncelle(yeni_alanlar_var):
+            alanlar = {}
+            if yeni_alanlar_var:
+                alanlar["ilan_ozeti"] = ozet + ("\n\n" + mevcut_ozet if mevcut_ozet else "")
+            else:
+                alanlar["notlar"] = ozet + ("\n\n" + mevcut_not if mevcut_not else "")
+            if "FSBO" not in mevcut_tipler:
+                alanlar["tip"] = mevcut_tipler + ["FSBO"]
+            musteri_guncelle(eslesen["id"], alanlar)
+        _yaz(_guncelle)
         return "guncellendi", eslesen.get("ad") or ad
 
-    supabase.table("danisman_kisiler").insert({
-        "danisman": danisman_adi,
-        "ad": ad,
-        "telefon": telefon,
-        "tip": ["FSBO"],
-        "notlar": not_satiri,
-        "bolgeler": [],
-        "kaynak": "manuel",
-    }).execute()
+    def _ekle(yeni_alanlar_var):
+        kayit = {
+            "danisman": danisman_adi, "ad": ad, "telefon": telefon,
+            "tip": ["FSBO"], "bolgeler": [], "kaynak": "manuel",
+        }
+        if yeni_alanlar_var:
+            kayit["ilan_ozeti"] = ozet
+        else:
+            kayit["notlar"] = ozet
+        supabase.table("danisman_kisiler").insert(kayit).execute()
+    _yaz(_ekle)
     musterileri_cek.clear()
     return "yeni", ad
 
