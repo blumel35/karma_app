@@ -609,6 +609,16 @@ _RENKLER = {
 }
 
 
+st.markdown(
+    "<style>"
+    "div[class*='st-key-bh_filtre_'] [data-testid='stHorizontalBlock']{gap:.4rem;flex-wrap:wrap;}"
+    "div[class*='st-key-bh_filtre_'] [data-testid='stColumn']{min-width:130px;}"
+    "div[class*='st-key-bh_filtre_'] input{font-size:13px;}"
+    "</style>",
+    unsafe_allow_html=True,
+)
+
+
 @st.cache_data(ttl=120, show_spinner="Havuz yükleniyor...")
 def _havuz_yukle(gun, ilceler):
     return bh.havuzu_yukle(gun, list(ilceler))
@@ -701,28 +711,74 @@ def _havuz_sekmesi(tur, ad, renk, kayit_listesi, ilce, takipci_kayitlari, donem)
         st.info(f"{donem.lower()} içinde bu kapsamda {ad.lower()} kaydı yok.")
         return
     simdi = bh.datetime.now(bh.timezone.utc)
+
+    # ── Excel tarzı filtre satırı (sütun başlıklarının hemen üstü) ──────
+    # st.dataframe'in kendi sütun filtresi yok; her sütun için bir filtre
+    # kutusu: metin sütunlarında "içeren", az çeşitli sütunlarda çoklu seçim.
+    def _ilce_metni(k):
+        return ", ".join(i for i in k["ilceler"] if i) or "—"
+
+    def _secenekler(alan):
+        return sorted({alan(k) for k in kayit_listesi}, key=_tr_anahtar)
+
+    ek = f"bh_f_{tur}_{ilce}_{donem}"
+    with st.container(key=f"bh_filtre_{tur}"):
+        f = st.columns([2, 1.2, 1.7, 2, 1.5, 1.5, 1.5])
+        f_kayit = f[0].text_input("Kayıt", key=f"{ek}_kayit", placeholder="🔎 Kayıt", label_visibility="collapsed")
+        f_islem = f[1].multiselect("İşlem", _secenekler(lambda k: k.get("islem") or "—"), key=f"{ek}_islem",
+                                   placeholder="İşlem", label_visibility="collapsed")
+        f_yas = f[2].text_input("Yaş / Kat", key=f"{ek}_yas", placeholder="🔎 Yaş / kat", label_visibility="collapsed")
+        f_ayrinti = f[3].text_input("Ayrıntı", key=f"{ek}_ayr", placeholder="🔎 Ayrıntı", label_visibility="collapsed")
+        f_kaynak = f[4].multiselect("Kaynak", _secenekler(lambda k: k.get("kaynak") or "—"), key=f"{ek}_kaynak",
+                                    placeholder="Kaynak", label_visibility="collapsed")
+        f_sahip = f[5].multiselect("Sahibi", _secenekler(lambda k: k.get("sahip") or "—"), key=f"{ek}_sahip",
+                                   placeholder="Sahibi", label_visibility="collapsed")
+        f_ilce = f[6].multiselect("İlçe", _secenekler(_ilce_metni), key=f"{ek}_ilce",
+                                  placeholder="İlçe", label_visibility="collapsed")
+
+    def _icerir(metin, aranan):
+        return not aranan.strip() or bh.tr_kucuk(aranan) in bh.tr_kucuk(metin)
+
+    gorunen = [
+        k for k in kayit_listesi
+        if _icerir(k["baslik"], f_kayit)
+        and (not f_islem or (k.get("islem") or "—") in f_islem)
+        and _icerir(k.get("yas_kat") or "", f_yas)
+        and _icerir(k["alt"], f_ayrinti)
+        and (not f_kaynak or (k.get("kaynak") or "—") in f_kaynak)
+        and (not f_sahip or (k.get("sahip") or "—") in f_sahip)
+        and (not f_ilce or _ilce_metni(k) in f_ilce)
+    ]
+    if len(gorunen) != len(kayit_listesi):
+        st.caption(f"Filtre: {len(gorunen)} / {len(kayit_listesi)} kayıt gösteriliyor.")
+    if not gorunen:
+        st.info("Filtreye uyan kayıt yok.")
+        return
+
     tablo = [
         {
             "": "🆕" if k["yeni"] else "",
             "Kayıt": k["baslik"],
+            "İşlem": k.get("islem") or "—",
+            "Yaş / Kat": k.get("yas_kat") or "—",
             "Ayrıntı": k["alt"],
             "Kaynak": k.get("kaynak") or "",
             "Sahibi": k["sahip"] or "—",
-            "İlçe": ", ".join(i for i in k["ilceler"] if i) or "—",
+            "İlçe": _ilce_metni(k),
             "Zaman": bh.zaman_etiketi(k["zaman"], simdi),
         }
-        for k in kayit_listesi
+        for k in gorunen
     ]
     olay = st.dataframe(
-        tablo, hide_index=True, use_container_width=True, height=min(420, 38 + 35 * len(tablo)),
+        tablo, hide_index=True, use_container_width=True, height=min(460, 38 + 35 * len(tablo)),
         on_select="rerun", selection_mode="single-row",
-        key=f"bh_df_{tur}_{ilce}_{donem}",
+        key=f"bh_df_{tur}_{ilce}_{donem}_{len(gorunen)}",
     )
     secili = list(olay.selection.rows) if olay and olay.selection else []
     if not secili:
         st.caption("Ayrıntı ve bildirim simülasyonu için bir satır seç.")
         return
-    k = kayit_listesi[secili[0]]
+    k = gorunen[secili[0]]
     kart, bildirim = st.columns([3, 2])
     with kart:
         with st.container(border=True):

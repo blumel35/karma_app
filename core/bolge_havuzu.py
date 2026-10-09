@@ -30,6 +30,7 @@ duyarsız). Hiçbir ilçeyle eşleşmeyen form kaydı "(İlçe belirsiz)"
 kovasında tutulur — kaybolmaz.
 """
 
+import re
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 
@@ -146,6 +147,98 @@ def _ilceler_of(v):
     return liste
 
 
+# ── İŞLEM TİPİ / BİNA YAŞI / KAT ────────────────────────────────────
+def islem_normal(*degerler):
+    """'Satılık' / 'Kiralık' / '—' (Belirsiz, boş, tanınmayan)."""
+    for d in degerler:
+        m = tr_kucuk(d)
+        if "kiral" in m:
+            return "Kiralık"
+        if "satı" in m or "satil" in m or "satis" in m or "satış" in m:
+            return "Satılık"
+    return "—"
+
+
+def yas_metni(ham):
+    """Yapılandırılmış bina yaşı (Revy: '0', '5', '5-10', '21 Ve Üzeri',
+    'Sıfır'...) -> '5 yaş' / '5-10 yaş' / '21+ yaş' / 'sıfır'."""
+    m = tr_kucuk(ham)
+    if not m or m in ("nan", "none", "belirtilmemiş"):
+        return ""
+    if "sıfır" in m:
+        return "sıfır"
+    if m.isdigit():
+        return "sıfır" if int(m) == 0 else f"{int(m)} yaş"
+    ar = re.fullmatch(r"(\d{1,2})\s*[-–]\s*(\d{1,2})", m)
+    if ar:
+        return f"{ar.group(1)}-{ar.group(2)} yaş"
+    ve = re.match(r"(\d{1,2})\s*(?:ve|\+)\s*(?:üzeri|üstü|\+)?", m)
+    if ve and ("üz" in m or "üst" in m or "+" in m):
+        return f"{ve.group(1)}+ yaş"
+    return str(ham).strip()
+
+
+def yas_kat_birlestir(yas, kat):
+    return " / ".join(x for x in [yas, tr_kucuk(kat) if kat else ""] if x) or "—"
+
+
+_RE_ARALIK = re.compile(r"(\d{1,2})\s*[-–]\s*(\d{1,2})\s*(?:yaş|yas)")
+_RE_AZAMI = re.compile(
+    r"(?:en fazla|maksimum|max\.?|en çok|en az)?\s*(\d{1,2})\s*(?:yaş|yas)\w*\s*"
+    r"(?:ve altı|altı|geçmeyen|üstü olmayan|kadar|dan küçük)"
+)
+_RE_AZAMI_ON = re.compile(r"(?:en fazla|maksimum|max\.?|en çok)\s*(\d{1,2})\s*(?:yaş|yas)")
+_RE_YAS = re.compile(r"(?:bina\s*yaşı\s*[:\-]?\s*)?(\d{1,2})\s*(?:yaş|yas)")
+_RE_YAS_BINA = re.compile(r"bina\s*yaşı\s*[:\-]?\s*(\d{1,2})\b")
+_RE_KAT_NO = re.compile(r"(\d{1,2})\s*\.?\s*kat(?!lı|ı\s*karşılığı|\s*karşılığı|\s*mülk)")
+_KAT_SOZ = [
+    ("zemin kat", "zemin kat"), ("bahçe kat", "bahçe katı"), ("giriş kat", "giriş katı"),
+    ("ara kat", "ara kat"), ("çatı kat", "çatı katı"), ("en üst kat", "en üst kat"),
+    ("yüksek giriş", "yüksek giriş"), ("bahçe dubleks", "bahçe dubleks"),
+]
+_TIP_SOZ = [("müstakil", "müstakil"), ("dubleks", "dubleks"), ("dublex", "dubleks"),
+            ("tripleks", "tripleks"), ("villa", "villa")]
+
+
+def metinden_yas_kat(*metinler):
+    """Mail / form serbest metninden bina yaşı + kat/tip çıkarımı (en iyi
+    çaba — metinde yoksa '—'). Örn: '5 yaş / zemin kat', '≤10 yaş',
+    '0-5 yaş / müstakil dubleks'. Mail kayıtlarında bu bilgi için ayrı bir
+    sütun yok; bu yüzden metinden okunur ve detayda 'metinden' diye belirtilir."""
+    m = tr_kucuk(" ".join(str(x) for x in metinler if x))[:4000]
+    if not m:
+        return "—"
+    yas = ""
+    a = _RE_ARALIK.search(m)
+    if a:
+        yas = f"{a.group(1)}-{a.group(2)} yaş"
+    else:
+        az = _RE_AZAMI.search(m) or _RE_AZAMI_ON.search(m)
+        if az:
+            yas = f"≤{az.group(1)} yaş"
+        else:
+            b = _RE_YAS_BINA.search(m) or _RE_YAS.search(m)
+            if b:
+                yas = "sıfır" if int(b.group(1)) == 0 else f"{b.group(1)} yaş"
+            elif re.search(r"\bsıfır\s*(?:bina|daire|konut)|\byeni\s*bina|\bsıfır\b.*\bbina", m):
+                yas = "sıfır"
+    kat = ""
+    for aranan, etiket in _KAT_SOZ:
+        if aranan in m:
+            kat = etiket
+            break
+    if not kat:
+        n = _RE_KAT_NO.search(m)
+        if n:
+            kat = f"{n.group(1)}. kat"
+    tipler = []
+    for aranan, etiket in _TIP_SOZ:
+        if aranan in m and etiket not in tipler:
+            tipler.append(etiket)
+    kat_tip = " ".join(x for x in [kat] + tipler if x)
+    return " / ".join(x for x in [yas, kat_tip] if x) or "—"
+
+
 # ── ADAPTÖRLER ──────────────────────────────────────────────────────
 def _startkey(kesim, simdi):
     satirlar = _sayfalar(
@@ -165,10 +258,15 @@ def _startkey(kesim, simdi):
         sonuc.append({
             "id": f"startkey:{v.get('id')}", "tur": "startkey", "baslik": baslik,
             "alt": alt, "zaman": t, "yeni": (simdi - t) <= timedelta(hours=24),
-            "sahip": "", "fiyat": para(v.get("fiyat")), "mahalle": mah,
+            "sahip": "", "kaynak": "Startkey ilanı (Revy)", "fiyat": para(v.get("fiyat")), "mahalle": mah,
             "ilce": (v.get("ilce") or "").strip(), "ilceler": [(v.get("ilce") or "").strip()],
             "link": v.get("ilan_linki") or "",
+            "islem": islem_normal(v.get("islem_tipi")),
+            "yas_kat": yas_kat_birlestir(yas_metni(v.get("bina_yasi")), v.get("kat")),
             "alanlar": [
+                ("İşlem", islem_normal(v.get("islem_tipi"))),
+                ("Bina yaşı", str(v.get("bina_yasi") or "")), ("Bulunduğu kat", str(v.get("kat") or "")),
+                ("m²", str(v.get("m2") or "")),
                 ("İlçe / mahalle", " / ".join(x for x in [(v.get("ilce") or ""), mah] if x)),
                 ("Fiyat", para(v.get("fiyat"))),
                 ("Mülk", baslik),
@@ -201,7 +299,10 @@ def _alici_talepleri(kesim, simdi):
             "zaman": t, "yeni": (simdi - t) <= timedelta(hours=24), "sahip": sahip, "kaynak": _kaynak_etiketi(v),
             "fiyat": para(v.get("max_butce")), "mahalle": v.get("bolge_mahalle") or "",
             "ilce": v.get("ilce") or "", "ilceler": _ilceler_of(v), "link": "",
+            "islem": islem_normal(v.get("islem_tipi"), v.get("ozet")),
+            "yas_kat": metinden_yas_kat(v.get("ozel_kriterler"), v.get("ozet"), v.get("mail_icerigi")),
             "alanlar": [
+                ("Bina yaşı / kat (metinden)", metinden_yas_kat(v.get("ozel_kriterler"), v.get("ozet"), v.get("mail_icerigi"))),
                 ("Kaynak", _kaynak_etiketi(v)), ("Talep eden", sahip), ("İşlem / mülk", " · ".join(x for x in [v.get("islem_tipi") or "", v.get("mulk_tipi") or ""] if x)),
                 ("Bölge", v.get("bolge_mahalle") or ""), ("Oda / m²", v.get("oda_sayisi_m2") or ""),
                 ("Azami bütçe", para(v.get("max_butce"))), ("Notlar", v.get("ozel_kriterler") or ""),
@@ -231,7 +332,10 @@ def _portfoyler(kesim, simdi):
             "kaynak": _kaynak_etiketi(v), "fiyat": para(v.get("fiyat")), "mahalle": v.get("bolge_mahalle") or "",
             "ilce": v.get("ilce") or "", "ilceler": _ilceler_of(v),
             "link": v.get("ilan_linki") or "",
+            "islem": islem_normal(v.get("islem_tipi"), v.get("ozet")),
+            "yas_kat": metinden_yas_kat(v.get("ozellikler"), v.get("ozet"), v.get("mail_icerigi")),
             "alanlar": [
+                ("Bina yaşı / kat (metinden)", metinden_yas_kat(v.get("ozellikler"), v.get("ozet"), v.get("mail_icerigi"))),
                 ("Kaynak", _kaynak_etiketi(v)), ("Paylaşan", sahip), ("İşlem / mülk", " · ".join(x for x in [v.get("islem_tipi") or "", v.get("mulk_tipi") or ""] if x)),
                 ("Bölge", v.get("bolge_mahalle") or ""), ("Oda / m²", v.get("oda_sayisi_m2") or ""),
                 ("Fiyat", para(v.get("fiyat"))), ("Notlar", v.get("ozellikler") or ""),
@@ -281,7 +385,11 @@ def _musteri_formlari(kesim, simdi, ilce_listesi):
                         alanlar.append((str(e), str(d)))
                 elif isinstance(a, (list, tuple)) and len(a) >= 2 and a[0] and a[1]:
                     alanlar.append((str(a[0]), str(a[1])))
+        form_metni = " ".join(f"{e} {d}" for e, d in alanlar)
+        yas_kat = metinden_yas_kat(form_metni)
+        alanlar.insert(5, ("Bina yaşı / kat (metinden)", yas_kat))
         sonuc[tip].append({
+            "islem": "Satılık", "yas_kat": yas_kat, "kaynak": "Müşteri formu",
             "id": f"{tip}:{v.get('id')}", "tur": tip, "baslik": f"{ad} · {v.get('mulk_turu') or '—'}",
             "alt": " · ".join(x for x in [b1, butce] if x),
             "zaman": t, "yeni": (simdi - t) <= timedelta(hours=24),
