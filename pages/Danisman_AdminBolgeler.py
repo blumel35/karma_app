@@ -1,6 +1,11 @@
 """
 pages/Danisman_AdminBolgeler.py
 
+BÖLGE HAVUZU (09.10.2026): üçüncü görünüm — ilçeye düşen tüm kayıtlar
+(Startkey ilanı, alıcı talebi, paylaşım, Zeta portföyü, yatırım talebi...)
+tek akışta; salt-okunur, bildirim GÖNDERMEZ (alıcı simülasyonu). Veri
+katmanı core/bolge_havuzu.py. Dış besleme kanalı: musteri_talepleri.
+
 GÖRÜNÜM (09.10.2026): iki görünüm — "Bölgeye göre" (ilçe -> mahalle kapsamı,
 kim takip ediyor) ve "Danışmana göre" (eski akış). İkisinde de danışman
 düzenleme/hesap işlemleri aynı danisman_paneli() içinde.
@@ -34,6 +39,7 @@ from core.danisman_ortak import (
 )
 from core.personel_manager import load_personel_listesi
 from core.bolge_secici import ilcenin_mahalleleri
+from core import bolge_havuzu as bh
 from core.admin_bolge import (
     BOLGE_TURLERI, MAX_BOLGE, bolgeleri_cek, tum_bolgeleri_cek, cihaz_sayilari,
     bolgeleri_kaydet, ilce_bildirim_ayarla, ilce_mahallelerini_ayarla,
@@ -74,7 +80,7 @@ if _mesaj:
 
 # ── PERSONEL LİSTESİ ─────────────────────────────────────────────────
 mod = st.radio(
-    "Görünüm", ["Bölgeye göre", "Danışmana göre"], horizontal=True, key="ab_mod",
+    "Görünüm", ["Havuz", "Bölgeye göre", "Danışmana göre"], horizontal=True, key="ab_mod",
 )
 ustte, yenile_col = st.columns([5, 1])
 with yenile_col:
@@ -593,8 +599,166 @@ def bolge_gorunumu():
             danisman_paneli(gruplar[sec]["kisi"])
 
 
+
+# ══ BÖLGE HAVUZU GÖRÜNÜMÜ ════════════════════════════════════════════
+_RENKLER = {
+    "indigo": ("#e0e7ff", "#4338ca"), "violet": ("#ede9fe", "#6d28d9"),
+    "orange": ("#ffedd5", "#c2410c"), "sky": ("#e0f2fe", "#0369a1"),
+    "teal": ("#ccfbf1", "#0f766e"), "amber": ("#fef3c7", "#92400e"),
+    "rose": ("#ffe4e6", "#be123c"), "slate": ("#e2e8f0", "#334155"),
+}
+
+
+@st.cache_data(ttl=120, show_spinner="Havuz yükleniyor...")
+def _havuz_yukle(gun, ilceler):
+    return bh.havuzu_yukle(gun, list(ilceler))
+
+
+def havuz_gorunumu():
+    tanimlar = bh.sekme_tanimlari()
+    kayitlar = _takipci_kayitlari()
+
+    c1, c2, c3 = st.columns([3, 3, 1])
+    with c2:
+        donem = st.selectbox("Dönem", list(bh.DONEMLER), index=1, key="bh_donem")
+    with c3:
+        st.write("")
+        if st.button("↻ Yenile", key="bh_yenile"):
+            _havuz_yukle.clear()
+            st.rerun()
+    havuz, hatalar = _havuz_yukle(bh.DONEMLER[donem], tuple(IZMIR_ILCELERI))
+    for kaynak, msj in hatalar.items():
+        st.warning(f"{kaynak} okunamadı, havuza dahil edilmedi: {msj}")
+
+    sayilar = bh.ilce_sayilari(havuz)
+    belirsiz_var = bh.ILCE_BELIRSIZ in sayilar
+    secenekler = ["(Tüm ilçeler)"] + list(IZMIR_ILCELERI) + ([bh.ILCE_BELIRSIZ] if belirsiz_var else [])
+    en_yogun = max(
+        (i for i in sayilar if i in IZMIR_ILCELERI),
+        key=lambda i: sum(sayilar[i].values()), default=None,
+    )
+    with c1:
+        ilce_secim = st.selectbox(
+            "İlçe", secenekler, key="bh_ilce",
+            index=secenekler.index(en_yogun) if en_yogun else 0,
+        )
+    ilce = None if ilce_secim == "(Tüm ilçeler)" else ilce_secim
+    liste = bh.ilceye_gore(havuz, ilce)
+
+    # Başlık kartı
+    def _chip(metin, renk):
+        bg, fg = _RENKLER.get(renk, _RENKLER["slate"])
+        return (
+            f"<span style='display:inline-block;margin:6px 6px 0 0;padding:3px 10px;"
+            f"border-radius:6px;font-size:12px;font-weight:600;background:{bg};color:{fg};'>"
+            f"{_html.escape(metin)}</span>"
+        )
+
+    if ilce and ilce != bh.ILCE_BELIRSIZ:
+        uz = sorted({t["ad"] for t in kayitlar if t["ilce"] == ilce and t["tur"] == "uzmanlik"}, key=_tr_anahtar)
+        takipci = len({t["ad"] for t in kayitlar if t["ilce"] == ilce})
+        alt = f"Bölge uzmanı: {', '.join(uz) if uz else 'kimse seçmemiş'} · Bu ilçeyi takip eden: {takipci} danışman"
+    elif ilce:
+        alt = "Hiçbir ilçeyle eşleşmeyen form kayıtları — bölge metni ilçe adı içermiyor."
+    else:
+        alt = "Tüm İzmir — ilçe seçerek daralt."
+    chipler = "".join(_chip(f"{ad} {len(liste.get(k, []))}", renk) for k, ad, _k, renk in tanimlar)
+    st.markdown(
+        f"<div style='background:#1C2B47;color:#fff;border-radius:14px;padding:16px 18px;margin:8px 0'>"
+        f"<div style='font-size:20px;font-weight:700'>{_html.escape(ilce_secim.strip('()') if ilce is None else ilce)}"
+        f"<span style='font-size:12px;font-weight:500;opacity:.7;margin-left:10px'>{_html.escape(donem.lower())}</span></div>"
+        f"<div style='font-size:12px;opacity:.75;margin-top:4px'>{_html.escape(alt)}</div>"
+        f"<div>{chipler}</div></div>",
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "Salt-okunur simülasyon: bu ekran bildirim göndermez, hiçbir şeyi değiştirmez. "
+        "Şimdilik bağlı olmayan dış kanallar: satıcı / ev sahibi / kiracı formları "
+        "(bağlandıklarında kendi sekmeleriyle buraya düşer)."
+    )
+
+    # Tüm ilçeler: ilçe x tür özet tablosu
+    if ilce is None and sayilar:
+        satirlar = []
+        for i, v in sayilar.items():
+            satirlar.append({
+                "İlçe": i,
+                **{ad: v.get(k, 0) for k, ad, _kisa, _r in tanimlar},
+                "Toplam": sum(v.values()),
+            })
+        satirlar.sort(key=lambda r: (-r["Toplam"], _tr_anahtar(r["İlçe"])))
+        with st.expander(f"İlçelere göre dağılım ({len(satirlar)} ilçe)", expanded=False):
+            st.dataframe(satirlar, hide_index=True, use_container_width=True)
+
+    sekmeler = st.tabs([f"{ad} ({len(liste.get(k, []))})" for k, ad, _kisa, _r in tanimlar])
+    for sekme, (k, ad, _kisa, renk) in zip(sekmeler, tanimlar):
+        with sekme:
+            _havuz_sekmesi(k, ad, renk, liste.get(k, []), ilce, kayitlar, donem)
+
+
+def _havuz_sekmesi(tur, ad, renk, kayit_listesi, ilce, takipci_kayitlari, donem):
+    if not kayit_listesi:
+        st.info(f"{donem.lower()} içinde bu kapsamda {ad.lower()} kaydı yok.")
+        return
+    simdi = bh.datetime.now(bh.timezone.utc)
+    tablo = [
+        {
+            "": "🆕" if k["yeni"] else "",
+            "Kayıt": k["baslik"],
+            "Ayrıntı": k["alt"],
+            "Sahibi": k["sahip"] or "—",
+            "İlçe": ", ".join(i for i in k["ilceler"] if i) or "—",
+            "Zaman": bh.zaman_etiketi(k["zaman"], simdi),
+        }
+        for k in kayit_listesi
+    ]
+    olay = st.dataframe(
+        tablo, hide_index=True, use_container_width=True, height=min(420, 38 + 35 * len(tablo)),
+        on_select="rerun", selection_mode="single-row",
+        key=f"bh_df_{tur}_{ilce}_{donem}",
+    )
+    secili = list(olay.selection.rows) if olay and olay.selection else []
+    if not secili:
+        st.caption("Ayrıntı ve bildirim simülasyonu için bir satır seç.")
+        return
+    k = kayit_listesi[secili[0]]
+    kart, bildirim = st.columns([3, 2])
+    with kart:
+        with st.container(border=True):
+            st.markdown(f"**{_html.escape(k['baslik'])}**", unsafe_allow_html=True)
+            for etiket, deger in k["alanlar"]:
+                if deger:
+                    st.markdown(f"<span style='color:#64748b;font-size:12px'>{_html.escape(str(etiket))}</span><br>"
+                                f"{_html.escape(str(deger))}", unsafe_allow_html=True)
+            if k.get("link"):
+                st.link_button("İlana git ↗", k["link"])
+    with bildirim:
+        with st.container(border=True):
+            hedef_ilce = ilce if ilce and ilce != bh.ILCE_BELIRSIZ else (
+                next((i for i in k["ilceler"] if i), None))
+            st.markdown("**🔔 Bildirim simülasyonu**")
+            st.caption("Gönderilmedi — bugün bu kayıt için ne olurdu:")
+            st.markdown(f"> {_html.escape(bh.mesaj_onizleme(tur, k))}", unsafe_allow_html=True)
+            if not hedef_ilce:
+                st.warning("İlçe belirsiz — bölgeye göre alıcı çıkarılamıyor.")
+            else:
+                alicilar = bh.alicilar(tur, k, takipci_kayitlari, hedef_ilce)
+                if not alicilar:
+                    st.warning(f"{hedef_ilce} için bu kayda bildirim alacak danışman yok "
+                               "(uzman/takipçi seçilmemiş).")
+                for a in alicilar:
+                    cihaz = _cihaz.get(a["ad"], 0)
+                    durum = "" if a["bildirim"] else " 🔕 kapalı"
+                    cihaz_n = "" if cihaz else " · cihaz yok"
+                    st.markdown(f"- **{_html.escape(a['ad'])}** — {_html.escape(', '.join(a['nedenler']))}{durum}{cihaz_n}")
+            if k.get("sahip"):
+                st.caption(f"Kayıt sahibi ({k['sahip']}) bildirim almaz.")
+
+
 # ══ AKIŞ ═════════════════════════════════════════════════════════════
-if mod == "Bölgeye göre":
+if mod == "Havuz":
+    havuz_gorunumu()
+elif mod == "Bölgeye göre":
     bolge_gorunumu()
 else:
     secili = st.selectbox(

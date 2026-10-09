@@ -1,0 +1,395 @@
+# core/bolge_havuzu.py
+# -*- coding: utf-8 -*-
+"""
+Bölge Havuzu — yönetici için SALT-OKUNUR bölge akışı (09.10.2026).
+
+Meltem: "bölge havuzu" = bir ilçeye düşen bütün kayıtların tek listede
+görüldüğü ana havuz (Startkey ilanı, alıcı talebi, Zeta paylaşımı, Zeta
+portföyü, yatırım talebi...). Bu sürüm yalnızca GÖSTERİR: hiçbir bildirim
+göndermez, hiçbir tabloya yazmaz. "Bu kayıt için kime bildirim giderdi?"
+sorusunu simüle eder (alıcı listesi + mesaj önizlemesi).
+
+DIŞ BESLEME KANALI (Meltem: "ileride müşteriden gelen diğer taleplerde
+satıcı alıcı bu bölüme bağlanacak, bu sistemin dış beslenme kanalı
+olacak"): müşteri formlarından gelen kayıtlar `musteri_talepleri`
+tablosuna `talep_tipi` ile yazılıyor. Bugün yalnızca `yatirim_alici`
+(Yatırım Alıcısı İhtiyaç Formu) var. Yeni bir form (satıcı, ev sahibi,
+kiracı, alıcı...) eklendiğinde YAPILACAK TEK ŞEY MUSTERI_FORM_KANALLARI
+sözlüğüne bir satır eklemektir — sekme, sayım, ilçe eşleştirme, dönem
+filtresi ve alıcı simülasyonu otomatik gelir.
+
+KAYNAK KAYDI (KAYNAKLAR): her kayıt türü bir "adaptör"dür: (ilçe, kesim
+zamanı) -> normalize edilmiş kayıt listesi. Normalize kayıt alanları:
+    id, tur, baslik, alt, zaman(datetime|None), yeni(bool), sahip,
+    fiyat(str), mahalle, ilce, link, alanlar(list[(etiket, değer)])
+
+İLÇE EŞLEŞTİRME: yapılandırılmış tablolarda `ilce` / `ilceler` alanı,
+müşteri formlarında serbest metin olan `oncelikli_bolge` /
+`alternatif_bolge` içinde ilçe adının geçmesi (Türkçe büyük/küçük harf
+duyarsız). Hiçbir ilçeyle eşleşmeyen form kaydı "(İlçe belirsiz)"
+kovasında tutulur — kaybolmaz.
+"""
+
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
+
+from core.supabase_client import get_client
+
+supabase = get_client()
+
+ILCE_BELIRSIZ = "(İlçe belirsiz)"
+DONEMLER = {"Son 24 saat": 1, "Son 7 gün": 7, "Son 30 gün": 30}
+ZETA_PAYLASIM_KAYNAKLARI = {"zeta", "ofis"}
+ZETA_PORTFOY_KAYNAKLARI = {"zeta1", "zeta2"}
+MAX_SATIR = 3000     # tek tablodan en fazla bu kadar son kayıt okunur
+
+# ── DIŞ KANAL KAYDI ─────────────────────────────────────────────────
+# talep_tipi -> sekme. Yeni form = yeni satır.
+MUSTERI_FORM_KANALLARI = {
+    "yatirim_alici": {"ad": "Yatırım talebi", "kisa": "yatırım talebi", "renk": "teal"},
+    # "satici_formu":   {"ad": "Satıcı formu",   "kisa": "satıcı formu",   "renk": "amber"},
+    # "alici_formu":    {"ad": "Alıcı formu",    "kisa": "alıcı formu",    "renk": "rose"},
+    # "ev_sahibi":      {"ad": "Ev sahibi formu","kisa": "ev sahibi formu","renk": "slate"},
+    # "kiraci":         {"ad": "Kiracı formu",   "kisa": "kiracı formu",   "renk": "slate"},
+}
+
+
+# ── YARDIMCILAR ─────────────────────────────────────────────────────
+def tr_kucuk(metin):
+    return str(metin or "").replace("İ", "i").replace("I", "ı").casefold().strip()
+
+
+def _zaman(*degerler):
+    """RFC822 metin (kayit_tarihi) ya da ISO (created_at, ilk_gorulme_tarihi)
+    -> tz-aware UTC datetime; çözülemezse None."""
+    for d in degerler:
+        if not d:
+            continue
+        if isinstance(d, datetime):
+            return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+        s = str(d).strip()
+        try:
+            t = parsedate_to_datetime(s)
+            if t is not None:
+                return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError, IndexError):
+            pass
+        try:
+            t = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+        except ValueError:
+            if len(s) >= 10:
+                try:
+                    return datetime.strptime(s[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                except ValueError:
+                    pass
+    return None
+
+
+def zaman_etiketi(t, simdi=None):
+    if not t:
+        return ""
+    simdi = simdi or datetime.now(timezone.utc)
+    fark = simdi - t
+    dk = int(fark.total_seconds() // 60)
+    if dk < 1:
+        return "az önce"
+    if dk < 60:
+        return f"{dk} dk önce"
+    if dk < 60 * 24:
+        return f"{dk // 60} sa önce"
+    return f"{dk // (60 * 24)} gün önce"
+
+
+def para(deger):
+    try:
+        n = int(float(deger))
+    except (TypeError, ValueError):
+        return ""
+    return f"{n:,}".replace(",", ".") + " TL"
+
+
+def _sayfalar(tablo, secim="*", filtreler=None, tarih_alani=None, kesim_iso=None, in_alani=None):
+    """Sayfalı okuma (PostgREST 1000 satır sınırı). id azalan; MAX_SATIR'da durur."""
+    sonuc, bas, boy = [], 0, 1000
+    while len(sonuc) < MAX_SATIR:
+        sorgu = supabase.table(tablo).select(secim)
+        for alan, deger in (filtreler or {}).items():
+            sorgu = sorgu.eq(alan, deger)
+        if in_alani:
+            sorgu = sorgu.in_(in_alani[0], list(in_alani[1]))
+        if tarih_alani and kesim_iso:
+            sorgu = sorgu.gte(tarih_alani, kesim_iso)
+        resp = sorgu.order("id", desc=True).range(bas, bas + boy - 1).execute()
+        satirlar = resp.data or []
+        sonuc.extend(satirlar)
+        if len(satirlar) < boy:
+            break
+        bas += boy
+    return sonuc
+
+
+def _ilceler_of(v):
+    liste = [i for i in (v.get("ilceler") or []) if i]
+    if v.get("ilce") and v["ilce"] not in liste:
+        liste.insert(0, v["ilce"])
+    return liste
+
+
+# ── ADAPTÖRLER ──────────────────────────────────────────────────────
+def _startkey(kesim, simdi):
+    satirlar = _sayfalar(
+        "izmir_pazar_ilanlar", "*",
+        filtreler={"marka": "startkey", "aktif": True},
+        tarih_alani="ilk_gorulme_tarihi", kesim_iso=kesim.isoformat(),
+    )
+    sonuc = []
+    for v in satirlar:
+        t = _zaman(v.get("ilk_gorulme_tarihi"))
+        if not t or t < kesim:
+            continue
+        parca = [str(v.get(a)).strip() for a in ("mulk_tipi", "oda_sayisi") if v.get(a)]
+        baslik = " · ".join(parca) or "Startkey ilanı"
+        mah = (v.get("mahalle") or "").strip()
+        alt = " · ".join(x for x in [mah, para(v.get("fiyat"))] if x)
+        sonuc.append({
+            "id": f"startkey:{v.get('id')}", "tur": "startkey", "baslik": baslik,
+            "alt": alt, "zaman": t, "yeni": (simdi - t) <= timedelta(hours=24),
+            "sahip": "", "fiyat": para(v.get("fiyat")), "mahalle": mah,
+            "ilce": (v.get("ilce") or "").strip(), "ilceler": [(v.get("ilce") or "").strip()],
+            "link": v.get("ilan_linki") or "",
+            "alanlar": [
+                ("İlçe / mahalle", " / ".join(x for x in [(v.get("ilce") or ""), mah] if x)),
+                ("Fiyat", para(v.get("fiyat"))),
+                ("Mülk", baslik),
+                ("İlk görülme", t.astimezone().strftime("%d.%m.%Y %H:%M")),
+            ],
+        })
+    return sonuc
+
+
+def _alici_talepleri(kesim, simdi):
+    satirlar = _sayfalar(
+        "alici_talepleri", "*",
+        filtreler={"kategori": "alici_talebi", "parse_status": "parsed"},
+    )
+    sonuc = []
+    for v in satirlar:
+        if tr_kucuk(v.get("kaynak")) not in ZETA_PAYLASIM_KAYNAKLARI:
+            continue
+        t = _zaman(v.get("kayit_tarihi"), v.get("created_at"))
+        if not t or t < kesim:
+            continue
+        sahip = (v.get("talep_eden_danisan") or "").strip()
+        sonuc.append({
+            "id": f"talep:{v.get('id')}", "tur": "talep",
+            "baslik": v.get("ozet") or "Alıcı talebi",
+            "alt": " · ".join(x for x in [v.get("bolge_mahalle") or "", v.get("oda_sayisi_m2") or "",
+                                          ("bütçe " + para(v.get("max_butce"))) if para(v.get("max_butce")) else ""] if x),
+            "zaman": t, "yeni": (simdi - t) <= timedelta(hours=24), "sahip": sahip,
+            "fiyat": para(v.get("max_butce")), "mahalle": v.get("bolge_mahalle") or "",
+            "ilce": v.get("ilce") or "", "ilceler": _ilceler_of(v), "link": "",
+            "alanlar": [
+                ("Talep eden", sahip), ("İşlem / mülk", " · ".join(x for x in [v.get("islem_tipi") or "", v.get("mulk_tipi") or ""] if x)),
+                ("Bölge", v.get("bolge_mahalle") or ""), ("Oda / m²", v.get("oda_sayisi_m2") or ""),
+                ("Azami bütçe", para(v.get("max_butce"))), ("Notlar", v.get("ozel_kriterler") or ""),
+            ],
+        })
+    return sonuc
+
+
+def _portfoyler(kesim, simdi):
+    """Tek okuma, iki tür: Paylaşım (kaynak zeta/ofis) ve Zeta portföyü (zeta1/zeta2)."""
+    satirlar = _sayfalar("portfoyler", "*")
+    paylasim, zeta = [], []
+    for v in satirlar:
+        k = tr_kucuk(v.get("kaynak"))
+        if k in ZETA_PORTFOY_KAYNAKLARI:
+            tur = "zeta"
+        elif k in ZETA_PAYLASIM_KAYNAKLARI:
+            tur = "paylasim"
+        else:
+            continue
+        t = _zaman(v.get("kayit_tarihi"), v.get("created_at"))
+        if not t or t < kesim:
+            continue
+        sahip = (v.get("talep_eden_danisan") or "").strip()
+        kayit = {
+            "id": f"{tur}:{v.get('id')}", "tur": tur,
+            "baslik": v.get("ozet") or ("Zeta portföyü" if tur == "zeta" else "Portföy paylaşımı"),
+            "alt": " · ".join(x for x in [v.get("bolge_mahalle") or "", v.get("oda_sayisi_m2") or "", para(v.get("fiyat"))] if x),
+            "zaman": t, "yeni": (simdi - t) <= timedelta(hours=24), "sahip": sahip,
+            "fiyat": para(v.get("fiyat")), "mahalle": v.get("bolge_mahalle") or "",
+            "ilce": v.get("ilce") or "", "ilceler": _ilceler_of(v),
+            "link": v.get("ilan_linki") or "",
+            "alanlar": [
+                ("Paylaşan", sahip), ("İşlem / mülk", " · ".join(x for x in [v.get("islem_tipi") or "", v.get("mulk_tipi") or ""] if x)),
+                ("Bölge", v.get("bolge_mahalle") or ""), ("Oda / m²", v.get("oda_sayisi_m2") or ""),
+                ("Fiyat", para(v.get("fiyat"))), ("Notlar", v.get("ozellikler") or ""),
+            ],
+        }
+        (zeta if tur == "zeta" else paylasim).append(kayit)
+    return paylasim, zeta
+
+
+def _form_metin_ilceleri(metin, ilce_listesi):
+    m = tr_kucuk(metin)
+    return [i for i in ilce_listesi if m and tr_kucuk(i) in m]
+
+
+def _musteri_formlari(kesim, simdi, ilce_listesi):
+    """Dış besleme kanalı: musteri_talepleri (talep_tipi ile ayrışır)."""
+    satirlar = _sayfalar(
+        "musteri_talepleri", "*", in_alani=("talep_tipi", MUSTERI_FORM_KANALLARI.keys()),
+    )
+    sonuc = {k: [] for k in MUSTERI_FORM_KANALLARI}
+    for v in satirlar:
+        tip = v.get("talep_tipi")
+        if tip not in sonuc:
+            continue
+        t = _zaman(v.get("created_at"), v.get("kayit_tarihi"))
+        if not t or t < kesim:
+            continue
+        b1, b2 = v.get("oncelikli_bolge") or "", v.get("alternatif_bolge") or ""
+        ilceler = _form_metin_ilceleri(b1, ilce_listesi)
+        for i in _form_metin_ilceleri(b2, ilce_listesi):
+            if i not in ilceler:
+                ilceler.append(i)
+        bmin, bmax = para(v.get("butce_min")), para(v.get("butce_max"))
+        butce = " – ".join(x for x in [bmin, bmax] if x)
+        ad = (v.get("musteri_adi") or "İsimsiz").strip()
+        alanlar = [
+            ("Müşteri", ad), ("Mülk türü", v.get("mulk_turu") or ""),
+            ("Öncelikli bölge", b1), ("Alternatif bölge", b2), ("Bütçe", butce),
+            ("Formu ilgilendiren danışman", v.get("danisman") or ""),
+        ]
+        det = v.get("detaylar")
+        if isinstance(det, dict) and isinstance(det.get("alanlar"), list):
+            for a in det["alanlar"][:40]:
+                if isinstance(a, dict):
+                    e, d = a.get("etiket") or a.get("label"), a.get("deger") or a.get("value")
+                    if e and d:
+                        alanlar.append((str(e), str(d)))
+                elif isinstance(a, (list, tuple)) and len(a) >= 2 and a[0] and a[1]:
+                    alanlar.append((str(a[0]), str(a[1])))
+        sonuc[tip].append({
+            "id": f"{tip}:{v.get('id')}", "tur": tip, "baslik": f"{ad} · {v.get('mulk_turu') or '—'}",
+            "alt": " · ".join(x for x in [b1, butce] if x),
+            "zaman": t, "yeni": (simdi - t) <= timedelta(hours=24),
+            "sahip": (v.get("danisman") or "").strip(), "fiyat": butce, "mahalle": b1,
+            "ilce": ilceler[0] if ilceler else "", "ilceler": ilceler, "link": "",
+            "alanlar": alanlar,
+        })
+    return sonuc
+
+
+# ── ANA GİRİŞ ───────────────────────────────────────────────────────
+def sekme_tanimlari():
+    """Gösterim sırası: [(anahtar, ad, kısa, renk)]. Dış kanallar sona eklenir."""
+    t = [
+        ("startkey", "Startkey ilanı", "Startkey ilanı", "indigo"),
+        ("talep", "Alıcı talebi", "alıcı talebi", "violet"),
+        ("paylasim", "Paylaşım", "paylaşım", "orange"),
+        ("zeta", "Zeta portföyü", "Zeta portföyü", "sky"),
+    ]
+    for k, c in MUSTERI_FORM_KANALLARI.items():
+        t.append((k, c["ad"], c["kisa"], c["renk"]))
+    return t
+
+
+def havuzu_yukle(gun, ilce_listesi, simdi=None):
+    """{tur: [kayıt, ...]} — tüm ilçeler, son `gun` gün. Hata veren
+    kaynak tüm sayfayı çökertmez: {tur: [...]} yanında hatalar sözlüğü döner."""
+    simdi = simdi or datetime.now(timezone.utc)
+    kesim = simdi - timedelta(days=gun)
+    havuz = {k: [] for k, *_ in sekme_tanimlari()}
+    hatalar = {}
+
+    def dene(ad, fn):
+        try:
+            return fn()
+        except Exception as e:     # noqa: BLE001 — sayfa kaynak hatasında da açılsın
+            hatalar[ad] = str(e)
+            return None
+
+    r = dene("Startkey ilanı", lambda: _startkey(kesim, simdi))
+    if r is not None:
+        havuz["startkey"] = r
+    r = dene("Alıcı talebi", lambda: _alici_talepleri(kesim, simdi))
+    if r is not None:
+        havuz["talep"] = r
+    r = dene("Portföyler", lambda: _portfoyler(kesim, simdi))
+    if r is not None:
+        havuz["paylasim"], havuz["zeta"] = r
+    r = dene("Müşteri formları", lambda: _musteri_formlari(kesim, simdi, ilce_listesi))
+    if r is not None:
+        for k, liste in r.items():
+            havuz[k] = liste
+    for liste in havuz.values():
+        liste.sort(key=lambda x: x["zaman"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    return havuz, hatalar
+
+
+def ilceye_gore(havuz, ilce):
+    """İlçe seçimine göre süz. ilce=None -> hepsi. ILCE_BELIRSIZ -> hiçbir
+    ilçeyle eşleşmeyenler. Kayıt birden çok ilçeye bağlıysa her birinde görünür."""
+    sonuc = {}
+    for tur, liste in havuz.items():
+        if ilce is None:
+            sonuc[tur] = list(liste)
+        elif ilce == ILCE_BELIRSIZ:
+            sonuc[tur] = [k for k in liste if not [i for i in k["ilceler"] if i]]
+        else:
+            h = tr_kucuk(ilce)
+            sonuc[tur] = [k for k in liste if any(tr_kucuk(i) == h for i in k["ilceler"])]
+    return sonuc
+
+
+def ilce_sayilari(havuz):
+    """{ilçe: {tur: adet}} + ilçe belirsiz kovası."""
+    sayi = {}
+    for tur, liste in havuz.items():
+        for k in liste:
+            ilceler = [i for i in k["ilceler"] if i] or [ILCE_BELIRSIZ]
+            for i in ilceler:
+                sayi.setdefault(i, {}).setdefault(tur, 0)
+                sayi[i][tur] += 1
+    return sayi
+
+
+def mesaj_onizleme(tur, kayit):
+    kisa = {t[0]: t[2] for t in sekme_tanimlari()}.get(tur, "kayıt")
+    parca = kayit["baslik"] + (f" · {kayit['fiyat']}" if kayit.get("fiyat") and tur in ("startkey", "zeta") else "")
+    on = "Bölgende yeni " + kisa
+    return f"{on}: {parca}"
+
+
+def alicilar(tur, kayit, takipciler, ilce):
+    """Bu kayıt için bildirim kimlere giderdi — YALNIZCA SİMÜLASYON.
+    takipciler: admin sayfasının `_takipci_kayitlari()` çıktısı.
+    Startkey: ilçe + mahalle kapsamındaki Startkey takipçileri + ilçe uzmanları.
+    Diğer türler: ilçe uzmanları (kayıt sahibi hariç). Kayıt sahibine asla gitmez."""
+    sahip = tr_kucuk(kayit.get("sahip"))
+    mah = (kayit.get("mahalle") or "").strip()
+    sonuc = {}
+
+    def ekle(ad, neden, bildirim):
+        if tr_kucuk(ad) == sahip:
+            return
+        s = sonuc.setdefault(ad, {"ad": ad, "nedenler": [], "bildirim": False})
+        if neden not in s["nedenler"]:
+            s["nedenler"].append(neden)
+        if bildirim:           # en az bir kapsamda bildirim açıksa gider
+            s["bildirim"] = True
+
+    for t in takipciler:
+        if tr_kucuk(t["ilce"]) != tr_kucuk(ilce):
+            continue
+        if t["tur"] == "uzmanlik":
+            ekle(t["ad"], "ilçe uzmanı", t["bildirim"])
+        elif t["tur"] == "startkey" and tur == "startkey":
+            if not t["mahalleler"]:
+                ekle(t["ad"], "Startkey takibi (tüm ilçe)", t["bildirim"])
+            elif mah and mah in t["mahalleler"]:
+                ekle(t["ad"], "Startkey takibi (bu mahalle)", t["bildirim"])
+    return sorted(sonuc.values(), key=lambda x: tr_kucuk(x["ad"]))
