@@ -25,14 +25,14 @@ sağına, kompakt bir popover butonu olarak taşındı.
 
 import streamlit as st
 from html import escape as _esc
-from datetime import date as _date, datetime as _dt
+from datetime import date as _date, datetime as _dt, time as _time, timedelta as _td, timezone as _tz
 
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import oturum_kontrol
 from core.danisman_ortak import (
     su_anki_danisman, musterileri_cek, musteri_ekle, musteri_guncelle,
-    musteri_sil, render_topbar, hide_sidebar_css, IZMIR_ILCELERI, _tip_listele,
+    musteri_sil, rehber_alarm_kur, rehber_alarm_kaldir, render_topbar, hide_sidebar_css, IZMIR_ILCELERI, _tip_listele,
     _tr_lower,
 )
 
@@ -97,6 +97,10 @@ st.markdown("""
 .dp-mus-fsbo .dp-fsbo-ilan + .dp-fsbo-ilan { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e4dccb; }
 .dp-mus-fsbo .dp-fsbo-gorusme { margin-top: 6px; font-weight: 700; color: #1b2540; }
 .dp-mus-fsbo .dp-fsbo-not { margin-top: 2px; color: #5b6478; white-space: pre-wrap; }
+.dp-mus-alarm {
+    margin: 4px 0 2px 0; font-size: 12.5px; font-weight: 600; color: #7a5a12;
+}
+.dp-mus-alarm.dp-alarm-geldi { color: #b42318; }
 .dp-mus-az {
     display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 14px 0;
 }
@@ -185,6 +189,43 @@ def _bugun():
         return _dt.now(ZoneInfo("Europe/Istanbul")).date()
     except Exception:
         return _date.today()
+
+
+def _alarm_oku(m):
+    """alarm_zamani (UTC) -> Türkiye saatiyle naive datetime; yoksa None."""
+    ham = m.get("alarm_zamani")
+    if not ham:
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+        d = _dt.fromisoformat(str(ham).replace("Z", "+00:00"))
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=_tz.utc)
+        return d.astimezone(ZoneInfo("Europe/Istanbul")).replace(tzinfo=None)
+    except Exception:
+        return None
+
+
+def _simdi_yerel():
+    try:
+        from zoneinfo import ZoneInfo
+        return _dt.now(ZoneInfo("Europe/Istanbul")).replace(tzinfo=None)
+    except Exception:
+        return _dt.now()
+
+
+def _alarm_html(m):
+    z = _alarm_oku(m)
+    if not z:
+        return ""
+    geldi = z <= _simdi_yerel()
+    metin = z.strftime("%d.%m.%Y %H:%M")
+    nt = (m.get("alarm_notu") or "").strip()
+    etiket = f"⏰ Yeniden ara: {metin}" if not geldi else f"⏰ Zamanı geldi: {metin}"
+    if nt:
+        etiket += f" · {nt}"
+    sinif = "dp-mus-alarm dp-alarm-geldi" if geldi else "dp-mus-alarm"
+    return f'<div class="{sinif}">{_esc(etiket)}</div>'
 
 
 def _fsbo_blok_html(m):
@@ -348,7 +389,7 @@ for m in gosterilecek_sirali:
         uzmanlik_ek = f" <span style='color:#7a8194;font-size:12.5px;'>/ {m['uzmanlik']}</span>" if m.get("uzmanlik") else ""
         telefon_html = _telefon_html(m.get("telefon"))
         st.markdown(
-            f"<div class='dp-mus-satir'><b>{ad}</b>{rozetler}{uzmanlik_ek}{telefon_html}{_fsbo_blok_html(m)}</div>",
+            f"<div class='dp-mus-satir'><b>{ad}</b>{rozetler}{uzmanlik_ek}{telefon_html}{_fsbo_blok_html(m)}{_alarm_html(m)}</div>",
             unsafe_allow_html=True,
         )
     with r_bolge:
@@ -405,6 +446,49 @@ for m in gosterilecek_sirali:
                     placeholder=("Görüşme notları (ne konuşuldu, bir sonraki adım)..."
                                  if m.get("ilan_ozeti") else "Bu kişi için not ekle (opsiyonel)..."),
                 )
+                _alarm_alani = "alarm_zamani" in m             # SQL çalıştırıldıysa
+                if _alarm_alani:
+                    st.markdown("**⏰ Yeniden ara alarmı**")
+                    _az = _alarm_oku(m)
+                    _a1, _a2 = st.columns(2)
+                    with _a1:
+                        _alarm_gun = st.date_input(
+                            "Alarm günü",
+                            value=(_az.date() if _az else (_bugun() + _td(days=1))),
+                            min_value=min(_bugun(), _az.date()) if _az else _bugun(),
+                            format="DD.MM.YYYY", key=f"dp_mus_alarm_gun_{m['id']}",
+                        )
+                    with _a2:
+                        _alarm_saat = st.time_input(
+                            "Saat", value=(_az.time() if _az else _time(10, 0)),
+                            step=1800, key=f"dp_mus_alarm_saat_{m['id']}",
+                        )
+                    _alarm_not = st.text_input(
+                        "Alarm notu", value=m.get("alarm_notu") or "",
+                        placeholder="örn. Cumartesi tekrar ara",
+                        key=f"dp_mus_alarm_not_{m['id']}",
+                    )
+                    if st.button("Alarmı kur", key=f"dp_mus_alarm_kur_{m['id']}",
+                                 type="primary", use_container_width=True):
+                        _hedef = _dt.combine(_alarm_gun, _alarm_saat)
+                        if _hedef <= _simdi_yerel():
+                            st.error("Alarm zamanı geçmişte — ileri bir gün/saat seç.")
+                        else:
+                            rehber_alarm_kur(m["id"], _hedef, _alarm_not)
+                            st.rerun()
+                    st.caption("Hızlı kur (saat 10:00):")
+                    _h1, _h2, _h3 = st.columns(3)
+                    for _kol, _etiket, _gun in ((_h1, "Yarın", 1), (_h2, "3 gün", 3), (_h3, "1 hafta", 7)):
+                        with _kol:
+                            if st.button(_etiket, key=f"dp_mus_alarm_h{_gun}_{m['id']}", use_container_width=True):
+                                _t = _dt.combine(_bugun() + _td(days=_gun), _time(10, 0))
+                                rehber_alarm_kur(m["id"], _t, _alarm_not)
+                                st.rerun()
+                    if _az and st.button("Alarmı kaldır", key=f"dp_mus_alarm_kaldir_{m['id']}",
+                                         use_container_width=True):
+                        rehber_alarm_kaldir(m["id"])
+                        st.rerun()
+                    st.caption("Bildirim, kurduğun saatten en geç ~30 dakika sonra telefonuna gelir.")
                 bp1, bp2 = st.columns(2)
                 with bp1:
                     if st.button("Kaydet", key=f"dp_mus_not_kaydet_{m['id']}", use_container_width=True):
