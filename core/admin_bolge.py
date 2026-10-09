@@ -104,6 +104,22 @@ def cihaz_sayilari():
     return sonuc
 
 
+def eslestirme_kodu_uret(kullanici):
+    """iPhone bildirim eşleştirme kodu (09.10.2026): Supabase'deki
+    eslestirme_kodu_uret() fonksiyonu 10 dk geçerli, tek kullanımlık 6 haneli
+    kod üretir (aynı kişinin önceki kullanılmamış kodu iptal olur). Kod,
+    danışmanın kanonik adına bağlıdır; danışman mini-PWA'da kodu yazınca
+    abonelik bu ad altına kaydolur. Döner: (kod, son_kullanma_iso)."""
+    kullanici = _kullanici_kontrol(kullanici)
+    resp = supabase.rpc("eslestirme_kodu_uret", {"p_kullanici": kullanici}).execute()
+    veri = resp.data
+    if isinstance(veri, list):
+        veri = veri[0] if veri else None
+    if not isinstance(veri, dict) or not veri.get("kod"):
+        raise RuntimeError(f"Kod üretilemedi, Supabase yanıtı: {veri!r}")
+    return veri["kod"], veri.get("son_kullanma")
+
+
 def bolgeleri_kaydet(tur, kullanici, ilceler):
     """Danışmanın bu türdeki ilçe seçimini istenen listeye eşitler.
 

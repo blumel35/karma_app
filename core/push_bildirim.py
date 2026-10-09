@@ -172,6 +172,12 @@ def render_bildirim_izni_butonu(kullanici, key_prefix="pb"):
     # çoklu-çağrı senaryosunda iz sürülebilsin diye tutuluyor.
     st.link_button("📱 Telefon Bildirimlerini Aç", link, use_container_width=True)
     st.caption("Yeni bir sekme açılır, orada izin verip tarayıcına dönebilirsin.")
+    # YENİ (09.10.2026): iPhone'da bildirim izni yalnızca ana ekrana
+    # eklenmiş uygulamadan verilebiliyor; bu düğme iPhone'da çalışmaz.
+    st.caption(
+        "iPhone kullanıyorsan bu düğme çalışmaz: yöneticiden (Meltem) "
+        "6 haneli bir eşleştirme kodu iste."
+    )
 
 
 def _vapid_private_key():
