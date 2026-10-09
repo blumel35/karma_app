@@ -766,7 +766,7 @@ def ilan_no_cikar(ilan_linki):
     return adaylar[-1] if adaylar else None
 
 
-def _pazar_ilan_kart_html(v):
+def _pazar_ilan_kart_html(v, telefon_kutusu=False):
     """izmir_pazar_ilanlar satırı için kart HTML'i — Danışman FSBO
     İlanları / Danışman Startkey İlanları ekranları için (30.08.2026).
 
@@ -853,7 +853,7 @@ def _pazar_ilan_kart_html(v):
     if _no:
         ilan_link_html += (
             f'<span class="kart-ilan-no">İlan No: <b>{_esc(_no)}</b>'
-            f'<button type="button" class="kart-kopyala" onclick="ilanNoKopyala(this,\'{_esc(_no)}\')">Kopyala</button></span>'
+            f'<button type="button" class="kart-kopyala" onclick="ilanNoKopyala(this,\'{_esc(_no)}\')">No kopyala</button></span>'
         )
     if ilan_link_html:
         ilan_link_html = f'<div class="kart-ilan-satir">{ilan_link_html}</div>'
@@ -890,8 +890,18 @@ def _pazar_ilan_kart_html(v):
         <div class="detay-grup">{detay_icerik_html}</div>
       </details>"""
 
+    tel_html = ""
+    if telefon_kutusu and ilan_linki:
+        tel_html = (
+            '<div class="kart-tel">'
+            '<input type="tel" inputmode="tel" autocomplete="off" class="kart-tel-input" '
+            'placeholder="📞 Revy\'den kopyaladığın numarayı yapıştır" '
+            'oninput="telGirdi(this)" onpaste="telGirdi(this,true)">'
+            '<div class="kart-tel-durum"></div></div>'
+        )
+
     return f"""
-    <div class="kart" style="--dist-color:{ilce_rengi}">
+    <div class="kart" data-link="{_esc(ilan_linki)}" style="--dist-color:{ilce_rengi}">
       <div class="kart-ust">
         <span class="rozet" style="background:{bg};color:{fg}">{_esc(islem or "Belirsiz")}</span>
         <span class="kart-tarih" style="text-align:right">{tarih}</span>
@@ -903,11 +913,11 @@ def _pazar_ilan_kart_html(v):
       <div class="kart-alt-satir">
         <span class="kart-danisman">{('👤 ' + ilan_sahibi) if ilan_sahibi else ''}</span>
         <span class="kart-kaynak">{kaynak_etiketi}</span>
-      </div>{detay_blok_html}
+      </div>{tel_html}{detay_blok_html}
     </div>"""
 
 
-def pazar_ilan_pano_html_olustur(kayitlar, pano_basligi, baslik_goster=False):
+def pazar_ilan_pano_html_olustur(kayitlar, pano_basligi, baslik_goster=False, telefon_kutusu=False):
     """Danışman FSBO İlanları / Danışman Startkey İlanları ekranları için
     izmir_pazar_ilanlar satırlarından, pano_html_olustur ile GÖRSEL
     OLARAK BİREBİR AYNI (aynı CSS/A-Z ilçe navigasyonu/kart-grid düzeni)
@@ -950,7 +960,7 @@ def pazar_ilan_pano_html_olustur(kayitlar, pano_basligi, baslik_goster=False):
         veri_harf = f'data-harf-ilk="{harf}"' if harf != onceki_harf else ""
         onceki_harf = harf
         kayitlar_bu_ilce = gruplar[ilce]
-        kartlar = "\n".join(_pazar_ilan_kart_html(v) for v in kayitlar_bu_ilce)
+        kartlar = "\n".join(_pazar_ilan_kart_html(v, telefon_kutusu) for v in kayitlar_bu_ilce)
         bolumler.append(f"""
         <div class="ilce-bolum" {veri_harf}>
           <h2 class="ilce-baslik">{_esc(ilce)} <span class="ilce-sayi">({len(kayitlar_bu_ilce)})</span></h2>
@@ -1063,6 +1073,16 @@ def pazar_ilan_pano_html_olustur(kayitlar, pano_basligi, baslik_goster=False):
     margin-bottom: 8px; width: fit-content;
   }}
   .kart-ilan-link:hover {{ background: var(--gold); color: #fff; border-color: var(--gold); }}
+  .kart-tel {{ margin:2px 0 10px; }}
+  .kart-tel-input {{
+    width:100%; font:inherit; font-size:13px; padding:8px 10px; color:var(--ink);
+    background:#fff; border:1px solid var(--border-strong); border-radius:8px;
+  }}
+  .kart-tel-input:focus {{ outline:2px solid var(--gold); outline-offset:0; }}
+  .kart-tel-input[readonly] {{ background:var(--cream-2); font-weight:700; color:var(--navy); }}
+  .kart-tel-durum {{ font-size:11.5px; margin-top:4px; min-height:14px; color:var(--ink-soft); }}
+  .kart-tel-durum.ok {{ color:#2f7d4f; font-weight:700; }}
+  .kart-tel-durum.hata {{ color:#b42318; font-weight:600; }}
   .kart-ilan-satir {{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin-bottom:8px; }}
   .kart-ilan-satir .kart-ilan-link {{ margin-bottom:0; }}
   .kart-ilan-no {{ font-size:12px; color:var(--ink-soft); display:inline-flex; align-items:center; gap:6px; }}
@@ -1116,6 +1136,50 @@ def pazar_ilan_pano_html_olustur(kayitlar, pano_basligi, baslik_goster=False):
 {bolumler_html}
 </main>
 <script>
+function telGecerli(ham) {{
+  var r = (ham || '').replace(/\\D/g, '');
+  if (r.length === 12 && r.indexOf('90') === 0) r = r.slice(2);
+  else if (r.length === 11 && r.charAt(0) === '0') r = r.slice(1);
+  return (r.length === 10 && r.charAt(0) === '5') ? r : null;
+}}
+function telGirdi(inp, yapistirma) {{
+  clearTimeout(inp._t);
+  var d = inp.parentNode.querySelector('.kart-tel-durum');
+  d.className = 'kart-tel-durum';
+  if (!inp.value.trim()) {{ d.textContent = ''; return; }}
+  inp._t = setTimeout(function() {{
+    if (!telGecerli(inp.value)) {{
+      d.className = 'kart-tel-durum hata';
+      d.textContent = 'Numara 10 haneli cep numarası olmalı (5xx xxx xx xx)';
+      return;
+    }}
+    d.textContent = 'Kaydediliyor…';
+    var kart = inp.closest('.kart');
+    window.parent.postMessage({{ fsboTel: true, link: kart.getAttribute('data-link'),
+      tel: inp.value, n: Date.now() + '-' + Math.random() }}, '*');
+  }}, yapistirma ? 250 : 900);
+}}
+window.addEventListener('message', function(e) {{
+  var m = e.data || {{}};
+  if (m.fsboDurum !== true) return;
+  var kartlar = document.querySelectorAll('.kart[data-link]');
+  var kayitli = m.kayitli || {{}};
+  var sonuc = m.sonuc || null;
+  kartlar.forEach(function(k) {{
+    var inp = k.querySelector('.kart-tel-input');
+    if (!inp) return;
+    var d = k.querySelector('.kart-tel-durum');
+    var link = k.getAttribute('data-link');
+    if (kayitli[link]) {{
+      inp.value = kayitli[link]; inp.readOnly = true;
+      d.className = 'kart-tel-durum ok'; d.textContent = '✓ Rehberim\\'de kayıtlı (FSBO)';
+    }}
+    if (sonuc && sonuc.link === link) {{
+      if (sonuc.ok) {{ inp.readOnly = true; d.className = 'kart-tel-durum ok'; d.textContent = sonuc.mesaj; }}
+      else {{ d.className = 'kart-tel-durum hata'; d.textContent = sonuc.mesaj; }}
+    }}
+  }});
+}});
 function ilanNoKopyala(btn, metin) {{
   function bitti() {{
     var eski = btn.getAttribute('data-eski') || btn.textContent;
