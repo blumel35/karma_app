@@ -110,7 +110,7 @@ div[class*="st-key-dp_mus_row_"]:hover { background: #fbfbfc; }
     grid-template-columns: 38px minmax(0,1.25fr) minmax(0,1fr) minmax(0,1.35fr);
     padding: 9px 52px 9px 8px;
 }
-.dp-row.dp-dense { padding-top: 5px; padding-bottom: 5px; }
+.dp-row.dp-dense { padding-top: 5px; padding-bottom: 8px; }
 .dp-av {
     width: 36px; height: 36px; border-radius: 50%;
     display: grid; place-items: center;
@@ -150,7 +150,7 @@ div[class*="st-key-dp_mus_row_"]:hover { background: #fbfbfc; }
 .dp-ln.dp-fu { color: #8a5d00; font-weight: 800; }
 .dp-ln.dp-tx { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .dp-dense .dp-note .dp-ln.dp-tx { -webkit-line-clamp: 1; }
-details.dp-fs { grid-column: 2 / -1; font-size: 12px; margin-top: -2px; }
+details.dp-fs { grid-column: 2 / -1; font-size: 12px; margin-top: 2px; padding-bottom: 2px; }
 details.dp-fs summary { cursor: pointer; color: #b8892f; font-weight: 700; list-style: none; width: fit-content; }
 details.dp-fs summary::-webkit-details-marker { display: none; }
 .dp-mus-fsbo {
@@ -185,7 +185,7 @@ div[class*="st-key-dp_mus_ekle_pop"] button { white-space: nowrap !important; }
 @media (max-width: 700px) {
     .dp-row {
         grid-template-columns: 36px minmax(0,1fr);
-        padding: 10px 46px 10px 4px;
+        padding: 10px 46px 16px 4px;
     }
     .dp-row .dp-av { grid-row: 1 / span 2; align-self: start; margin-top: 2px; }
     .dp-row .dp-tel { grid-column: 2; }
