@@ -34,6 +34,7 @@ from core.admin_bolge import (
     BOLGE_TURLERI, MAX_BOLGE, bolgeleri_cek, tum_bolgeleri_cek, cihaz_sayilari,
     bolgeleri_kaydet, ilce_bildirim_ayarla, ilce_mahallelerini_ayarla,
     sifre_belirle, giris_hesaplari, eslestirme_kodu_uret,
+    alias_birlestirme_plani, alias_birlestir,
 )
 
 if not oturum_kontrol():
@@ -214,6 +215,35 @@ if _alias and _alias.lower() != ad.lower():
             f"'{_alias}' adıyla da kayıt var ({', '.join(_alias_bulunan)}). "
             f"Bu kayıtlar '{ad}' ile eşleşmez; birleştirilmesi gerekir."
         )
+        # YENİ (09.10.2026): önizleme + onaylı birleştirme.
+        try:
+            _plan = alias_birlestirme_plani(_alias, ad)
+        except Exception as e:
+            _plan = None
+            st.error(f"Birleştirme planı çıkarılamadı: {e}")
+        if _plan:
+            _satirlar = []
+            for _tur, _cfg in BOLGE_TURLERI.items():
+                _p = _plan[_tur]
+                if not (_p["tasi"] or _p["zaten_var"] or _p["sigmayan"]):
+                    continue
+                _parca = []
+                if _p["tasi"]:
+                    _parca.append("taşınacak: " + ", ".join(_p["tasi"]))
+                if _p["zaten_var"]:
+                    _parca.append(f"'{ad}' altında zaten var (eski kayıt silinecek): " + ", ".join(_p["zaten_var"]))
+                if _p["sigmayan"]:
+                    _parca.append(f"en fazla {MAX_BOLGE} ilçe sınırına sığmıyor (olduğu yerde kalır): " + ", ".join(_p["sigmayan"]))
+                _satirlar.append(f"- **{_cfg['etiket']}** — " + "; ".join(_parca))
+            if _plan.get("cihaz"):
+                _satirlar.append(f"- **Bildirim cihazı**: {_plan['cihaz']} cihaz '{ad}' adına taşınacak")
+            st.markdown("\n".join(_satirlar))
+            if st.button(f"'{_alias}' kayıtlarını '{ad}' ile birleştir", key=f"ab_birlestir_{ad}"):
+                try:
+                    alias_birlestir(_alias, ad)
+                    st.success("Birleştirildi. Sayfayı yenileyip uyarının kaybolduğunu kontrol et.")
+                except Exception as e:
+                    st.error(f"Birleştirilemedi: {e}")
 
 
 def _tur_sekmesi(tur):
