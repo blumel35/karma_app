@@ -55,9 +55,23 @@ jobs:
           # tavan 48 çalıştırma × 20 kayıt = 960 kayıt, bolca pay var.
           AI_KATEGORIZASYON_AKTIF: "true"
           AI_ISLEME_LIMITI: "20"
+          # YENİ (07.10.2026): e-postadan gelen yeni talep/portföy için
+          # "📍 Uzmanlık Bölgeniz" özet bildirimi (core/push_bildirim.py'nin
+          # headless fallback'i bu ortam değişkenini okur). Secret, pazar
+          # sync işindekiyle AYNI (VAPID_PRIVATE_KEY).
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
         run: |
           python scripts/mail_auto_job.py
+
+      - name: Rehber alarmlarını gönder
+        # YENİ (09.10.2026): Rehberim'de kurulan "yeniden ara" alarmlarının
+        # zamanı geldiyse push gönderir. Ayrı workflow açılmadı — aynı
+        # runner/aynı secrets.toml ile, mail çekimi hata verse bile çalışsın.
+        if: always()
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+        run: |
+          python scripts/rehber_alarm_job.py
 
 # ============================================================
 # KURULUM NOTLARI (bir defalık):
