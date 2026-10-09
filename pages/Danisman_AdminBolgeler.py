@@ -437,20 +437,36 @@ def _kapsamdakiler(kayitlar, ilce, mahalle):
 def bolge_gorunumu():
     kayitlar = _takipci_kayitlari()
 
-    # Kapsam özeti: hangi ilçeyi kaç danışman takip ediyor
+    # Kapsam özeti: takip edilen ilçeler, en yoğundan en aza
     def _say(ilce, tur):
         return len({t["ad"] for t in kayitlar if t["ilce"] == ilce and t["tur"] == tur})
 
+    def _toplam(ilce):
+        return len({t["ad"] for t in kayitlar if t["ilce"] == ilce})
+
     ozet = [
-        {"İlçe": i, **{cfg["etiket"]: _say(i, tur) for tur, cfg in BOLGE_TURLERI.items()}}
+        {
+            "İlçe": i,
+            "Toplam danışman": _toplam(i),
+            **{cfg["etiket"]: _say(i, tur) for tur, cfg in BOLGE_TURLERI.items()},
+        }
         for i in IZMIR_ILCELERI
     ]
-    en_kalabalik = max(
-        range(len(IZMIR_ILCELERI)),
-        key=lambda n: sum(v for kk, v in ozet[n].items() if kk != "İlçe"),
+    takip_edilen = sorted(
+        (o for o in ozet if o["Toplam danışman"] > 0),
+        key=lambda o: (-o["Toplam danışman"], _tr_anahtar(o["İlçe"])),
     )
-    with st.expander("Tüm ilçelerin kapsamı (0 = kimse takip etmiyor)", expanded=False):
-        st.dataframe(ozet, hide_index=True, use_container_width=True)
+    kimsenin_olmayan = [o["İlçe"] for o in ozet if o["Toplam danışman"] == 0]
+    en_kalabalik = (
+        IZMIR_ILCELERI.index(takip_edilen[0]["İlçe"]) if takip_edilen else 0
+    )
+    st.markdown("**Takip edilen ilçeler (yoğundan aza)**")
+    if takip_edilen:
+        st.dataframe(takip_edilen, hide_index=True, use_container_width=True)
+    else:
+        st.info("Henüz hiçbir ilçe takip edilmiyor.")
+    if kimsenin_olmayan:
+        st.caption("Kimsenin takip etmediği ilçeler: " + ", ".join(kimsenin_olmayan))
 
     ilce = st.selectbox(
         "İlçe", IZMIR_ILCELERI, index=en_kalabalik, key="ab_bolge_ilce",
@@ -500,33 +516,44 @@ def bolge_gorunumu():
         unsafe_allow_html=True,
     )
 
-    # Mahalle tablosu (yalnızca ilçe görünümünde)
-    if mahalle is None and mahalleler:
-        satirlar = []
-        for m in mahalleler:
-            ozel = {t["tur"]: [] for t in kayitlar}
-            filtresiz = {"fsbo": set(), "startkey": set()}
-            tum = set()
-            for t in kayitlar:
-                if t["ilce"] != ilce or t["tur"] == "uzmanlik":
-                    continue
-                if not t["mahalleler"]:
-                    filtresiz[t["tur"]].add(t["ad"]); tum.add(t["ad"])
-                elif m in t["mahalleler"]:
-                    ozel.setdefault(t["tur"], []).append(t["ad"]); tum.add(t["ad"])
-            satirlar.append({
-                "Mahalle": m,
-                "FSBO (özel seçen)": ", ".join(sorted(set(ozel.get("fsbo", [])), key=_tr_anahtar)) or "—",
-                "Startkey (özel seçen)": ", ".join(sorted(set(ozel.get("startkey", [])), key=_tr_anahtar)) or "—",
-                "FSBO filtresiz": len(filtresiz["fsbo"]),
-                "Startkey filtresiz": len(filtresiz["startkey"]),
-                "Toplam danışman": len(tum),
-            })
-        st.dataframe(satirlar, hide_index=True, use_container_width=True)
+    # İlçe görünümünde: filtresiz özet + yalnızca ÖZEL seçilen mahalleler
+    if mahalle is None:
+        filtresiz = {"fsbo": set(), "startkey": set()}
+        ozel_mahalle = {}   # mahalle -> {tur: set(ad)}
+        for t in kayitlar:
+            if t["ilce"] != ilce or t["tur"] == "uzmanlik":
+                continue
+            if not t["mahalleler"]:
+                filtresiz[t["tur"]].add(t["ad"])
+            for m in t["mahalleler"]:
+                ozel_mahalle.setdefault(m, {"fsbo": set(), "startkey": set()})[t["tur"]].add(t["ad"])
+
+        def _adlar(kume):
+            return ", ".join(sorted(kume, key=_tr_anahtar)) or "—"
+
         st.caption(
-            "Özel seçen = mahalleyi filtresine bilerek koyan danışman. Filtresiz = "
-            "mahalle filtresi boş, ilçenin her mahallesini alan danışman sayısı."
+            "Tüm ilçeyi alanlar (mahalle filtresi boş) — "
+            f"FSBO: {_adlar(filtresiz['fsbo'])} · Startkey: {_adlar(filtresiz['startkey'])}"
         )
+        if ozel_mahalle:
+            st.markdown("**Seçili mahalleler**")
+            st.dataframe(
+                [
+                    {
+                        "Mahalle": m,
+                        "FSBO (özel seçen)": _adlar(v["fsbo"]),
+                        "Startkey (özel seçen)": _adlar(v["startkey"]),
+                        "Özel seçen sayısı": len(v["fsbo"] | v["startkey"]),
+                    }
+                    for m, v in sorted(
+                        ozel_mahalle.items(),
+                        key=lambda x: (-len(x[1]["fsbo"] | x[1]["startkey"]), _tr_anahtar(x[0])),
+                    )
+                ],
+                hide_index=True, use_container_width=True,
+            )
+        else:
+            st.caption("Bu ilçede mahalle filtresi kullanan danışman yok.")
 
     # Takipçi listesi (danışman bazında toplanmış)
     gruplar = {}
