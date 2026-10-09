@@ -977,7 +977,7 @@ def set_session_fields(kullanici: dict) -> bool:
     return True
 
 
-def oturum_kontrol() -> bool:
+def _oturum_kontrol_ic() -> bool:
     """
     Session'da geçerli kullanıcı var mı?
     Yoksa (ve LOCAL_SESSION_RESTORE açıksa) local kayıtlı
@@ -1080,3 +1080,68 @@ def oturum_kontrol() -> bool:
         return set_session_fields(kullanici)
     except Exception:
         return False
+
+
+# ── GİRİŞ SONRASI HEDEF SAYFA (09.10.2026) ──────────────────────────
+# Meltem: bildirime dokununca ilgili kayıtlar sayfası yerine ana sayfa ve
+# şifre ekranı açılıyor. Oturum yoksa her sayfa giriş ekranına yönlendiriyor
+# ve st.switch_page() hedef sayfayı unutturuyor; giriş sonrası hep
+# Danisman_Secim'e düşülüyordu. Bildirim linkleri artık ?git=<Sayfa> taşıyor
+# (bkz. core/push_bildirim.py); oturum yokken bu hedef oturumda saklanır,
+# giriş tamamlanınca (pages/Danisman_Giris.py) o sayfaya gidilir.
+# Yalnızca aşağıdaki SABİT sayfa listesi kabul edilir — serbest bir hedefe
+# yönlendirme (open redirect) yok.
+_GIRIS_SONRASI_SAYFALAR = {
+    "Danisman_Secim": "pages/Danisman_Secim.py",
+    "Danisman_Talep": "pages/Danisman_Talep.py",
+    "Danisman_Portfoy": "pages/Danisman_Portfoy.py",
+    "Danisman_FSBOIlanlari": "pages/Danisman_FSBOIlanlari.py",
+    "Danisman_StartkeyIlanlari": "pages/Danisman_StartkeyIlanlari.py",
+    "Danisman_Bildirimlerim": "pages/Danisman_Bildirimlerim.py",
+    "Danisman_Paylasimlar": "pages/Danisman_Paylasimlar.py",
+    "Danisman_ZetaPortfoyleri": "pages/Danisman_ZetaPortfoyleri.py",
+    "Danisman_Rehberim": "pages/Danisman_Rehberim.py",
+}
+_GIRIS_SONRASI_ZAMAN_ANAHTARI = {
+    "Danisman_FSBOIlanlari": "fsbo_zaman",
+    "Danisman_StartkeyIlanlari": "startkey_zaman",
+}
+
+
+def _giris_sonrasi_hedefi_kaydet():
+    """URL'de geçerli bir ?git=<Sayfa> varsa oturumda sakla (yoksa dokunma:
+    giriş sayfasına geçişte sorgu parametreleri zaten temizlenmiş olur)."""
+    try:
+        git = st.query_params.get("git")
+        if isinstance(git, (list, tuple)):
+            git = git[0] if git else None
+        if git in _GIRIS_SONRASI_SAYFALAR:
+            st.session_state["_giris_sonrasi"] = {
+                "sayfa": git, "zaman": st.query_params.get("zaman"),
+            }
+    except Exception:
+        pass
+
+
+def giris_sonrasi_sayfa(varsayilan="pages/Danisman_Secim.py"):
+    """Giriş tamamlanınca gidilecek sayfa: saklı bildirim hedefi varsa o
+    (bir kez kullanılır), yoksa varsayılan."""
+    hedef = st.session_state.pop("_giris_sonrasi", None)
+    if not isinstance(hedef, dict):
+        return varsayilan
+    sayfa = _GIRIS_SONRASI_SAYFALAR.get(hedef.get("sayfa"))
+    if not sayfa:
+        return varsayilan
+    anahtar = _GIRIS_SONRASI_ZAMAN_ANAHTARI.get(hedef["sayfa"])
+    if anahtar and hedef.get("zaman") == "bugun" and anahtar not in st.session_state:
+        st.session_state[anahtar] = "Bugün"
+    return sayfa
+
+
+def oturum_kontrol() -> bool:
+    """Bkz. _oturum_kontrol_ic(). Oturum yoksa (False) bildirimden gelen
+    ?git= hedefini giriş sonrası için saklar."""
+    sonuc = _oturum_kontrol_ic()
+    if not sonuc:
+        _giris_sonrasi_hedefi_kaydet()
+    return sonuc

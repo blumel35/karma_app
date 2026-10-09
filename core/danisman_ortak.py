@@ -622,6 +622,29 @@ def musteri_sil(musteri_id):
     musterileri_cek.clear()
 
 
+def rehber_alarm_kur(musteri_id, yerel_zaman, alarm_notu=""):
+    """Rehberim kaydına 'yeniden ara' alarmı kurar (09.10.2026 — Meltem:
+    "alarm kurulan tarihte yeniden arama bildirimi versin").
+    yerel_zaman: Türkiye saatiyle (naive) datetime. UTC'ye çevrilip
+    'alarm_zamani' alanına yazılır; 'alarm_bildirildi' sıfırlanır.
+    Bildirimi core/ dışındaki scripts/rehber_alarm_job.py (GitHub Actions,
+    30 dakikada bir) gönderir — bu yüzden saat 30 dakikalık dilimlere
+    oturur, ±birkaç dakika gecikme olabilir."""
+    from zoneinfo import ZoneInfo
+    utc = yerel_zaman.replace(tzinfo=ZoneInfo("Europe/Istanbul")).astimezone(timezone.utc)
+    musteri_guncelle(musteri_id, {
+        "alarm_zamani": utc.isoformat(),
+        "alarm_notu": (alarm_notu or "").strip() or None,
+        "alarm_bildirildi": None,
+    })
+
+
+def rehber_alarm_kaldir(musteri_id):
+    musteri_guncelle(musteri_id, {
+        "alarm_zamani": None, "alarm_notu": None, "alarm_bildirildi": None,
+    })
+
+
 def fsbo_kisisini_rehbere_ekle(danisman_adi, ad, telefon, ilan):
     """FSBO ilanındaki mülk sahibinin telefonunu (danışmanın Revy'den
     kendisinin kopyalayıp yapıştırdığı numara) danışmanın KİŞİSEL
@@ -673,10 +696,15 @@ def fsbo_kisisini_rehbere_ekle(danisman_adi, ad, telefon, ilan):
     tur = " ".join(x for x in (_dolu("islem_tipi") or [""])[:1] + [mulk] if x)
     if tur:
         s1.append(tur)
-    s1 += _dolu("oda_sayisi")
     fiyat = _sayi_ayikla(ilan.get("fiyat"))
     if fiyat is not None:
         s1.append(f"{_sayi_formatla(fiyat)} TL")
+    # Detay satırı: "3+1 · 130 m²" (oda sayısı + m² — 09.10.2026, Meltem:
+    # "detay bilgilerde oda sayısı ve m2 de eklenebilir")
+    sd = _dolu("oda_sayisi")
+    m2 = _sayi_ayikla(ilan.get("m2"))
+    if m2:
+        sd.append(f"{_sayi_formatla(m2)} m²")
     # Satır 2: "İlan tarihi: 08.10.2026 · İlan No: 1344288155 · Kayıt: 09.10.2026"
     s2 = []
     if _gg_aa_yyyy(ilan.get("ilan_tarihi")):
@@ -684,10 +712,19 @@ def fsbo_kisisini_rehbere_ekle(danisman_adi, ad, telefon, ilan):
     if ilan_no:
         s2.append(f"İlan No: {ilan_no}")
     s2.append(f"Kayıt: {bugun}")
-    satirlar = [" · ".join(x) for x in (s1, s2) if x]
+    satirlar = [" · ".join(x) for x in (s1, sd, s2) if x]
     if ilan_linki:
         satirlar.append(ilan_linki)
     ozet = "\n".join(satirlar)
+
+    # Rehberim'deki "Çalıştığı Bölge(ler)" alanına ilanın ilçesi yazılır —
+    # böylece Rehberim'deki bölge filtresiyle FSBO kayıtları ilçeye göre
+    # süzülebilir (Meltem: "rehberde konum alanı vardı oraya da bilgi girelim").
+    _ilce_ham = str(ilan.get("ilce") or "").strip()
+    _ilce_esles = next(
+        (i for i in IZMIR_ILCELERI if _tr_lower(i) == _tr_lower(_ilce_ham)), None
+    ) if _ilce_ham else None
+    ilan_bolgeleri = [_ilce_esles] if _ilce_esles else []
 
     adaylar = (
         supabase.table("danisman_kisiler")
@@ -726,6 +763,10 @@ def fsbo_kisisini_rehbere_ekle(danisman_adi, ad, telefon, ilan):
                 alanlar["notlar"] = ozet + ("\n\n" + mevcut_not if mevcut_not else "")
             if "FSBO" not in mevcut_tipler:
                 alanlar["tip"] = mevcut_tipler + ["FSBO"]
+            _mb = list(eslesen.get("bolgeler") or [])
+            _yeni_b = _mb + [b for b in ilan_bolgeleri if b not in _mb]
+            if _yeni_b != _mb:
+                alanlar["bolgeler"] = _yeni_b
             musteri_guncelle(eslesen["id"], alanlar)
         _yaz(_guncelle)
         return "guncellendi", eslesen.get("ad") or ad
@@ -733,7 +774,7 @@ def fsbo_kisisini_rehbere_ekle(danisman_adi, ad, telefon, ilan):
     def _ekle(yeni_alanlar_var):
         kayit = {
             "danisman": danisman_adi, "ad": ad, "telefon": telefon,
-            "tip": ["FSBO"], "bolgeler": [], "kaynak": "manuel",
+            "tip": ["FSBO"], "bolgeler": ilan_bolgeleri, "kaynak": "manuel",
         }
         if yeni_alanlar_var:
             kayit["ilan_ozeti"] = ozet
