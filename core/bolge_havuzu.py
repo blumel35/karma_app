@@ -129,6 +129,16 @@ def _sayfalar(tablo, secim="*", filtreler=None, tarih_alani=None, kesim_iso=None
     return sonuc
 
 
+def _kaynak_etiketi(v):
+    """Kaydın nereden geldiği: mail sistemi mi, danışmanın uygulamadan
+    girdiği Zeta paylaşımı mı, resmi Zeta portföyü mü."""
+    if tr_kucuk(v.get("kaynak")) in ZETA_PORTFOY_KAYNAKLARI:
+        return "Zeta portföyü (resmi)"
+    if (v.get("kaynak_klasor") or "") == "danisman_panel":
+        return "Zeta paylaşımı (uygulamadan)"
+    return "Mail sistemi"
+
+
 def _ilceler_of(v):
     liste = [i for i in (v.get("ilceler") or []) if i]
     if v.get("ilce") and v["ilce"] not in liste:
@@ -175,8 +185,10 @@ def _alici_talepleri(kesim, simdi):
     )
     sonuc = []
     for v in satirlar:
-        if tr_kucuk(v.get("kaynak")) not in ZETA_PAYLASIM_KAYNAKLARI:
-            continue
+        # 09.10.2026 (Meltem): alıcı talebi / paylaşım bölge havuzunda MAİL
+        # SİSTEMİNDEN gelen kayıtlar olmalı — Zeta paylaşımları tek başına
+        # yetersiz, zamanla ön plana alınacak. Bu yüzden kaynak süzgeci YOK;
+        # her kaydın kaynağı "Kaynak" alanında etiketli.
         t = _zaman(v.get("kayit_tarihi"), v.get("created_at"))
         if not t or t < kesim:
             continue
@@ -186,11 +198,11 @@ def _alici_talepleri(kesim, simdi):
             "baslik": v.get("ozet") or "Alıcı talebi",
             "alt": " · ".join(x for x in [v.get("bolge_mahalle") or "", v.get("oda_sayisi_m2") or "",
                                           ("bütçe " + para(v.get("max_butce"))) if para(v.get("max_butce")) else ""] if x),
-            "zaman": t, "yeni": (simdi - t) <= timedelta(hours=24), "sahip": sahip,
+            "zaman": t, "yeni": (simdi - t) <= timedelta(hours=24), "sahip": sahip, "kaynak": _kaynak_etiketi(v),
             "fiyat": para(v.get("max_butce")), "mahalle": v.get("bolge_mahalle") or "",
             "ilce": v.get("ilce") or "", "ilceler": _ilceler_of(v), "link": "",
             "alanlar": [
-                ("Talep eden", sahip), ("İşlem / mülk", " · ".join(x for x in [v.get("islem_tipi") or "", v.get("mulk_tipi") or ""] if x)),
+                ("Kaynak", _kaynak_etiketi(v)), ("Talep eden", sahip), ("İşlem / mülk", " · ".join(x for x in [v.get("islem_tipi") or "", v.get("mulk_tipi") or ""] if x)),
                 ("Bölge", v.get("bolge_mahalle") or ""), ("Oda / m²", v.get("oda_sayisi_m2") or ""),
                 ("Azami bütçe", para(v.get("max_butce"))), ("Notlar", v.get("ozel_kriterler") or ""),
             ],
@@ -204,12 +216,9 @@ def _portfoyler(kesim, simdi):
     paylasim, zeta = [], []
     for v in satirlar:
         k = tr_kucuk(v.get("kaynak"))
-        if k in ZETA_PORTFOY_KAYNAKLARI:
-            tur = "zeta"
-        elif k in ZETA_PAYLASIM_KAYNAKLARI:
-            tur = "paylasim"
-        else:
-            continue
+        # Resmi Zeta portföyü (zeta1/zeta2) ayrı sekme; geri kalan her şey
+        # (mail sistemi + Zeta paylaşımı) "Paylaşım" — kaynağı etiketli.
+        tur = "zeta" if k in ZETA_PORTFOY_KAYNAKLARI else "paylasim"
         t = _zaman(v.get("kayit_tarihi"), v.get("created_at"))
         if not t or t < kesim:
             continue
@@ -219,11 +228,11 @@ def _portfoyler(kesim, simdi):
             "baslik": v.get("ozet") or ("Zeta portföyü" if tur == "zeta" else "Portföy paylaşımı"),
             "alt": " · ".join(x for x in [v.get("bolge_mahalle") or "", v.get("oda_sayisi_m2") or "", para(v.get("fiyat"))] if x),
             "zaman": t, "yeni": (simdi - t) <= timedelta(hours=24), "sahip": sahip,
-            "fiyat": para(v.get("fiyat")), "mahalle": v.get("bolge_mahalle") or "",
+            "kaynak": _kaynak_etiketi(v), "fiyat": para(v.get("fiyat")), "mahalle": v.get("bolge_mahalle") or "",
             "ilce": v.get("ilce") or "", "ilceler": _ilceler_of(v),
             "link": v.get("ilan_linki") or "",
             "alanlar": [
-                ("Paylaşan", sahip), ("İşlem / mülk", " · ".join(x for x in [v.get("islem_tipi") or "", v.get("mulk_tipi") or ""] if x)),
+                ("Kaynak", _kaynak_etiketi(v)), ("Paylaşan", sahip), ("İşlem / mülk", " · ".join(x for x in [v.get("islem_tipi") or "", v.get("mulk_tipi") or ""] if x)),
                 ("Bölge", v.get("bolge_mahalle") or ""), ("Oda / m²", v.get("oda_sayisi_m2") or ""),
                 ("Fiyat", para(v.get("fiyat"))), ("Notlar", v.get("ozellikler") or ""),
             ],

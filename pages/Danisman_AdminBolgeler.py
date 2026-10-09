@@ -706,6 +706,7 @@ def _havuz_sekmesi(tur, ad, renk, kayit_listesi, ilce, takipci_kayitlari, donem)
             "": "🆕" if k["yeni"] else "",
             "Kayıt": k["baslik"],
             "Ayrıntı": k["alt"],
+            "Kaynak": k.get("kaynak") or "",
             "Sahibi": k["sahip"] or "—",
             "İlçe": ", ".join(i for i in k["ilceler"] if i) or "—",
             "Zaman": bh.zaman_etiketi(k["zaman"], simdi),
