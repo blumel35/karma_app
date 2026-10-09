@@ -24,7 +24,6 @@ core/pano_export.py: pazar_ilan_pano_html_olustur().
 """
 
 import streamlit as st
-import streamlit.components.v1 as components
 from datetime import date, datetime, timedelta
 
 import sys, os
@@ -37,8 +36,9 @@ from core.pano_export import (
 from core.danisman_ortak import (
     su_anki_danisman, IZMIR_ILCELERI, render_topbar, hide_sidebar_css,
     islem_tipi_filtrele, mulk_tipi_filtrele, ilce_ile_filtrele,
-    fsbo_kisisini_rehbere_ekle,
+    fsbo_kisisini_rehbere_ekle, musterileri_cek,
 )
+from core.fsbo_kart_bilesen import fsbo_kartlari
 from core.bolge_secici import (
     bolgelerini_cek, bolgelerini_kaydet, etkin_ilceler, pazar_ilanlarini_cek,
     ilcenin_mahalleleri, ilce_mahallelerini_ayarla, mahalle_ile_filtrele,
@@ -369,13 +369,13 @@ def _ilan_etiketi(v):
 _tel_sayac = st.session_state.get("fsbo_tel_sayac", 0)
 if st.session_state.get("fsbo_tel_mesaj"):
     st.success(st.session_state.pop("fsbo_tel_mesaj"))
-with st.expander("📞 Mülk sahibinin numarasını Rehberime kaydet", expanded=False):
+_ilan_map = {v["ilan_linki"]: v for v in ilanlar if v.get("ilan_linki")}
+with st.expander("📞 Numarayı listeden seçerek kaydet (yedek yol)", expanded=False):
     st.caption(
-        "Numarayı Revy'deki ilan detayından kopyalayıp buraya yapıştır. Kayıt "
-        "yalnızca senin Rehberim'e, 'FSBO' tipinde, bugünün tarihi ve ilan "
+        "Normalde numarayı doğrudan ilan kartındaki kutuya yapıştırman yeterli. "
+        "Kayıt yalnızca senin Rehberim'e, 'FSBO' tipinde, bugünün tarihi ve ilan "
         "bilgisiyle eklenir — başka kimse görmez."
     )
-    _ilan_map = {v["ilan_linki"]: v for v in ilanlar if v.get("ilan_linki")}
     if not _ilan_map:
         st.info("Listede ilan linki olan ilan yok.")
     else:
@@ -416,5 +416,52 @@ with st.expander("📞 Mülk sahibinin numarasını Rehberime kaydet", expanded=
                         }[_sonuc]
                         st.rerun()
 
-html_buf = pazar_ilan_pano_html_olustur(ilanlar, "FSBO İlanları", baslik_goster=False)
-components.html(html_buf.getvalue().decode("utf-8"), height=1800, scrolling=True)
+html_buf = pazar_ilan_pano_html_olustur(
+    ilanlar, "FSBO İlanları", baslik_goster=False, telefon_kutusu=True,
+)
+
+# Zaten Rehberim'de kayıtlı FSBO ilanları (notta ilan linki geçenler) —
+# kartta numara kilitli ve "Rehberim'de kayıtlı" yazısıyla görünür.
+import re as _re
+import hashlib as _hashlib
+_kayitli = {}
+try:
+    for _k in musterileri_cek(su_kullanici):
+        for _u in _re.findall(r"https?://\S+", _k.get("notlar") or ""):
+            if _u in _ilan_map and _k.get("telefon"):
+                _kayitli[_u] = _k["telefon"]
+except Exception:
+    _kayitli = {}
+
+_anahtar = _hashlib.md5("|".join(sorted(_ilan_map.keys())).encode("utf-8")).hexdigest()
+_deger = fsbo_kartlari(
+    html_buf.getvalue().decode("utf-8"), _anahtar,
+    kayitli=_kayitli, sonuc=st.session_state.get("fsbo_tel_sonuc"),
+)
+
+# Kart içindeki kutuya numara yapıştırılınca: doğrula → Rehberim'e kaydet →
+# sonucu karta geri bildir. 'n' her yapıştırmada benzersizdir; aynı olayı
+# yeniden işlememek için son işlenen saklanır.
+if _deger and _deger.get("n") and _deger["n"] != st.session_state.get("fsbo_tel_son_n"):
+    st.session_state["fsbo_tel_son_n"] = _deger["n"]
+    _l = _deger.get("link")
+    _i = _ilan_map.get(_l)
+    _t = _tel_temizle(_deger.get("tel"))
+    if not _i:
+        _sonuc = {"link": _l, "ok": False, "mesaj": "İlan bulunamadı, listeyi yenile."}
+    elif not _t:
+        _sonuc = {"link": _l, "ok": False, "mesaj": "Numara anlaşılamadı (10 haneli cep numarası olmalı)."}
+    else:
+        try:
+            _durum, _kisi = fsbo_kisisini_rehbere_ekle(
+                su_kullanici, str(_i.get("talep_eden_danisan") or ""), _t, _i,
+            )
+            _sonuc = {"link": _l, "ok": True, "mesaj": {
+                "yeni": f"✓ {_kisi} Rehberim'e FSBO olarak kaydedildi",
+                "guncellendi": f"✓ {_kisi} zaten rehberindeydi — FSBO notu eklendi",
+                "ayni_ilan": f"✓ {_kisi} — bu ilan zaten kayıtlı",
+            }[_durum]}
+        except Exception as _e:
+            _sonuc = {"link": _l, "ok": False, "mesaj": f"Kaydedilemedi: {_e}"}
+    st.session_state["fsbo_tel_sonuc"] = _sonuc
+    st.rerun()
