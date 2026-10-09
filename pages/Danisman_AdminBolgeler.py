@@ -742,6 +742,7 @@ def _havuz_sekmesi(tur, ad, renk, kayit_listesi, ilce, takipci_kayitlari, donem)
 
     kolonlar = [
         {"k": "Kayıt", "label": "Kayıt", "w": 200},
+        {"k": "İlan", "label": "İlan", "w": 70, "link": True},
         {"k": "İşlem", "label": "İşlem", "w": 90},
         {"k": "Yaş / Kat", "label": "Yaş / Kat", "w": 140},
         {"k": "Ayrıntı", "label": "Ayrıntı", "w": 210},
@@ -752,7 +753,7 @@ def _havuz_sekmesi(tur, ad, renk, kayit_listesi, ilce, takipci_kayitlari, donem)
     ]
     satirlar = [
         {
-            "id": k["id"], "yeni": bool(k["yeni"]),
+            "id": k["id"], "yeni": bool(k["yeni"]), "u": bh.guvenli_url(k.get("link")),
             "t": k["zaman"].timestamp() if k["zaman"] else 0,
             "h": {
                 "Kayıt": k["baslik"], "İşlem": k.get("islem") or "—",
@@ -776,7 +777,7 @@ def _havuz_sekmesi(tur, ad, renk, kayit_listesi, ilce, takipci_kayitlari, donem)
     # olur (tarayıcılar sunucudan dönen yeni sekmeyi engellediği için ikinci
     # dokunuş gerekir); kopyala simgesi linki panoya alır.
     if tur == "zeta":
-        st.caption("Zeta portföyü = portallarda yayındaki resmi aktif ilanlar; dönem süzgeci uygulanmaz.")
+        st.caption("Zeta portföyü = portallarda yayındaki aktif ilanlar; dönem süzgeci uygulanmaz.")
     if tur in bh.LINK_BICIMI:
         hedef = secilenler or ([aktif] if aktif else [])
         if hedef:

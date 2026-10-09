@@ -92,6 +92,12 @@ def _zaman(*degerler):
     return None
 
 
+def guvenli_url(u):
+    """Tabloda tıklanabilir link için: yalnızca http(s) adresleri."""
+    u = str(u or "").strip()
+    return u if re.match(r"^https?://", u, re.I) else ""
+
+
 def zaman_etiketi(t, simdi=None):
     if not t:
         return ""
@@ -139,7 +145,7 @@ def _kaynak_etiketi(v):
     """Kaydın nereden geldiği: mail sistemi mi, danışmanın uygulamadan
     girdiği Zeta paylaşımı mı, resmi Zeta portföyü mü."""
     if tr_kucuk(v.get("kaynak")) in ZETA_PORTFOY_KAYNAKLARI:
-        return "Zeta portföyü (resmi)"
+        return "Zeta portföyü"
     if (v.get("kaynak_klasor") or "") == "danisman_panel":
         return "Zeta paylaşımı (uygulamadan)"
     return "Mail sistemi"
