@@ -47,47 +47,98 @@ TIP_SECENEKLERI = ["Alıcı", "Satıcı", "Kiraya Veren", "Kiracı", "İş Orta�
 TUM_HARFLER = list("ABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZ")
 
 
-def _telefon_html(telefon):
-    """Telefon numarasını tıklanabilir hale getirir — 📞 tıklanınca
-    telefonun kendi arama uygulamasını, WhatsApp ikonu tıklanınca
-    wa.me üzerinden WhatsApp'ı açar (13.08.2026, 4. tur — 'kopyalayıp
-    arama' yerine doğrudan yönlendirme isteği üzerine). Numara hangi
-    formatta girilmiş olursa olsun (boşluklu, +90'lı, 0'lı) son 10
-    haneyi alıp başına 90 ekleyerek E.164 formatına çeviriyor."""
-    if not telefon:
-        return ""
+_WA_SVG = (
+    "<svg viewBox='0 0 24 24'><path d='M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.85.5 3.58 1.36 5.06L2 22l5.2-1.37a9.87 9.87 0 0 0 4.84 1.24h.01"
+    "c5.46 0 9.9-4.45 9.9-9.91C21.96 6.45 17.5 2 12.04 2zm5.8 14.03c-.24.68-1.4 1.3-1.93 1.34-.5.04-1 .23-3.36-.7"
+    "-2.84-1.13-4.63-3.98-4.77-4.16-.14-.19-1.14-1.52-1.14-2.9 0-1.38.72-2.05.98-2.33.26-.28.56-.35.75-.35h.54"
+    "c.17 0 .4-.03.62.48.24.55.8 1.9.87 2.04.07.14.12.3.02.49-.09.19-.14.3-.28.46-.14.16-.29.36-.42.48-.14.14"
+    "-.28.29-.12.57.16.28.71 1.17 1.52 1.9 1.05.94 1.93 1.23 2.2 1.37.28.14.44.12.6-.07.16-.19.68-.79.86-1.06"
+    ".18-.28.36-.23.6-.14.25.09 1.6.75 1.87.89.28.14.46.21.53.32.07.12.07.68-.17 1.36z'/></svg>"
+)
+_TIP_SINIF = {"Alıcı": "al", "Satıcı": "sa", "Kiraya Veren": "ki", "Kiracı": "ki",
+              "İş Ortağı": "is", "FSBO": "fs", "Diğer": "di"}
+
+
+def _telefon_goster(telefon):
+    """Telefonu tek biçimde gösterir: 0533 444 44 44. 10 haneli (5xx...) ya da
+    başında 0 olan 11 haneli numaralar biçimlenir; başka bir şey (yurt dışı
+    numara, eksik/fazla hane) olduğu gibi gösterilir. Kayıtlar DEĞİŞMEZ."""
+    ham = (telefon or "").strip()
+    r = "".join(ch for ch in ham if ch.isdigit())
+    if len(r) == 11 and r.startswith("0"):
+        r = r[1:]
+    if len(r) == 10 and r.startswith("5"):
+        return f"0{r[:3]} {r[3:6]} {r[6:8]} {r[8:]}"
+    return ham
+
+
+def _telefon_blok_html(telefon):
+    """Numara + yuvarlak ara / WhatsApp düğmeleri (13.08.2026'daki wa.me /
+    tel: yönlendirmesi aynen; yalnızca görünüm sadeleştirildi)."""
+    if not (telefon or "").strip():
+        return "<div class='dp-tel'></div>"
     rakamlar = "".join(ch for ch in telefon if ch.isdigit())
     son10 = rakamlar[-10:] if len(rakamlar) >= 10 else rakamlar
     e164 = "90" + son10
     return (
-        f"<span class='dp-mus-tel-satir'> · <a class='dp-mus-tel' href='tel:+{e164}' title='Ara'>{telefon}</a>"
-        f"<a class='dp-mus-tel-ikon' href='https://wa.me/{e164}' target='_blank' title='WhatsApp'>"
-        "<svg width='13' height='13' viewBox='0 0 24 24' fill='#25D366'>"
-        "<path d='M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.85.5 3.58 1.36 5.06L2 22l5.2-1.37a9.87 9.87 0 0 0 4.84 1.24h.01"
-        "c5.46 0 9.9-4.45 9.9-9.91C21.96 6.45 17.5 2 12.04 2zm5.8 14.03c-.24.68-1.4 1.3-1.93 1.34-.5.04-1 .23-3.36-.7"
-        "-2.84-1.13-4.63-3.98-4.77-4.16-.14-.19-1.14-1.52-1.14-2.9 0-1.38.72-2.05.98-2.33.26-.28.56-.35.75-.35h.54"
-        "c.17 0 .4-.03.62.48.24.55.8 1.9.87 2.04.07.14.12.3.02.49-.09.19-.14.3-.28.46-.14.16-.29.36-.42.48-.14.14"
-        "-.28.29-.12.57.16.28.71 1.17 1.52 1.9 1.05.94 1.93 1.23 2.2 1.37.28.14.44.12.6-.07.16-.19.68-.79.86-1.06"
-        ".18-.28.36-.23.6-.14.25.09 1.6.75 1.87.89.28.14.46.21.53.32.07.12.07.68-.17 1.36z'/></svg></a></span>"
+        f"<div class='dp-tel'><span class='dp-num'>{_esc(_telefon_goster(telefon))}</span>"
+        f"<a class='dp-ib dp-call' href='tel:+{e164}' title='Ara'>✆</a>"
+        f"<a class='dp-ib dp-wa' href='https://wa.me/{e164}' target='_blank' rel='noopener noreferrer' title='WhatsApp'>{_WA_SVG}</a></div>"
     )
+
 
 st.markdown("""
 <style>
-.dp-mus-tip {
-    display: inline-block;
-    font-size: 10px; font-weight: 700;
-    padding: 2px 8px; border-radius: 999px;
-    background: rgba(27,37,64,.08); color: #1b2540;
-    margin-left: 8px; vertical-align: middle;
+/* REHBERİM LİSTESİ — sade, sütunlu satır tasarımı (09.10.2026, Meltem:
+   "daha kompakt, estetik, okunaklı, takibi kolay"). Her kişi tek bir
+   ızgara satırı: avatar | isim + rozetler | telefon + ara/WhatsApp |
+   bilgi etiketleri (alarm, son görüşme, bölge). "⋮" menüsü satırın
+   sağ ucuna sabit. Dar ekranda satır iki kata iner. */
+.dp-k-al { --kc:#e0f2fe; --kt:#075985; }
+.dp-k-sa { --kc:#e6efe8; --kt:#2f5d3a; }
+.dp-k-is { --kc:#ede9fe; --kt:#5b21b6; }
+.dp-k-fs { --kc:#f7f0df; --kt:#7a5a12; }
+.dp-k-ki { --kc:#fde8e6; --kt:#9f2d1f; }
+.dp-k-di { --kc:#eceef2; --kt:#3d4457; }
+div[class*="st-key-dp_mus_row_"] {
+    position: relative; gap: 0 !important;
+    border-bottom: 1px solid #f0f1f4; background: #fff;
 }
-.dp-mus-satir {
-    padding: 7px 0; border-bottom: 1px solid #f2f0ea;
+div[class*="st-key-dp_mus_row_"]:hover { background: #fbfbfc; }
+.dp-row {
+    display: grid; align-items: center; column-gap: 12px; row-gap: 4px;
+    grid-template-columns: 38px minmax(0,1.5fr) minmax(0,1.15fr) minmax(0,.95fr);
+    padding: 9px 52px 9px 8px;
 }
-.dp-mus-harf-baslik {
-    font-size: 13px; font-weight: 800; color: #b8892f;
-    margin: 16px 0 2px 0; padding-bottom: 3px;
-    border-bottom: 1px solid #ecebe5;
+.dp-row.dp-dense { padding-top: 5px; padding-bottom: 5px; }
+.dp-av {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 800; font-size: 12.5px; background: var(--kc); color: var(--kt);
 }
+.dp-dense .dp-av { width: 30px; height: 30px; font-size: 11px; }
+.dp-nm { font-weight: 700; font-size: 14.5px; color: #1b2540; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dp-sub { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 2px; font-size: 12px; color: #6b7385; }
+.dp-tg { font-size: 10.5px; font-weight: 800; border-radius: 5px; padding: 1px 7px; background: var(--kc); color: var(--kt); }
+.dp-tel { display: flex; align-items: center; gap: 8px; }
+.dp-num { font-variant-numeric: tabular-nums; font-size: 13.5px; color: #1b2540; white-space: nowrap; }
+.dp-ib {
+    width: 30px; height: 30px; border-radius: 50%; display: inline-grid; place-items: center;
+    text-decoration: none !important; color: #fff !important; font-size: 13px; flex: none;
+}
+.dp-dense .dp-ib { width: 26px; height: 26px; font-size: 12px; }
+.dp-ib.dp-call { background: #1c2b47; }
+.dp-ib.dp-wa { background: #25d366; }
+.dp-ib svg { width: 15px; height: 15px; fill: #fff; }
+.dp-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; align-items: flex-start; }
+.dp-pin { font-size: 12px; color: #6b7385; white-space: nowrap; }
+.dp-st { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; font-weight: 700; border-radius: 6px; padding: 2px 8px; }
+.dp-st.dp-al { background: #fde8e6; color: #b42318; }
+.dp-st.dp-fu { background: #fdf3d8; color: #9a6b00; }
+.dp-st.dp-lc { background: #eef0f3; color: #6b7385; font-weight: 600; }
+details.dp-fs { grid-column: 2 / -1; font-size: 12px; margin-top: -2px; }
+details.dp-fs summary { cursor: pointer; color: #b8892f; font-weight: 700; list-style: none; width: fit-content; }
+details.dp-fs summary::-webkit-details-marker { display: none; }
 .dp-mus-fsbo {
     margin: 4px 0 2px 0; padding: 6px 10px; border-left: 3px solid #b8892f;
     background: #faf7f0; border-radius: 0 6px 6px 0;
@@ -95,84 +146,41 @@ st.markdown("""
 }
 .dp-mus-fsbo a { color: #1b2540; font-weight: 600; word-break: break-all; }
 .dp-mus-fsbo .dp-fsbo-ilan + .dp-fsbo-ilan { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e4dccb; }
-.dp-mus-fsbo .dp-fsbo-gorusme { margin-top: 6px; font-weight: 700; color: #1b2540; }
-.dp-mus-fsbo .dp-fsbo-not { margin-top: 2px; color: #5b6478; white-space: pre-wrap; }
-.dp-mus-son { margin: 4px 0 2px 0; font-size: 12.5px; color: #3d4457; font-weight: 600; }
-.dp-mus-alarm {
-    margin: 4px 0 2px 0; font-size: 12.5px; font-weight: 600; color: #7a5a12;
+.dp-mus-harf-baslik {
+    background: #f7f8fa; border-top: 1px solid #ecebe5; border-bottom: 1px solid #ecebe5;
+    font-size: 11px; font-weight: 800; color: #b8892f; letter-spacing: .5px;
+    margin: 10px 0 0 0; padding: 4px 8px;
 }
-.dp-mus-alarm.dp-alarm-geldi { color: #b42318; }
-.dp-mus-az {
-    display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 14px 0;
-}
-.dp-mus-az a {
-    font-size: 12.5px; font-weight: 700; color: #1b2540;
-    text-decoration: none; padding: 3px 6px; border-radius: 5px;
-}
+.dp-mus-az { display: flex; flex-wrap: wrap; gap: 2px; margin: 4px 0 8px 0; }
+.dp-mus-az a { font-size: 12px; font-weight: 800; color: #1b2540; text-decoration: none; padding: 2px 5px; border-radius: 5px; }
 .dp-mus-az a:hover { background: rgba(27,37,64,.08); }
-.dp-mus-az span { font-size: 12.5px; color: #cfcabf; padding: 3px 6px; }
-.dp-mus-bolge {
-    font-size: 11.5px; color: #7a8194; white-space: nowrap;
-    display: flex; align-items: center; gap: 3px; justify-content: flex-end;
-}
-.dp-mus-tel {
-    color: #3d4457; font-weight: 600; text-decoration: none;
-    padding: 4px 2px;
-}
-.dp-mus-tel-ikon {
-    text-decoration: none; margin-left: 8px; vertical-align: middle;
-    display: inline-flex; padding: 4px;
-}
-/* DÜZELTME (13.08.2026, 5. tur): Mobilde telefon numarası ve WhatsApp
-   ikonu birbirine çok yakın, küçük duruyordu — parmakla dokunmak zordu.
-   Yazı boyutu büyütüldü, aralarındaki boşluk artırıldı, ikonun kendisi
-   büyütüldü ve etrafına daha geniş bir dokunma alanı (padding) eklendi
-   — gerçek dokunma hedefi artık görünenden daha büyük. */
-@media (max-width: 480px) {
-    .dp-mus-tel {
-        font-size: 15px !important;
-        padding: 8px 4px !important;
-        display: inline-block;
-    }
-    .dp-mus-tel-ikon {
-        margin-left: 14px !important;
-        padding: 8px !important;
-    }
-    .dp-mus-tel-ikon svg {
-        width: 19px !important; height: 19px !important;
-    }
-    /* YENİ (13.08.2026, 6. tur): telefon artık HER ZAMAN kendi satırında
-       — önceden isim/tip/uzmanlık satırının sonuna sığmayınca tutarsız
-       şekilde bazen aynı satırda bazen alt satırda kalıyordu. */
-    .dp-mus-tel-satir { display: block !important; margin-top: 4px; }
-}
-/* DÜZELTME (13.08.2026, 4. tur): "+ Yeni Kişi" ve "⋮" popover
-   butonları, Streamlit'in mobildeki varsayılan sütun-yığma davranışı
-   yüzünden TAM EKRAN GENİŞLİĞİNDE devasa butonlar gibi görünüyordu.
-   İkisi de artık kendi key'li container'ları içinde — sabit, küçük
-   genişliğe zorlanıyor, mobilde de. */
-div[class*="st-key-dp_mus_ekle_pop"] button {
-    white-space: nowrap !important;
+.dp-mus-az span { font-size: 12px; color: #cfcabf; padding: 2px 5px; }
+/* "⋮" menüsü: satırın sağ ucuna sabit, ok simgesi yok */
+div[class*="st-key-dp_mus_aksiyon_"] {
+    position: absolute !important; top: 50%; right: 4px; transform: translateY(-50%);
+    width: 40px !important; min-width: 40px !important; z-index: 2;
 }
 div[class*="st-key-dp_mus_aksiyon_"] button {
-    width: 40px !important; min-width: 40px !important;
-    padding: 0 8px !important;
+    width: 40px !important; min-width: 40px !important; padding: 0 !important;
+    border: 0 !important; background: transparent !important; box-shadow: none !important;
 }
-@media (max-width: 480px) {
-    div[class*="st-key-dp_mus_aksiyon_"] {
-        width: 40px !important; min-width: 40px !important;
-        margin-left: auto !important;
+div[class*="st-key-dp_mus_aksiyon_"] button:hover { background: #eef0f3 !important; }
+div[class*="st-key-dp_mus_aksiyon_"] button [data-testid="stIconMaterial"],
+div[class*="st-key-dp_mus_aksiyon_"] button svg { display: none !important; }
+div[class*="st-key-dp_mus_ekle_pop"] button { white-space: nowrap !important; }
+@media (max-width: 700px) {
+    .dp-row {
+        grid-template-columns: 36px minmax(0,1fr);
+        padding: 10px 46px 10px 4px;
     }
-    div[class*="st-key-dp_mus_aksiyon_"] button {
-        width: 40px !important; min-width: 40px !important;
-    }
-    div[class*="st-key-dp_mus_ekle_pop"] {
-        width: auto !important; min-width: 0 !important;
-        margin-left: auto !important;
-    }
-    div[class*="st-key-dp_mus_ekle_pop"] button {
-        width: auto !important; min-width: 0 !important;
-    }
+    .dp-row .dp-av { grid-row: 1 / span 2; align-self: start; margin-top: 2px; }
+    .dp-row .dp-tel { grid-column: 2; }
+    .dp-row .dp-num { margin-right: auto; }
+    .dp-row .dp-info { grid-column: 2; flex-direction: row; flex-wrap: wrap; gap: 6px; align-items: center; }
+    details.dp-fs { grid-column: 1 / -1; }
+    div[class*="st-key-dp_mus_aksiyon_"] { top: 22px; transform: none; right: 0; }
+    div[class*="st-key-dp_mus_ekle_pop"] { width: auto !important; min-width: 0 !important; margin-left: auto !important; }
+    div[class*="st-key-dp_mus_ekle_pop"] button { width: auto !important; min-width: 0 !important; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -215,18 +223,21 @@ def _simdi_yerel():
         return _dt.now()
 
 
+def _kisalt(metin, n):
+    metin = (metin or "").strip()
+    return metin if len(metin) <= n else metin[:n].rstrip() + "…"
+
+
 def _alarm_html(m):
+    """Alarm etiketi (zamanı geldiyse kırmızı, değilse sarı)."""
     z = _alarm_oku(m)
     if not z:
         return ""
     geldi = z <= _simdi_yerel()
-    metin = z.strftime("%d.%m.%Y %H:%M")
-    nt = (m.get("alarm_notu") or "").strip()
-    etiket = f"⏰ Yeniden ara: {metin}" if not geldi else f"⏰ Zamanı geldi: {metin}"
-    if nt:
-        etiket += f" · {nt}"
-    sinif = "dp-mus-alarm dp-alarm-geldi" if geldi else "dp-mus-alarm"
-    return f'<div class="{sinif}">{_esc(etiket)}</div>'
+    metin = z.strftime("%d.%m %H:%M")
+    nt = _kisalt(m.get("alarm_notu"), 40)
+    etiket = (f"⏰ Zamanı geldi · {metin}" if geldi else f"⏰ Ara: {metin}") + (f" · {nt}" if nt else "")
+    return f'<span class="dp-st {"dp-al" if geldi else "dp-fu"}">{_esc(etiket)}</span>'
 
 
 def _fsbo_blok_html(m):
@@ -255,18 +266,44 @@ def _gorusmeler(m):
 
 
 def _gorusme_satiri_html(m):
-    """Tüm kişiler için: 'Son görüşme: 07.10.2026 (3 görüşme) · son notun başı'."""
+    """'Son görüşme 07.10 (3) · son notun başı' etiketi."""
     g = _gorusmeler(m)
     t = _tarih_oku(g[0]["tarih"]) if g else _tarih_oku(m.get("son_gorusme_tarihi"))
     if not t:
         return ""
-    metin = f"📞 Son görüşme: {t.strftime('%d.%m.%Y')}"
+    metin = f"Son görüşme {t.strftime('%d.%m.%y' if t.year != _bugun().year else '%d.%m')}"
     if len(g) > 1:
-        metin += f" ({len(g)} görüşme)"
-    nt = (g[0].get("not") or "").strip() if g else ""
+        metin += f" ({len(g)})"
+    nt = _kisalt((g[0].get("not") or "") if g else "", 60)
     if nt:
-        metin += " · " + (nt if len(nt) <= 90 else nt[:90].rstrip() + "…")
-    return f'<div class="dp-mus-son">{_esc(metin)}</div>'
+        metin += " · " + nt
+    return f'<span class="dp-st dp-lc">{_esc(metin)}</span>'
+
+
+def _satir_html(m, kompakt=False):
+    """Bir kişinin tek ızgara satırı (tek satırlık HTML — boş satır/girinti
+    bırakılmaz, Markdown kod bloğuna çevirmesin)."""
+    ad = (m.get("ad") or "").strip()
+    tipler = _tip_listele(m.get("tip")) or ["Diğer"]
+    sinif = _TIP_SINIF.get(tipler[0], "di")
+    parcalar = (ad.split() or ["?"])
+    bas = (parcalar[0][0] + (parcalar[1][0] if len(parcalar) > 1 else "")).upper()
+    rozet = "".join(
+        f"<span class='dp-tg dp-k-{_TIP_SINIF.get(t, 'di')}'>{_esc(t)}</span>" for t in tipler
+    )
+    uz = f"<span>· {_esc(m['uzmanlik'])}</span>" if m.get("uzmanlik") else ""
+    bilgi = _alarm_html(m) + _gorusme_satiri_html(m)
+    if m.get("bolgeler"):
+        bilgi += f"<span class='dp-pin'>📍 {_esc(', '.join(m['bolgeler']))}</span>"
+    fsbo = _fsbo_blok_html(m)
+    detay = f"<details class='dp-fs'><summary>▾ İlan özeti</summary>{fsbo}</details>" if fsbo else ""
+    return (
+        f"<div class='dp-row dp-k-{sinif}{' dp-dense' if kompakt else ''}'>"
+        f"<div class='dp-av'>{_esc(bas)}</div>"
+        f"<div><div class='dp-nm'>{_esc(ad)}</div><div class='dp-sub'>{rozet}{uz}</div></div>"
+        f"{_telefon_blok_html(m.get('telefon'))}"
+        f"<div class='dp-info'>{bilgi}</div>{detay}</div>"
+    )
 
 
 su_kullanici = su_anki_danisman()
@@ -285,12 +322,19 @@ with sekme_ajanda:
 with sekme_rehber:
     st.caption("Kişisel kişi defterin — sadece sana görünür, ofis geneli paylaşılmaz.")
 
-    # ── FİLTRE SATIRI 1: Tip + "+ Yeni Kişi Ekle" (aynı satırda, sağda) ─────
-    col_filtre, col_ekle = st.columns([5, 1.3])
-    with col_filtre:
-        tip_filtre = st.radio(
-            "Tip", ["Tümü"] + TIP_SECENEKLERI, horizontal=True,
-            key="dp_mus_filtre", label_visibility="collapsed",
+    # ── ÜST ARAÇ ÇUBUĞU: arama | bölge | + Yeni Kişi (tek satır) ────────────
+    col_arama, col_bolge, col_ekle = st.columns([5, 2.2, 1.4])
+    with col_arama:
+        arama_metni = st.text_input(
+            "Ara", key="dp_mus_arama",
+            placeholder="🔎 İsim, meslek veya not içinde ara…",
+            label_visibility="collapsed",
+        )
+    with col_bolge:
+        bolge_filtre = st.multiselect(
+            "Bölgeye göre filtrele", IZMIR_ILCELERI,
+            key="dp_mus_bolge_filtre", placeholder="📍 Bölge",
+            label_visibility="collapsed",
         )
     with col_ekle:
         with st.container(key="dp_mus_ekle_pop"):
@@ -324,26 +368,15 @@ with sekme_rehber:
                             st.success("✅ Eklendi.")
                             st.rerun()
 
-    # ── FİLTRE SATIRI 2: Bölge — YENİ (13.08.2026, 3. tur). "GD rehberinde
-    # özellikle çok işe yarar" isteği üzerine gerçekten FİLTRELENEBİLİR
-    # yapıldı — seçilen ilçelerden EN AZ BİRİNDE çalışan kişiler gösterilir.
-    # YENİ (13.08.2026, 4. tur): bölge kutusu daraltıldı, yanına serbest
-    # metin arama eklendi (ad + uzmanlık + not içinde arar — "nakliye"
-    # yazınca tüm nakliyeciler, "gayrimenkul danışmanı" yazınca o meslekten
-    # olanlar çıksın diye). ─────────────────────────────────────────────
-    col_bolge, col_arama = st.columns([2, 3])
-    with col_bolge:
-        bolge_filtre = st.multiselect(
-            "Bölgeye göre filtrele", IZMIR_ILCELERI,
-            key="dp_mus_bolge_filtre", placeholder="Bölge...",
-            label_visibility="collapsed",
-        )
-    with col_arama:
-        arama_metni = st.text_input(
-            "Ara", key="dp_mus_arama",
-            placeholder="İsim, meslek veya not içinde ara (örn. nakliye, gayrimenkul danışmanı)...",
-            label_visibility="collapsed",
-        )
+    # ── TİP ÇİPLERİ (kişi sayılı; boş tipler gizli) ─────────────────────────
+    _tip_sayi = {t: sum(1 for m in tum_musteriler if t in _tip_listele(m.get("tip")))
+                 for t in TIP_SECENEKLERI}
+    _cipler = ["Tümü"] + [t for t in TIP_SECENEKLERI if _tip_sayi[t]]
+    tip_filtre = st.pills(
+        "Tip", _cipler, selection_mode="single", default="Tümü",
+        format_func=lambda t: f"{t} {len(tum_musteriler) if t == 'Tümü' else _tip_sayi[t]}",
+        key="dp_mus_pill", label_visibility="collapsed",
+    ) or "Tümü"
 
     if tip_filtre != "Tümü":
         gosterilecek = [m for m in tum_musteriler if tip_filtre in _tip_listele(m.get("tip"))]
@@ -365,12 +398,19 @@ with sekme_rehber:
             or arama_lower in _tr_lower(m.get("notlar") or "")
         ]
 
-    gosterilecek_sirali = sorted(gosterilecek, key=lambda m: (m.get("ad") or "").strip().lower())
-    st.caption(f"{len(gosterilecek_sirali)} kişi")
+    gosterilecek_sirali = sorted(gosterilecek, key=lambda m: _tr_lower((m.get("ad") or "").strip()))
 
-    # ── A-Z HIZLI GEZİNME — Talep/Portföy panolarındaki AYNI görsel dil:
-    # içinde kayıt olan harf koyu/tıklanabilir link (aynı sayfa içi #çapaya
-    # atlıyor), boş harf soluk/tıklanamaz. ───────────────────────────────
+    c_say, c_yog = st.columns([3, 2])
+    with c_say:
+        st.caption(f"{len(gosterilecek_sirali)} kişi")
+    with c_yog:
+        _yog = st.segmented_control(
+            "Satır yoğunluğu", ["Rahat", "Kompakt"], default="Rahat",
+            key="dp_mus_yogunluk", label_visibility="collapsed",
+        ) or "Rahat"
+    _kompakt = _yog == "Kompakt"
+
+    # ── A-Z HIZLI GEZİNME (aynı sayfa içi çapa) ──────────────────────────
     mevcut_harfler = {
         (m.get("ad") or "").strip()[0].upper()
         for m in gosterilecek_sirali if (m.get("ad") or "").strip()
@@ -397,37 +437,10 @@ with sekme_rehber:
                 unsafe_allow_html=True,
             )
 
-        # DÜZELTME: ad + tip + telefon + not/sil aksiyonu ARTIK AYNI SATIRDA.
-        # st.popover, expander'ın aksine kapalıyken de açıkken de sayfada
-        # yeni bir satır İŞGAL ETMİYOR — küçük bir buton olarak satırın
-        # sağında duruyor, tıklanınca üstte kayan bir kutu açılıyor.
-        # DÜZELTME (13.08.2026, 3. tur): uzmanlık artık AYRI bir alt satır
-        # değil, tip rozetinin hemen yanında "/" ile aynı satırda ("İş
-        # Ortağı / Mali Müşavir" gibi) — daha az dikey alan, daha hızlı
-        # taranabilir. Bölgeler artık SAĞDA, Uzmanlık Bölgelerim'de
-        # kullanılan AYNI temiz çizgisel SVG pin ikonuyla (emoji 📍 DEĞİL —
-        # "çok AI işi görünüyor" geri bildirimi üzerine).
-        r1, r_bolge, r2 = st.columns([5, 2, 1])
-        with r1:
-            tipler = _tip_listele(m.get("tip")) or ["Diğer"]
-            rozetler = "".join(f"<span class='dp-mus-tip'>{t}</span>" for t in tipler)
-            uzmanlik_ek = f" <span style='color:#7a8194;font-size:12.5px;'>/ {m['uzmanlik']}</span>" if m.get("uzmanlik") else ""
-            telefon_html = _telefon_html(m.get("telefon"))
-            st.markdown(
-                f"<div class='dp-mus-satir'><b>{ad}</b>{rozetler}{uzmanlik_ek}{telefon_html}{_fsbo_blok_html(m)}{_gorusme_satiri_html(m)}{_alarm_html(m)}</div>",
-                unsafe_allow_html=True,
-            )
-        with r_bolge:
-            if m.get("bolgeler"):
-                st.markdown(
-                    "<div class='dp-mus-bolge'>"
-                    "<svg width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='#5b6478' "
-                    "stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
-                    "<path d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/><circle cx='12' cy='10' r='3'/></svg>"
-                    f"<span>{', '.join(m['bolgeler'])}</span></div>",
-                    unsafe_allow_html=True,
-                )
-        with r2:
+        # Satır: tek key'li container — "⋮" menüsü CSS ile satırın sağ ucuna
+        # sabitlenir (mobilde de alt satıra düşmez).
+        with st.container(key=f"dp_mus_row_{m['id']}"):
+            st.markdown(_satir_html(m, _kompakt), unsafe_allow_html=True)
             with st.container(key=f"dp_mus_aksiyon_{m['id']}"):
                 with st.popover("⋮", use_container_width=True):
                     if m.get("kaynak") == "otomatik":
