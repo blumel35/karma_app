@@ -318,38 +318,72 @@ def _alici_talepleri(kesim, simdi):
     return sonuc
 
 
+def _portfoy_kaydi(v, tur, t, simdi):
+    sahip = (v.get("talep_eden_danisan") or "").strip()
+    zeta = tur == "zeta"
+    mah = (v.get("mahalle") or v.get("bolge_mahalle") or "").strip()
+    if zeta:
+        # Resmi Zeta portföyü (Revy'den senkronize): yapılandırılmış alanlar var.
+        yas_kat = yas_kat_birlestir(yas_metni(v.get("bina_yasi")), v.get("kat"))
+        alt = " · ".join(x for x in [mah, str(v.get("oda_sayisi_m2") or ""), para(v.get("fiyat"))] if x)
+        alanlar = [
+            ("Kaynak", _kaynak_etiketi(v)), ("Danışman", sahip),
+            ("İşlem / mülk", " · ".join(x for x in [v.get("islem_tipi") or "", v.get("mulk_tipi") or "", v.get("mulk_turu") or ""] if x)),
+            ("İlçe / mahalle", " / ".join(x for x in [v.get("ilce") or "", mah] if x)),
+            ("Oda", v.get("oda_sayisi_m2") or ""), ("m²", str(v.get("m2") or "")),
+            ("Fiyat", para(v.get("fiyat"))), ("Bina yaşı", str(v.get("bina_yasi") or "")),
+            ("Bulunduğu kat", str(v.get("kat") or "")), ("Site içinde", str(v.get("site_icerisinde") or "")),
+            ("Kullanım durumu", str(v.get("kullanim_durumu") or "")),
+            ("Yayında (gün)", str(v.get("ilan_suresi") or "")),
+        ]
+    else:
+        yas_kat = metinden_yas_kat(v.get("ozellikler"), v.get("ozet"), v.get("mail_icerigi"))
+        alt = " · ".join(x for x in [mah, v.get("oda_sayisi_m2") or "", para(v.get("fiyat"))] if x)
+        alanlar = [
+            ("Bina yaşı / kat (metinden)", yas_kat),
+            ("Kaynak", _kaynak_etiketi(v)), ("Paylaşan", sahip),
+            ("İşlem / mülk", " · ".join(x for x in [v.get("islem_tipi") or "", v.get("mulk_tipi") or ""] if x)),
+            ("Bölge", v.get("bolge_mahalle") or ""), ("Oda / m²", v.get("oda_sayisi_m2") or ""),
+            ("Fiyat", para(v.get("fiyat"))), ("Notlar", v.get("ozellikler") or ""),
+        ]
+    return {
+        "id": f"{tur}:{v.get('id')}", "tur": tur,
+        "baslik": v.get("ozet") or ("Zeta portföyü" if zeta else "Portföy paylaşımı"),
+        "alt": alt, "zaman": t, "yeni": bool(t and (simdi - t) <= timedelta(hours=24)), "sahip": sahip,
+        "kaynak": _kaynak_etiketi(v), "fiyat": para(v.get("fiyat")), "mahalle": mah,
+        "ilce": v.get("ilce") or "", "ilceler": _ilceler_of(v),
+        "link": v.get("ilan_linki") or "",
+        "ham": v,
+        "islem": islem_normal(v.get("islem_tipi"), v.get("ozet")),
+        "yas_kat": yas_kat,
+        "alanlar": alanlar,
+    }
+
+
 def _portfoyler(kesim, simdi):
-    """Tek okuma, iki tür: Paylaşım (kaynak zeta/ofis) ve Zeta portföyü (zeta1/zeta2)."""
-    satirlar = _sayfalar("portfoyler", "*")
-    paylasim, zeta = [], []
-    for v in satirlar:
-        k = tr_kucuk(v.get("kaynak"))
-        # Resmi Zeta portföyü (zeta1/zeta2) ayrı sekme; geri kalan her şey
-        # (mail sistemi + Zeta paylaşımı) "Paylaşım" — kaynağı etiketli.
-        tur = "zeta" if k in ZETA_PORTFOY_KAYNAKLARI else "paylasim"
+    """İki tür:
+    - Paylaşım: mail sistemi + Zeta paylaşımı (dönem süzgeci uygulanır).
+    - Zeta portföyü: portallarda yayındaki RESMİ ilanlar (kaynak zeta1/zeta2,
+      aktif). Bunlar 'yeni gelen olay' değil, ofisin AKTİF STOKU olduğu için
+      dönem süzgeci UYGULANMAZ; 'YENİ' rozeti son 24 saatte eklenenlere."""
+    zeta_satirlar = _sayfalar(
+        "portfoyler", "*", in_alani=("kaynak", ZETA_PORTFOY_KAYNAKLARI),
+    )
+    zeta = []
+    for v in zeta_satirlar:
+        if v.get("aktif") is False:
+            continue
+        t = _zaman(v.get("kayit_tarihi"), v.get("olusturma_tarihi"), v.get("created_at"))
+        zeta.append(_portfoy_kaydi(v, "zeta", t, simdi))
+
+    paylasim = []
+    for v in _sayfalar("portfoyler", "*"):
+        if tr_kucuk(v.get("kaynak")) in ZETA_PORTFOY_KAYNAKLARI:
+            continue
         t = _zaman(v.get("kayit_tarihi"), v.get("created_at"))
         if not t or t < kesim:
             continue
-        sahip = (v.get("talep_eden_danisan") or "").strip()
-        kayit = {
-            "id": f"{tur}:{v.get('id')}", "tur": tur,
-            "baslik": v.get("ozet") or ("Zeta portföyü" if tur == "zeta" else "Portföy paylaşımı"),
-            "alt": " · ".join(x for x in [v.get("bolge_mahalle") or "", v.get("oda_sayisi_m2") or "", para(v.get("fiyat"))] if x),
-            "zaman": t, "yeni": (simdi - t) <= timedelta(hours=24), "sahip": sahip,
-            "kaynak": _kaynak_etiketi(v), "fiyat": para(v.get("fiyat")), "mahalle": v.get("bolge_mahalle") or "",
-            "ilce": v.get("ilce") or "", "ilceler": _ilceler_of(v),
-            "link": v.get("ilan_linki") or "",
-            "ham": v,
-            "islem": islem_normal(v.get("islem_tipi"), v.get("ozet")),
-            "yas_kat": metinden_yas_kat(v.get("ozellikler"), v.get("ozet"), v.get("mail_icerigi")),
-            "alanlar": [
-                ("Bina yaşı / kat (metinden)", metinden_yas_kat(v.get("ozellikler"), v.get("ozet"), v.get("mail_icerigi"))),
-                ("Kaynak", _kaynak_etiketi(v)), ("Paylaşan", sahip), ("İşlem / mülk", " · ".join(x for x in [v.get("islem_tipi") or "", v.get("mulk_tipi") or ""] if x)),
-                ("Bölge", v.get("bolge_mahalle") or ""), ("Oda / m²", v.get("oda_sayisi_m2") or ""),
-                ("Fiyat", para(v.get("fiyat"))), ("Notlar", v.get("ozellikler") or ""),
-            ],
-        }
-        (zeta if tur == "zeta" else paylasim).append(kayit)
+        paylasim.append(_portfoy_kaydi(v, "paylasim", t, simdi))
     return paylasim, zeta
 
 

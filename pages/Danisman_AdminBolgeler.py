@@ -697,6 +697,23 @@ def havuz_gorunumu():
             _havuz_sekmesi(k, ad, renk, liste.get(k, []), ilce, kayitlar, donem)
 
 
+def _kopyala_dugmesi(url):
+    """Linki göstermeden panoya kopyalayan küçük simge düğmesi."""
+    import json
+    import streamlit.components.v1 as components
+    components.html(
+        "<button id='b' title='Linki kopyala' style=\"width:38px;height:38px;border:1px solid #c9ced6;"
+        "background:#fff;border-radius:8px;font-size:16px;cursor:pointer\">\u29c9</button>"
+        "<script>var u=" + json.dumps(url) + ";var b=document.getElementById('b');"
+        "b.onclick=function(){function ok(){b.textContent='\u2713';setTimeout(function(){b.textContent='\u29c9'},1500)}"
+        "function yedek(){var t=document.createElement('textarea');t.value=u;document.body.appendChild(t);t.select();"
+        "try{document.execCommand('copy');ok()}catch(e){}document.body.removeChild(t)}"
+        "if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(ok,yedek)}else{yedek()}};</script>"
+        "<style>body{margin:0}</style>",
+        height=42,
+    )
+
+
 def _link_olustur(tur, secilenler, ad, ilce, donem):
     """Seçilen kayıtlardan, bildirimlerdeki gibi tek dosyalık herkese açık
     pano linki (Supabase Storage + Pano_Goruntule). Mevcut pano üreticileri
@@ -754,30 +771,38 @@ def _havuz_sekmesi(tur, ad, renk, kayit_listesi, ilce, takipci_kayitlari, donem)
     aktif = kayit_idleri.get(aktif_id)
 
     # ── Seçilenleri ayrı HTML linkine çevir (bildirimlerdeki pano gibi) ──
-    link_var = tur in bh.LINK_BICIMI
-    if link_var:
+    # Tek küçük satır: "İlanı görüntüle" düğmesi + yanında kopyala simgesi.
+    # Link metni hiç gösterilmez. İlk basışta link üretilir, düğme açılır-link
+    # olur (tarayıcılar sunucudan dönen yeni sekmeyi engellediği için ikinci
+    # dokunuş gerekir); kopyala simgesi linki panoya alır.
+    if tur == "zeta":
+        st.caption("Zeta portföyü = portallarda yayındaki resmi aktif ilanlar; dönem süzgeci uygulanmaz.")
+    if tur in bh.LINK_BICIMI:
         hedef = secilenler or ([aktif] if aktif else [])
         if hedef:
-            etiket = (f"🔗 Seçilen {len(hedef)} ilanı görüntüle (link)" if secilenler
-                      else "🔗 Bu ilanı görüntüle (link)")
+            n = len(hedef)
+            etiket = "İlanı görüntüle" if n == 1 else f"{n} ilanı görüntüle"
             parmak = f"{tur}|" + "|".join(sorted(k["id"] for k in hedef))
             url_key, fp_key = f"bh_url_{tur}", f"bh_fp_{tur}"
-            if st.button(etiket, key=f"bh_link_btn_{tur}"):
-                with st.spinner("Link oluşturuluyor..."):
-                    try:
-                        st.session_state[url_key] = _link_olustur(tur, hedef, ad, ilce, donem)
-                        st.session_state[fp_key] = parmak
-                    except Exception as e:
-                        st.error(f"Link oluşturulamadı: {e}")
-            if st.session_state.get(url_key) and st.session_state.get(fp_key) == parmak:
-                st.success("Link hazır — telefondan da açılır:")
-                st.code(st.session_state[url_key], language=None)
-                st.link_button("Aç ↗", st.session_state[url_key])
-                st.caption("⚠️ Linki bilen herkes (giriş gerekmeden) bu ilanları görür. "
-                           "Link seçtiğin ilanların sabit bir kopyasıdır.")
+            hazir = st.session_state.get(url_key) if st.session_state.get(fp_key) == parmak else None
+            c_a, c_b, _bos = st.columns([1.3, 0.5, 8], vertical_alignment="center")
+            with c_a:
+                if hazir:
+                    st.link_button(f"↗ {etiket}", hazir, help="Linki bilen herkes (giriş gerekmeden) bu ilanları görür; seçtiğin ilanların sabit bir kopyasıdır.")
+                elif st.button(f"🔗 {etiket}", key=f"bh_link_btn_{tur}"):
+                    with st.spinner("Link oluşturuluyor..."):
+                        try:
+                            st.session_state[url_key] = _link_olustur(tur, hedef, ad, ilce, donem)
+                            st.session_state[fp_key] = parmak
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Link oluşturulamadı: {e}")
+            if hazir:
+                with c_b:
+                    _kopyala_dugmesi(hazir)
         else:
-            st.caption("Satırın başındaki kutuyla ilan seç → ayrı görüntüleme linki oluştur. "
-                       "Tek bir satıra tıklarsan ayrıntı ve bildirim simülasyonu açılır.")
+            st.caption("Satırın başındaki kutuyla ilan seç → ilanı ayrı sayfada görüntüle. "
+                       "Bir satıra tıklarsan ayrıntı ve bildirim simülasyonu açılır.")
     else:
         st.caption("Bu sekmede kişisel veri (müşteri adı/telefon) olduğu için herkese açık link üretimi kapalı.")
 
