@@ -33,7 +33,7 @@ from core.auth import oturum_kontrol
 from core.ajanda_ui import ajanda_sekmesi, geciken_alarmlar
 from core.danisman_ortak import (
     su_anki_danisman, musterileri_cek, musteri_ekle, musteri_guncelle,
-    musteri_sil, rehber_alarm_kur, rehber_alarm_kaldir, rehber_gorusme_ekle, rehber_gorusme_sil, render_topbar, hide_sidebar_css, IZMIR_ILCELERI, _tip_listele,
+    musteri_sil, rehber_takip_ayarla, takip_ozelligi_var, rehber_alarm_kur, rehber_alarm_kaldir, rehber_gorusme_ekle, rehber_gorusme_sil, render_topbar, hide_sidebar_css, IZMIR_ILCELERI, _tip_listele,
     _tr_lower,
 )
 
@@ -117,6 +117,7 @@ div[class*="st-key-dp_mus_row_"]:hover { background: #fbfbfc; }
     font-weight: 800; font-size: 12.5px; background: var(--kc); color: var(--kt);
 }
 .dp-dense .dp-av { width: 30px; height: 30px; font-size: 11px; }
+.dp-yildiz { color: #b98a2c; font-size: 12px; }
 .dp-nm { font-weight: 700; font-size: 14.5px; color: #1b2540; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dp-sub { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 2px; font-size: 12px; color: #6b7385; }
 .dp-tg { font-size: 10.5px; font-weight: 800; border-radius: 5px; padding: 1px 7px; background: var(--kc); color: var(--kt); }
@@ -294,7 +295,7 @@ def _gorusme_satiri_html(m):
     return f'<span class="dp-ln">📞 {_esc(metin)}</span>'
 
 
-def _satir_html(m, kompakt=False):
+def _satir_html(m, kompakt=False, yildiz=False):
     """Bir kişinin tek ızgara satırı (tek satırlık HTML — boş satır/girinti
     bırakılmaz, Markdown kod bloğuna çevirmesin)."""
     ad = (m.get("ad") or "").strip()
@@ -306,6 +307,7 @@ def _satir_html(m, kompakt=False):
         f"<span class='dp-tg dp-k-{_TIP_SINIF.get(t, 'di')}'>{_esc(t)}</span>" for t in tipler
     )
     uz = f"<span>· {_esc(m['uzmanlik'])}</span>" if m.get("uzmanlik") else ""
+    yildiz_html = "<span class='dp-yildiz'>★</span> " if yildiz else ""
     bolge = f"<span class='dp-pin'>📍 {_esc(', '.join(m['bolgeler']))}</span>" if m.get("bolgeler") else ""
     nt = (m.get("notlar") or "").strip()
     # FSBO'da (SQL öncesi geri dönüş) 'notlar' ilan özetini taşıyabilir — ilan özeti
@@ -320,7 +322,7 @@ def _satir_html(m, kompakt=False):
     return (
         f"<div class='dp-row dp-k-{sinif}{' dp-dense' if kompakt else ''}'>"
         f"<div class='dp-av'>{_esc(bas)}</div>"
-        f"<div><div class='dp-nm'>{_esc(ad)}</div><div class='dp-sub'>{rozet}{uz}{bolge}</div></div>"
+        f"<div><div class='dp-nm'>{yildiz_html}{_esc(ad)}</div><div class='dp-sub'>{rozet}{uz}{bolge}</div></div>"
         f"{_telefon_blok_html(m.get('telefon'))}"
         f"{kagit}{detay}</div>"
     )
@@ -328,6 +330,19 @@ def _satir_html(m, kompakt=False):
 
 su_kullanici = su_anki_danisman()
 tum_musteriler = musterileri_cek(su_kullanici)
+_takip_var = takip_ozelligi_var()
+
+
+def _takip_sirasi(m):
+    """Takibimdekiler sırası: önce alarmı olanlar (en yakın/geciken üstte), sonra
+    en uzun süredir aranmayanlar (hiç aranmamış en üstte), sonra ada göre."""
+    z = _alarm_oku(m)
+    if z:
+        return (0, z.isoformat(), "")
+    g = _gorusmeler(m)
+    son = g[0]["tarih"] if g else str(m.get("son_gorusme_tarihi") or "")[:10]
+    return (1, son or "0000-00-00", _tr_lower((m.get("ad") or "").strip()))
+
 
 # DEĞİŞTİ (09.10.2026, Meltem: "Ajandam ve Rehberim — 2 sekme"): sayfa iki
 # sekmeli. 1. sekme Ajandam (hafta/ay takvimi + olay ekle + zamanı gelen
@@ -378,13 +393,14 @@ with sekme_rehber:
                         "Çalıştığı Bölge(ler) (opsiyonel)", IZMIR_ILCELERI, key="dp_mus_bolgeler",
                     )
                     f_not = st.text_area("Not (opsiyonel)", key="dp_mus_not", height=68)
+                    f_takip = st.checkbox("⭐ Takibe al", key="dp_mus_takip_yeni") if _takip_var else False
                     if st.form_submit_button("Kaydet", type="primary", use_container_width=True):
                         if not f_ad.strip():
                             st.error("Ad Soyad zorunlu.")
                         elif not f_tip:
                             st.error("En az bir tip seçimi zorunlu.")
                         else:
-                            musteri_ekle(su_kullanici, f_ad, f_telefon, f_tip, f_not, f_uzmanlik, f_bolgeler)
+                            musteri_ekle(su_kullanici, f_ad, f_telefon, f_tip, f_not, f_uzmanlik, f_bolgeler, takipte=f_takip)
                             st.success("✅ Eklendi.")
                             st.rerun()
 
@@ -418,11 +434,11 @@ with sekme_rehber:
             or arama_lower in _tr_lower(m.get("notlar") or "")
         ]
 
-    gosterilecek_sirali = sorted(gosterilecek, key=lambda m: _tr_lower((m.get("ad") or "").strip()))
+    kayitlar_tum = sorted(gosterilecek, key=lambda m: _tr_lower((m.get("ad") or "").strip()))
 
     c_say, c_yog = st.columns([3, 2])
     with c_say:
-        st.caption(f"{len(gosterilecek_sirali)} kişi")
+        st.caption(f"{len(kayitlar_tum)} kişi")
     with c_yog:
         _yog = st.segmented_control(
             "Satır yoğunluğu", ["Rahat", "Kompakt"], default="Rahat",
@@ -430,171 +446,200 @@ with sekme_rehber:
         ) or "Rahat"
     _kompakt = _yog == "Kompakt"
 
-    # ── A-Z HIZLI GEZİNME (aynı sayfa içi çapa) ──────────────────────────
-    mevcut_harfler = {
-        (m.get("ad") or "").strip()[0].upper()
-        for m in gosterilecek_sirali if (m.get("ad") or "").strip()
-    }
-    az_parcalari = []
-    for harf in TUM_HARFLER:
-        if harf in mevcut_harfler:
-            az_parcalari.append(f'<a href="#dp-mus-harf-{harf}">{harf}</a>')
-        else:
-            az_parcalari.append(f'<span>{harf}</span>')
-    st.markdown(f'<div class="dp-mus-az">{"".join(az_parcalari)}</div>', unsafe_allow_html=True)
+    def _listeyi_ciz(kayitlar, onek, harfli=True, bos_mesaj=""):
+        """Kişi listesini çizer. İki görünümde (Takibimdekiler / Tüm rehberim) aynı
+        kişi çıkabildiği için tüm widget anahtarlarına 'onek' eklenir."""
+        # ── A-Z HIZLI GEZİNME (aynı sayfa içi çapa) ──────────────────────────
+        if harfli:
+            mevcut_harfler = {
+                (m.get("ad") or "").strip()[0].upper()
+                for m in kayitlar if (m.get("ad") or "").strip()
+            }
+            az_parcalari = []
+            for harf in TUM_HARFLER:
+                if harf in mevcut_harfler:
+                    az_parcalari.append(f'<a href="#dp-mus-harf-{onek}-{harf}">{harf}</a>')
+                else:
+                    az_parcalari.append(f'<span>{harf}</span>')
+            st.markdown(f'<div class="dp-mus-az">{"".join(az_parcalari)}</div>', unsafe_allow_html=True)
 
-    if not gosterilecek_sirali:
-        st.info("Bu filtrede kayıtlı kişi yok. Yukarıdan yeni kişi ekleyebilir, ya da bir talep/portföy eklerken müşteri bilgisi girerek otomatik ekleyebilirsin.")
+        if not kayitlar:
+            st.info(bos_mesaj)
 
-    su_anki_harf = None
-    for m in gosterilecek_sirali:
-        ad = m.get("ad", "").strip()
-        ilk_harf = ad[0].upper() if ad else "#"
-        if ilk_harf != su_anki_harf:
-            su_anki_harf = ilk_harf
-            st.markdown(
-                f"<div id='dp-mus-harf-{ilk_harf}' class='dp-mus-harf-baslik'>{ilk_harf}</div>",
-                unsafe_allow_html=True,
-            )
+        su_anki_harf = None
+        for m in kayitlar:
+            ad = m.get("ad", "").strip()
+            ilk_harf = ad[0].upper() if ad else "#"
+            if harfli and ilk_harf != su_anki_harf:
+                su_anki_harf = ilk_harf
+                st.markdown(
+                    f"<div id='dp-mus-harf-{onek}-{ilk_harf}' class='dp-mus-harf-baslik'>{ilk_harf}</div>",
+                    unsafe_allow_html=True,
+                )
 
-        # Satır: tek key'li container — "⋮" menüsü CSS ile satırın sağ ucuna
-        # sabitlenir (mobilde de alt satıra düşmez).
-        with st.container(key=f"dp_mus_row_{m['id']}"):
-            st.markdown(_satir_html(m, _kompakt), unsafe_allow_html=True)
-            with st.container(key=f"dp_mus_aksiyon_{m['id']}"):
-                with st.popover("⋮", use_container_width=True):
-                    if m.get("kaynak") == "otomatik":
-                        st.caption("↻ Talep/Portföy eklerken otomatik senkronize edildi")
-                    _gecmis_var = "gorusme_gecmisi" in m          # SQL çalıştırıldıysa
-                    _alarm_alani = "alarm_zamani" in m
-                    _gecmis = _gorusmeler(m)
-                    _sekmeler = ["Bilgiler"]
-                    if _gecmis_var:
-                        _sekmeler.append(f"Görüşmeler ({len(_gecmis)})" if _gecmis else "Görüşmeler")
-                    if _alarm_alani:
-                        _sekmeler.append("⏰ Alarm" + (" •" if m.get("alarm_zamani") else ""))
-                    _tablar = st.tabs(_sekmeler)
-                    _tab_i = iter(_tablar)
-
-                    # ── Bilgiler ─────────────────────────────────────────────
-                    with next(_tab_i):
-                        yeni_tipler = st.multiselect(
-                            "Tip", TIP_SECENEKLERI,
-                            default=[t for t in _tip_listele(m.get("tip")) if t in TIP_SECENEKLERI],
-                            key=f"dp_mus_tip_duzenle_{m['id']}",
-                        )
-                        yeni_uzmanlik = st.text_input(
-                            "Uzmanlık / Meslek", value=m.get("uzmanlik") or "",
-                            key=f"dp_mus_uzmanlik_duzenle_{m['id']}",
-                        )
-                        yeni_bolgeler = st.multiselect(
-                            "Çalıştığı Bölge(ler)", IZMIR_ILCELERI, default=m.get("bolgeler") or [],
-                            key=f"dp_mus_bolgeler_duzenle_{m['id']}",
-                        )
-                        yeni_telefon = st.text_input(
-                            "Telefon", value=m.get("telefon") or "",
-                            key=f"dp_mus_telefon_duzenle_{m['id']}",
-                        )
-                        yeni_not = st.text_area(
-                            "Not", value=m.get("notlar") or "",
-                            key=f"dp_mus_not_duzenle_{m['id']}", height=68,
-                            label_visibility="collapsed",
-                            placeholder="Bu kişi için genel not (opsiyonel)...",
-                        )
-                        bp1, bp2 = st.columns(2)
-                        with bp1:
-                            if st.button("Kaydet", key=f"dp_mus_not_kaydet_{m['id']}", use_container_width=True):
-                                musteri_guncelle(m["id"], {
-                                    "notlar": yeni_not.strip() or None,
-                                    "tip": yeni_tipler or ["Diğer"],
-                                    "uzmanlik": yeni_uzmanlik.strip() or None,
-                                    "bolgeler": yeni_bolgeler,
-                                    "telefon": yeni_telefon.strip() or None,
-                                })
-                                st.success("Kaydedildi.")
+            # Satır: tek key'li container — "⋮" menüsü CSS ile satırın sağ ucuna
+            # sabitlenir (mobilde de alt satıra düşmez).
+            with st.container(key=f"dp_mus_row_{onek}{m['id']}"):
+                st.markdown(_satir_html(m, _kompakt, yildiz=(harfli and bool(m.get('takipte')))), unsafe_allow_html=True)
+                with st.container(key=f"dp_mus_aksiyon_{onek}{m['id']}"):
+                    with st.popover("⋮", use_container_width=True):
+                        if m.get("kaynak") == "otomatik":
+                            st.caption("↻ Talep/Portföy eklerken otomatik senkronize edildi")
+                        if _takip_var:
+                            _tk = bool(m.get("takipte"))
+                            if st.button("★ Takibi bırak" if _tk else "☆ Takibe al",
+                                         key=f"dp_mus_takip_{onek}{m['id']}", use_container_width=True,
+                                         type="secondary" if _tk else "primary"):
+                                rehber_takip_ayarla(m["id"], not _tk)
                                 st.rerun()
-                        with bp2:
-                            if st.button("Sil", key=f"dp_mus_sil_{m['id']}", use_container_width=True):
-                                musteri_sil(m["id"])
-                                st.rerun()
+                        _gecmis_var = "gorusme_gecmisi" in m          # SQL çalıştırıldıysa
+                        _alarm_alani = "alarm_zamani" in m
+                        _gecmis = _gorusmeler(m)
+                        _sekmeler = ["Bilgiler"]
+                        if _gecmis_var:
+                            _sekmeler.append(f"Görüşmeler ({len(_gecmis)})" if _gecmis else "Görüşmeler")
+                        if _alarm_alani:
+                            _sekmeler.append("⏰ Alarm" + (" •" if m.get("alarm_zamani") else ""))
+                        _tablar = st.tabs(_sekmeler)
+                        _tab_i = iter(_tablar)
 
-                    # ── Görüşmeler (geçmiş) ──────────────────────────────────
-                    if _gecmis_var:
+                        # ── Bilgiler ─────────────────────────────────────────────
                         with next(_tab_i):
-                            _gt = st.date_input(
-                                "Görüşme tarihi", value=_bugun(), max_value=_bugun(),
-                                format="DD.MM.YYYY", key=f"dp_mus_g_tarih_{m['id']}",
+                            yeni_tipler = st.multiselect(
+                                "Tip", TIP_SECENEKLERI,
+                                default=[t for t in _tip_listele(m.get("tip")) if t in TIP_SECENEKLERI],
+                                key=f"dp_mus_tip_duzenle_{onek}{m['id']}",
                             )
-                            _gn = st.text_area(
-                                "Görüşme notu", height=80, key=f"dp_mus_g_not_{m['id']}",
-                                placeholder="Ne konuşuldu, bir sonraki adım ne? (boş bırakılabilir)",
+                            yeni_uzmanlik = st.text_input(
+                                "Uzmanlık / Meslek", value=m.get("uzmanlik") or "",
+                                key=f"dp_mus_uzmanlik_duzenle_{onek}{m['id']}",
                             )
-                            if st.button("Görüşmeyi kaydet", key=f"dp_mus_g_kaydet_{m['id']}",
-                                         type="primary", use_container_width=True):
-                                rehber_gorusme_ekle(m["id"], _gt, _gn)
-                                st.rerun()
-                            if not _gecmis:
-                                st.caption("Henüz görüşme kaydı yok.")
-                            else:
-                                st.markdown("**Geçmiş**")
-                                with st.container(height=min(60 + 70 * len(_gecmis), 320)):
-                                    for _g in _gecmis:
-                                        _c1, _c2 = st.columns([8, 1])
-                                        with _c1:
-                                            _t = _tarih_oku(_g["tarih"])
-                                            st.markdown(
-                                                "<div style='white-space:pre-wrap;font-size:13.5px;line-height:1.5'>"
-                                                f"<b>{_esc(_t.strftime('%d.%m.%Y') if _t else str(_g['tarih']))}</b>"
-                                                + (f" — {_esc(_g.get('not') or '')}" if (_g.get("not") or "").strip() else "")
-                                                + "</div>",
-                                                unsafe_allow_html=True,
-                                            )
-                                        with _c2:
-                                            if st.button("🗑", key=f"dp_mus_g_sil_{m['id']}_{_g.get('id')}",
-                                                         help="Bu görüşme kaydını sil"):
-                                                rehber_gorusme_sil(m["id"], _g.get("id"))
-                                                st.rerun()
-
-                    # ── Alarm ────────────────────────────────────────────────
-                    if _alarm_alani:
-                        with next(_tab_i):
-                            _az = _alarm_oku(m)
-                            _a1, _a2 = st.columns(2)
-                            with _a1:
-                                _alarm_gun = st.date_input(
-                                    "Alarm günü",
-                                    value=(_az.date() if _az else (_bugun() + _td(days=1))),
-                                    min_value=min(_bugun(), _az.date()) if _az else _bugun(),
-                                    format="DD.MM.YYYY", key=f"dp_mus_alarm_gun_{m['id']}",
-                                )
-                            with _a2:
-                                _alarm_saat = st.time_input(
-                                    "Saat", value=(_az.time() if _az else _time(10, 0)),
-                                    step=1800, key=f"dp_mus_alarm_saat_{m['id']}",
-                                )
-                            _alarm_not = st.text_input(
-                                "Alarm notu", value=m.get("alarm_notu") or "",
-                                placeholder="örn. Cumartesi tekrar ara",
-                                key=f"dp_mus_alarm_not_{m['id']}",
+                            yeni_bolgeler = st.multiselect(
+                                "Çalıştığı Bölge(ler)", IZMIR_ILCELERI, default=m.get("bolgeler") or [],
+                                key=f"dp_mus_bolgeler_duzenle_{onek}{m['id']}",
                             )
-                            if st.button("Alarmı kur", key=f"dp_mus_alarm_kur_{m['id']}",
-                                         type="primary", use_container_width=True):
-                                _hedef = _dt.combine(_alarm_gun, _alarm_saat)
-                                if _hedef <= _simdi_yerel():
-                                    st.error("Alarm zamanı geçmişte — ileri bir gün/saat seç.")
-                                else:
-                                    rehber_alarm_kur(m["id"], _hedef, _alarm_not)
+                            yeni_telefon = st.text_input(
+                                "Telefon", value=m.get("telefon") or "",
+                                key=f"dp_mus_telefon_duzenle_{onek}{m['id']}",
+                            )
+                            yeni_not = st.text_area(
+                                "Not", value=m.get("notlar") or "",
+                                key=f"dp_mus_not_duzenle_{onek}{m['id']}", height=68,
+                                label_visibility="collapsed",
+                                placeholder="Bu kişi için genel not (opsiyonel)...",
+                            )
+                            bp1, bp2 = st.columns(2)
+                            with bp1:
+                                if st.button("Kaydet", key=f"dp_mus_not_kaydet_{onek}{m['id']}", use_container_width=True):
+                                    musteri_guncelle(m["id"], {
+                                        "notlar": yeni_not.strip() or None,
+                                        "tip": yeni_tipler or ["Diğer"],
+                                        "uzmanlik": yeni_uzmanlik.strip() or None,
+                                        "bolgeler": yeni_bolgeler,
+                                        "telefon": yeni_telefon.strip() or None,
+                                    })
+                                    st.success("Kaydedildi.")
                                     st.rerun()
-                            st.caption("Hızlı kur (saat 10:00):")
-                            _h1, _h2, _h3 = st.columns(3)
-                            for _kol, _etiket, _gun in ((_h1, "Yarın", 1), (_h2, "3 gün", 3), (_h3, "1 hafta", 7)):
-                                with _kol:
-                                    if st.button(_etiket, key=f"dp_mus_alarm_h{_gun}_{m['id']}", use_container_width=True):
-                                        _t = _dt.combine(_bugun() + _td(days=_gun), _time(10, 0))
-                                        rehber_alarm_kur(m["id"], _t, _alarm_not)
+                            with bp2:
+                                if st.button("Sil", key=f"dp_mus_sil_{onek}{m['id']}", use_container_width=True):
+                                    musteri_sil(m["id"])
+                                    st.rerun()
+
+                        # ── Görüşmeler (geçmiş) ──────────────────────────────────
+                        if _gecmis_var:
+                            with next(_tab_i):
+                                _gt = st.date_input(
+                                    "Görüşme tarihi", value=_bugun(), max_value=_bugun(),
+                                    format="DD.MM.YYYY", key=f"dp_mus_g_tarih_{onek}{m['id']}",
+                                )
+                                _gn = st.text_area(
+                                    "Görüşme notu", height=80, key=f"dp_mus_g_not_{onek}{m['id']}",
+                                    placeholder="Ne konuşuldu, bir sonraki adım ne? (boş bırakılabilir)",
+                                )
+                                if st.button("Görüşmeyi kaydet", key=f"dp_mus_g_kaydet_{onek}{m['id']}",
+                                             type="primary", use_container_width=True):
+                                    rehber_gorusme_ekle(m["id"], _gt, _gn)
+                                    st.rerun()
+                                if not _gecmis:
+                                    st.caption("Henüz görüşme kaydı yok.")
+                                else:
+                                    st.markdown("**Geçmiş**")
+                                    with st.container(height=min(60 + 70 * len(_gecmis), 320)):
+                                        for _g in _gecmis:
+                                            _c1, _c2 = st.columns([8, 1])
+                                            with _c1:
+                                                _t = _tarih_oku(_g["tarih"])
+                                                st.markdown(
+                                                    "<div style='white-space:pre-wrap;font-size:13.5px;line-height:1.5'>"
+                                                    f"<b>{_esc(_t.strftime('%d.%m.%Y') if _t else str(_g['tarih']))}</b>"
+                                                    + (f" — {_esc(_g.get('not') or '')}" if (_g.get("not") or "").strip() else "")
+                                                    + "</div>",
+                                                    unsafe_allow_html=True,
+                                                )
+                                            with _c2:
+                                                if st.button("🗑", key=f"dp_mus_g_sil_{onek}{m['id']}_{_g.get('id')}",
+                                                             help="Bu görüşme kaydını sil"):
+                                                    rehber_gorusme_sil(m["id"], _g.get("id"))
+                                                    st.rerun()
+
+                        # ── Alarm ────────────────────────────────────────────────
+                        if _alarm_alani:
+                            with next(_tab_i):
+                                _az = _alarm_oku(m)
+                                _a1, _a2 = st.columns(2)
+                                with _a1:
+                                    _alarm_gun = st.date_input(
+                                        "Alarm günü",
+                                        value=(_az.date() if _az else (_bugun() + _td(days=1))),
+                                        min_value=min(_bugun(), _az.date()) if _az else _bugun(),
+                                        format="DD.MM.YYYY", key=f"dp_mus_alarm_gun_{onek}{m['id']}",
+                                    )
+                                with _a2:
+                                    _alarm_saat = st.time_input(
+                                        "Saat", value=(_az.time() if _az else _time(10, 0)),
+                                        step=1800, key=f"dp_mus_alarm_saat_{onek}{m['id']}",
+                                    )
+                                _alarm_not = st.text_input(
+                                    "Alarm notu", value=m.get("alarm_notu") or "",
+                                    placeholder="örn. Cumartesi tekrar ara",
+                                    key=f"dp_mus_alarm_not_{onek}{m['id']}",
+                                )
+                                if st.button("Alarmı kur", key=f"dp_mus_alarm_kur_{onek}{m['id']}",
+                                             type="primary", use_container_width=True):
+                                    _hedef = _dt.combine(_alarm_gun, _alarm_saat)
+                                    if _hedef <= _simdi_yerel():
+                                        st.error("Alarm zamanı geçmişte — ileri bir gün/saat seç.")
+                                    else:
+                                        rehber_alarm_kur(m["id"], _hedef, _alarm_not)
                                         st.rerun()
-                            if _az and st.button("Alarmı kaldır", key=f"dp_mus_alarm_kaldir_{m['id']}",
-                                                 use_container_width=True):
-                                rehber_alarm_kaldir(m["id"])
-                                st.rerun()
-                            st.caption("Bildirim, kurduğun saatten en geç ~30 dakika sonra telefonuna gelir.")
+                                st.caption("Hızlı kur (saat 10:00):")
+                                _h1, _h2, _h3 = st.columns(3)
+                                for _kol, _etiket, _gun in ((_h1, "Yarın", 1), (_h2, "3 gün", 3), (_h3, "1 hafta", 7)):
+                                    with _kol:
+                                        if st.button(_etiket, key=f"dp_mus_alarm_h{_gun}_{onek}{m['id']}", use_container_width=True):
+                                            _t = _dt.combine(_bugun() + _td(days=_gun), _time(10, 0))
+                                            rehber_alarm_kur(m["id"], _t, _alarm_not)
+                                            st.rerun()
+                                if _az and st.button("Alarmı kaldır", key=f"dp_mus_alarm_kaldir_{onek}{m['id']}",
+                                                     use_container_width=True):
+                                    rehber_alarm_kaldir(m["id"])
+                                    st.rerun()
+                                st.caption("Bildirim, kurduğun saatten en geç ~30 dakika sonra telefonuna gelir.")
+
+
+    _bos_tum = ("Bu filtrede kayıtlı kişi yok. Yukarıdan yeni kişi ekleyebilir, ya da bir "
+                "talep/portföy eklerken müşteri bilgisi girerek otomatik ekleyebilirsin.")
+    if _takip_var:
+        _takipliler = sorted([m for m in kayitlar_tum if m.get("takipte")], key=_takip_sirasi)
+        _toplam_takip = sum(1 for m in tum_musteriler if m.get("takipte"))
+        sekme_takip, sekme_tum = st.tabs([
+            f"⭐ Takibimdekiler ({_toplam_takip})", f"📇 Tüm rehberim ({len(tum_musteriler)})",
+        ])
+        with sekme_takip:
+            _listeyi_ciz(_takipliler, "t", harfli=False, bos_mesaj=(
+                "Takibe alınmış kişi yok (ya da filtreyle eşleşen yok). Kişinin ⋮ menüsünden "
+                "☆ Takibe al'a dokun; alarm kurduğun veya FSBO'dan eklediğin kişiler buraya kendiliğinden girer."))
+        with sekme_tum:
+            _listeyi_ciz(kayitlar_tum, "r", harfli=True, bos_mesaj=_bos_tum)
+    else:
+        _listeyi_ciz(kayitlar_tum, "r", harfli=True, bos_mesaj=_bos_tum)

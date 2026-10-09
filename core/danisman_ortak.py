@@ -582,7 +582,7 @@ def _musteri_senkronize(danisman_adi, ad, telefon, tip):
     musterileri_cek.clear()
 
 
-def musteri_ekle(danisman_adi, ad, telefon, tip, notlar, uzmanlik="", bolgeler=None):
+def musteri_ekle(danisman_adi, ad, telefon, tip, notlar, uzmanlik="", bolgeler=None, takipte=False):
     """Müşterilerim sayfasından elle yeni kişi ekleme (iş ortağı,
     tedarikçi vb. — bir talep/portföye bağlı olması ŞART değil).
     tip artık bir LİSTE (13.08.2026) — bir kişi birden fazla rol
@@ -591,7 +591,7 @@ def musteri_ekle(danisman_adi, ad, telefon, tip, notlar, uzmanlik="", bolgeler=N
     tiplerde 'kim ne iş yapıyor, nerede çalışıyor' bilgisini notlara
     gömmeden, satırda görünür/ileride filtrelenebilir tutmak için —
     ikisi de opsiyonel."""
-    supabase.table("danisman_kisiler").insert({
+    kayit = {
         "danisman": danisman_adi,
         "ad": _isim_normalize(ad),
         "telefon": (telefon or "").strip() or None,
@@ -600,8 +600,39 @@ def musteri_ekle(danisman_adi, ad, telefon, tip, notlar, uzmanlik="", bolgeler=N
         "uzmanlik": _isim_normalize(uzmanlik) or None,
         "bolgeler": bolgeler or [],
         "kaynak": "manuel",
-    }).execute()
+    }
+    if takipte:                      # sütun yoksa sayfa bu seçeneği zaten göstermez
+        kayit["takipte"] = True
+    supabase.table("danisman_kisiler").insert(kayit).execute()
     musterileri_cek.clear()
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def takip_ozelligi_var():
+    """'takipte' sütunu (sql/rehber_takip.sql) veritabanında var mı? Yoksa
+    sayfa "Takibe al" özelliğini göstermez, eski tek liste çalışmaya devam eder."""
+    try:
+        supabase.table("danisman_kisiler").select("takipte").limit(1).execute()
+        return True
+    except Exception:
+        return False
+
+
+def rehber_takip_ayarla(musteri_id, durum):
+    """Kişiyi 'Takibimdekiler'e alır / çıkarır (09.10.2026 — Meltem: "takibimdeki
+    müşteriler / tüm rehberim ... takibe al butonu"). Kişi her iki görünümde de görünür."""
+    musteri_guncelle(musteri_id, {"takipte": bool(durum)})
+
+
+def _takibe_al_dene(musteri_id):
+    """Sistemin kendi eklediği kayıtlar (FSBO, alarm) için sessiz takibe alma:
+    sütun yoksa ya da hata olursa ana işlemi bozmaz."""
+    try:
+        if musteri_id and takip_ozelligi_var():
+            supabase.table("danisman_kisiler").update({"takipte": True}).eq("id", musteri_id).execute()
+            musterileri_cek.clear()
+    except Exception:
+        pass
 
 
 def musteri_guncelle(musteri_id, alanlar):
@@ -674,6 +705,7 @@ def rehber_alarm_kur(musteri_id, yerel_zaman, alarm_notu=""):
         "alarm_notu": (alarm_notu or "").strip() or None,
         "alarm_bildirildi": None,
     })
+    _takibe_al_dene(musteri_id)      # alarm kurmak = takip niyeti → "Takibimdekiler"e de girer
 
 
 def rehber_alarm_kaldir(musteri_id):
@@ -806,6 +838,7 @@ def fsbo_kisisini_rehbere_ekle(danisman_adi, ad, telefon, ilan):
                 alanlar["bolgeler"] = _yeni_b
             musteri_guncelle(eslesen["id"], alanlar)
         _yaz(_guncelle)
+        _takibe_al_dene(eslesen.get("id"))
         return "guncellendi", eslesen.get("ad") or ad
 
     def _ekle(yeni_alanlar_var):
@@ -817,8 +850,12 @@ def fsbo_kisisini_rehbere_ekle(danisman_adi, ad, telefon, ilan):
             kayit["ilan_ozeti"] = ozet
         else:
             kayit["notlar"] = ozet
-        supabase.table("danisman_kisiler").insert(kayit).execute()
-    _yaz(_ekle)
+        return supabase.table("danisman_kisiler").insert(kayit).execute()
+    _yanit = _yaz(_ekle)
+    try:
+        _takibe_al_dene(((_yanit.data or [{}])[0]).get("id"))
+    except Exception:
+        pass
     musterileri_cek.clear()
     return "yeni", ad
 
