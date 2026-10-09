@@ -230,7 +230,65 @@ def bildirimlerimi_cek(kullanici, limit=30):
         return []
     tumu = resp.data or []
     eslesenler = [r for r in tumu if (r.get("kullanici") or "").strip().casefold() == hedef]
+    # Zamanı gelmiş ama push'u henüz gönderilmemiş Rehberim alarmları (09.10.2026):
+    # alarm işi 30 dakikada bir çalıştığı için bildirim geçmişine düşmesi gecikir;
+    # uygulamayı açan danışman alarmı hemen "Bildirimlerim"de görsün. İş çalışıp
+    # alarm_bildirildi dolunca bu canlı satır kaybolur, yerine gerçek kayıt gelir.
+    eslesenler = _canli_alarmlar(hedef) + eslesenler
+    eslesenler.sort(key=lambda r: str(r.get("created_at") or ""), reverse=True)
     return eslesenler[:limit]
+
+
+def _canli_alarmlar(hedef_casefold):
+    try:
+        from datetime import datetime, timezone
+        simdi = datetime.now(timezone.utc).isoformat()
+        satirlar = (
+            supabase.table("danisman_kisiler")
+            .select("id, danisman, ad, alarm_zamani, alarm_notu")
+            .lte("alarm_zamani", simdi)
+            .is_("alarm_bildirildi", "null")
+            .limit(500)
+            .execute()
+            .data or []
+        )
+    except Exception:
+        return []   # sütunlar yoksa / sorgu başarısızsa sessizce geç
+    cikti = []
+    for k in satirlar:
+        if (k.get("danisman") or "").strip().casefold() != hedef_casefold:
+            continue
+        cikti.append({
+            "id": f"alarm-{k['id']}",
+            "kullanici": k.get("danisman"),
+            "baslik": f"⏰ Yeniden ara: {(k.get('ad') or '').strip() or 'Kişi'}",
+            "govde": (k.get("alarm_notu") or "").strip() or "Rehberim'de kurduğun alarmın zamanı geldi.",
+            "url": f"{KARMA_APP_URL}/Danisman_Rehberim",
+            "created_at": k.get("alarm_zamani"),
+        })
+    return cikti
+
+
+def _git_parametresi_ekle(url):
+    """Bildirim linkine ?git=<Sayfa> ekler (09.10.2026). Oturum yoksa Karma
+    App önce giriş ister ve hedef sayfayı unuturdu; ?git= sayesinde giriş
+    sonrası o sayfaya dönülür (bkz. core/auth.py giris_sonrasi_sayfa).
+    Yalnızca Karma App adresleri değiştirilir, mevcut sorgu (örn.
+    ?zaman=bugun) korunur; ayrıştırılamazsa url olduğu gibi döner."""
+    try:
+        parca = urllib.parse.urlparse(url)
+        if not url.startswith(KARMA_APP_URL):
+            return url
+        sayfa = parca.path.strip("/")
+        if not sayfa or "/" in sayfa:
+            return url
+        sorgu = urllib.parse.parse_qsl(parca.query, keep_blank_values=True)
+        if any(k == "git" for k, _ in sorgu):
+            return url
+        sorgu.append(("git", sayfa))
+        return urllib.parse.urlunparse(parca._replace(query=urllib.parse.urlencode(sorgu)))
+    except Exception:
+        return url
 
 
 def bildirim_gonder(kullanici, baslik, govde, url=None):
@@ -254,7 +312,7 @@ def bildirim_gonder(kullanici, baslik, govde, url=None):
             "ayarlanmalı."
         )
 
-    hedef_url = url or f"{KARMA_APP_URL}/Danisman_Secim"
+    hedef_url = _git_parametresi_ekle(url or f"{KARMA_APP_URL}/Danisman_Secim")
 
     # Push GİTSİN ya da GİTMESİN (abonelik olmasa bile) geçmişe yazılıyor —
     # "Bildirimlerim" sayfasının amacı tam da bu: push kaçırılsa/telefon

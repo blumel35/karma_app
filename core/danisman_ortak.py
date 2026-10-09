@@ -1327,6 +1327,7 @@ _BILDIRIM_URL_SAYFA_HARITASI = {
     "/Danisman_Portfoy": "pages/Danisman_Portfoy.py",
     "/Danisman_FSBOIlanlari": "pages/Danisman_FSBOIlanlari.py",
     "/Danisman_StartkeyIlanlari": "pages/Danisman_StartkeyIlanlari.py",
+    "/Danisman_Rehberim": "pages/Danisman_Rehberim.py",
 }
 _BILDIRIM_URL_ZAMAN_SESSION_ANAHTARI = {
     "/Danisman_FSBOIlanlari": "fsbo_zaman",
