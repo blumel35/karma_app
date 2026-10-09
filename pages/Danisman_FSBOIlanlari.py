@@ -427,7 +427,7 @@ import hashlib as _hashlib
 _kayitli = {}
 try:
     for _k in musterileri_cek(su_kullanici):
-        for _u in _re.findall(r"https?://\S+", _k.get("notlar") or ""):
+        for _u in _re.findall(r"https?://\S+", (_k.get("ilan_ozeti") or "") + "\n" + (_k.get("notlar") or "")):
             if _u in _ilan_map and _k.get("telefon"):
                 _kayitli[_u] = _k["telefon"]
 except Exception:

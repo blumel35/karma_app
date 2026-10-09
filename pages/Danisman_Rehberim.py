@@ -24,6 +24,8 @@ sağına, kompakt bir popover butonu olarak taşındı.
 """
 
 import streamlit as st
+from html import escape as _esc
+from datetime import date as _date, datetime as _dt
 
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -86,6 +88,15 @@ st.markdown("""
     margin: 16px 0 2px 0; padding-bottom: 3px;
     border-bottom: 1px solid #ecebe5;
 }
+.dp-mus-fsbo {
+    margin: 4px 0 2px 0; padding: 6px 10px; border-left: 3px solid #b8892f;
+    background: #faf7f0; border-radius: 0 6px 6px 0;
+    font-size: 12.5px; line-height: 1.55; color: #3d4457;
+}
+.dp-mus-fsbo a { color: #1b2540; font-weight: 600; word-break: break-all; }
+.dp-mus-fsbo .dp-fsbo-ilan + .dp-fsbo-ilan { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e4dccb; }
+.dp-mus-fsbo .dp-fsbo-gorusme { margin-top: 6px; font-weight: 700; color: #1b2540; }
+.dp-mus-fsbo .dp-fsbo-not { margin-top: 2px; color: #5b6478; white-space: pre-wrap; }
 .dp-mus-az {
     display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 14px 0;
 }
@@ -160,6 +171,50 @@ div[class*="st-key-dp_mus_aksiyon_"] button {
 }
 </style>
 """, unsafe_allow_html=True)
+
+def _tarih_oku(v):
+    try:
+        return _dt.strptime(str(v)[:10], "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+
+def _bugun():
+    try:
+        from zoneinfo import ZoneInfo
+        return _dt.now(ZoneInfo("Europe/Istanbul")).date()
+    except Exception:
+        return _date.today()
+
+
+def _fsbo_blok_html(m):
+    """FSBO kaydının ilan özeti + son görüşme tarihi + görüşme notu önizlemesi.
+    İlan özeti dış kaynaktan (ilan verisi) geldiği için HER satır kaçışlanır."""
+    ozet = (m.get("ilan_ozeti") or "").strip()
+    if not ozet and "FSBO" not in _tip_listele(m.get("tip")):
+        return ""
+    parcalar = []
+    for blok in [b for b in ozet.split("\n\n") if b.strip()]:
+        satirlar = []
+        for ln in blok.split("\n"):
+            ln = ln.strip()
+            if ln.startswith("http://") or ln.startswith("https://"):
+                satirlar.append(f'<a href="{_esc(ln)}" target="_blank" rel="noopener noreferrer">↗ İlana git</a>')
+            elif ln:
+                satirlar.append(_esc(ln))
+        parcalar.append(f'<div class="dp-fsbo-ilan">{"<br>".join(satirlar)}</div>')
+    if "son_gorusme_tarihi" in m:
+        t = _tarih_oku(m.get("son_gorusme_tarihi"))
+        parcalar.append(
+            '<div class="dp-fsbo-gorusme">Son görüşme: '
+            + (t.strftime("%d.%m.%Y") if t else "—") + "</div>"
+        )
+    nt = (m.get("notlar") or "").strip()
+    if nt and ozet:
+        onizleme = nt if len(nt) <= 140 else nt[:140].rstrip() + "…"
+        parcalar.append(f'<div class="dp-fsbo-not">📝 {_esc(onizleme)}</div>')
+    return f'<div class="dp-mus-fsbo">{"".join(parcalar)}</div>' if parcalar else ""
+
 
 su_kullanici = su_anki_danisman()
 tum_musteriler = musterileri_cek(su_kullanici)
@@ -293,7 +348,7 @@ for m in gosterilecek_sirali:
         uzmanlik_ek = f" <span style='color:#7a8194;font-size:12.5px;'>/ {m['uzmanlik']}</span>" if m.get("uzmanlik") else ""
         telefon_html = _telefon_html(m.get("telefon"))
         st.markdown(
-            f"<div class='dp-mus-satir'><b>{ad}</b>{rozetler}{uzmanlik_ek}{telefon_html}</div>",
+            f"<div class='dp-mus-satir'><b>{ad}</b>{rozetler}{uzmanlik_ek}{telefon_html}{_fsbo_blok_html(m)}</div>",
             unsafe_allow_html=True,
         )
     with r_bolge:
@@ -328,22 +383,43 @@ for m in gosterilecek_sirali:
                     "Telefon", value=m.get("telefon") or "",
                     key=f"dp_mus_telefon_duzenle_{m['id']}",
                 )
+                _fsbo_alanlari = "son_gorusme_tarihi" in m   # SQL çalıştırıldıysa
+                if _fsbo_alanlari:
+                    _g1, _g2 = st.columns([3, 2])
+                    with _g1:
+                        yeni_gorusme = st.date_input(
+                            "Son görüşme tarihi", value=_tarih_oku(m.get("son_gorusme_tarihi")),
+                            format="DD.MM.YYYY", key=f"dp_mus_gorusme_{m['id']}",
+                        )
+                    with _g2:
+                        st.write("")
+                        if st.button("Bugün görüştüm", key=f"dp_mus_bugun_{m['id']}", use_container_width=True):
+                            musteri_guncelle(m["id"], {"son_gorusme_tarihi": _bugun().isoformat()})
+                            st.rerun()
+                    if m.get("ilan_ozeti"):
+                        st.caption("Görüşme notları")
                 yeni_not = st.text_area(
                     "Not", value=m.get("notlar") or "",
                     key=f"dp_mus_not_duzenle_{m['id']}", height=68,
                     label_visibility="collapsed",
-                    placeholder="Bu kişi için not ekle (opsiyonel)...",
+                    placeholder=("Görüşme notları (ne konuşuldu, bir sonraki adım)..."
+                                 if m.get("ilan_ozeti") else "Bu kişi için not ekle (opsiyonel)..."),
                 )
                 bp1, bp2 = st.columns(2)
                 with bp1:
                     if st.button("Kaydet", key=f"dp_mus_not_kaydet_{m['id']}", use_container_width=True):
-                        musteri_guncelle(m["id"], {
+                        _alanlar = {
                             "notlar": yeni_not.strip() or None,
                             "tip": yeni_tipler or ["Diğer"],
                             "uzmanlik": yeni_uzmanlik.strip() or None,
                             "bolgeler": yeni_bolgeler,
                             "telefon": yeni_telefon.strip() or None,
-                        })
+                        }
+                        if _fsbo_alanlari:
+                            _alanlar["son_gorusme_tarihi"] = (
+                                yeni_gorusme.isoformat() if yeni_gorusme else None
+                            )
+                        musteri_guncelle(m["id"], _alanlar)
                         st.success("Kaydedildi.")
                         st.rerun()
                 with bp2:
