@@ -1,6 +1,10 @@
 """
 pages/Danisman_AdminBolgeler.py
 
+GÖRÜNÜM (09.10.2026): iki görünüm — "Bölgeye göre" (ilçe -> mahalle kapsamı,
+kim takip ediyor) ve "Danışmana göre" (eski akış). İkisinde de danışman
+düzenleme/hesap işlemleri aynı danisman_paneli() içinde.
+
 Yönetici bölge sayfası (06.10.2026) — Meltem: "bana bir admin sayfası ekleyelim,
 ben orada her danışman için onlara sorarak en fazla 5 adet olacak şekilde
 FSBO / Startkey ve Uzmanlık Bölgelerim için bölgelerini kaydedeyim."
@@ -69,6 +73,9 @@ if _mesaj:
     st.success(_mesaj)
 
 # ── PERSONEL LİSTESİ ─────────────────────────────────────────────────
+mod = st.radio(
+    "Görünüm", ["Bölgeye göre", "Danışmana göre"], horizontal=True, key="ab_mod",
+)
 ustte, yenile_col = st.columns([5, 1])
 with yenile_col:
     if st.button("↻ Listeyi yenile", key="ab_liste_yenile"):
@@ -111,11 +118,14 @@ def _zeta1_gd_mi(k):
 
 
 LISTE_SECENEKLERI = ["Zeta 1 GD'leri", "Pilot grup", "Tüm personel"]
-with ustte:
-    liste_secimi = st.radio(
-        "Liste", LISTE_SECENEKLERI, horizontal=True, key="ab_liste",
-        label_visibility="collapsed",
-    )
+if mod == "Danışmana göre":
+    with ustte:
+        liste_secimi = st.radio(
+            "Liste", LISTE_SECENEKLERI, horizontal=True, key="ab_liste",
+            label_visibility="collapsed",
+        )
+else:
+    liste_secimi = "Tüm personel"
 
 if liste_secimi == "Zeta 1 GD'leri":
     _secilenler = [k for k in _tum_kisiler if _zeta1_gd_mi(k)]
@@ -168,7 +178,7 @@ def _ilce_ozeti(satirlar, mahalle_var):
     return ", ".join(parcalar) if parcalar else "—"
 
 
-with st.expander("Genel durum", expanded=True):
+with st.expander("Genel durum", expanded=(mod == "Danışmana göre")):
     tablo_satirlari = []
     for k in kisiler:
         ad = k["ad_soyad"]
@@ -182,195 +192,388 @@ with st.expander("Genel durum", expanded=True):
     st.dataframe(tablo_satirlari, hide_index=True, use_container_width=True)
     st.caption("🔕 = bu ilçe için bildirim kapalı.")
 
-# ── DANIŞMAN SEÇİMİ ──────────────────────────────────────────────────
-secili = st.selectbox(
-    "Danışman",
-    kisiler,
-    format_func=lambda k: f"{k['ad_soyad']} — {k.get('ofis_adi', '')}",
-    key="ab_secili_kisi",
-)
-ad = secili["ad_soyad"]
+def danisman_paneli(secili):
+    """Seçili danışmanın bilgi satırı, eski-ad uyarısı/birleştirme, bölge
+    sekmeleri ve hesap işlemleri. İki görünümde de aynı panel kullanılır."""
+    ad = secili["ad_soyad"]
+    st.markdown(f"#### {ad}")
 
-bilgi = []
-if secili.get("rol"):
-    bilgi.append(f"rol: {secili['rol']}")
-if secili.get("telefon", "").strip():
-    bilgi.append(f"telefon: {secili['telefon']}")
-bilgi.append(f"hesap: {_hesap_durumu(secili)}")
-bilgi.append(f"bildirim cihazı: {_cihaz.get(ad, 0)}")
-st.caption(" · ".join(bilgi))
+    bilgi = []
+    if secili.get("rol"):
+        bilgi.append(f"rol: {secili['rol']}")
+    if secili.get("telefon", "").strip():
+        bilgi.append(f"telefon: {secili['telefon']}")
+    bilgi.append(f"hesap: {_hesap_durumu(secili)}")
+    bilgi.append(f"bildirim cihazı: {_cihaz.get(ad, 0)}")
+    st.caption(" · ".join(bilgi))
 
-# Aynı kişinin e-posta önekiyle (ör. "turgay.ozdemir") açılmış eski kayıtları
-# varsa uyar — bildirimler isim eşleşmesiyle çalıştığı için bunlar kaybolur.
-_alias = (secili.get("email") or "").split("@")[0].strip()
-if _alias and _alias.lower() != ad.lower():
-    _alias_bulunan = []
-    for tur, cfg in BOLGE_TURLERI.items():
-        if bolgeleri_cek(tur, _alias):
-            _alias_bulunan.append(cfg["etiket"])
-    if _cihaz.get(_alias):
-        _alias_bulunan.append("bildirim cihazı")
-    if _alias_bulunan:
-        st.warning(
-            f"'{_alias}' adıyla da kayıt var ({', '.join(_alias_bulunan)}). "
-            f"Bu kayıtlar '{ad}' ile eşleşmez; birleştirilmesi gerekir."
-        )
-        # YENİ (09.10.2026): önizleme + onaylı birleştirme.
-        try:
-            _plan = alias_birlestirme_plani(_alias, ad)
-        except Exception as e:
-            _plan = None
-            st.error(f"Birleştirme planı çıkarılamadı: {e}")
-        if _plan:
-            _satirlar = []
-            for _tur, _cfg in BOLGE_TURLERI.items():
-                _p = _plan[_tur]
-                if not (_p["tasi"] or _p["zaten_var"] or _p["sigmayan"]):
-                    continue
-                _parca = []
-                if _p["tasi"]:
-                    _parca.append("taşınacak: " + ", ".join(_p["tasi"]))
-                if _p["zaten_var"]:
-                    _parca.append(f"'{ad}' altında zaten var (eski kayıt silinecek): " + ", ".join(_p["zaten_var"]))
-                if _p["sigmayan"]:
-                    _parca.append(f"en fazla {MAX_BOLGE} ilçe sınırına sığmıyor (olduğu yerde kalır): " + ", ".join(_p["sigmayan"]))
-                _satirlar.append(f"- **{_cfg['etiket']}** — " + "; ".join(_parca))
-            if _plan.get("cihaz"):
-                _satirlar.append(f"- **Bildirim cihazı**: {_plan['cihaz']} cihaz '{ad}' adına taşınacak")
-            st.markdown("\n".join(_satirlar))
-            if st.button(f"'{_alias}' kayıtlarını '{ad}' ile birleştir", key=f"ab_birlestir_{ad}"):
-                try:
-                    alias_birlestir(_alias, ad)
-                    st.success("Birleştirildi. Sayfayı yenileyip uyarının kaybolduğunu kontrol et.")
-                except Exception as e:
-                    st.error(f"Birleştirilemedi: {e}")
-
-
-def _tur_sekmesi(tur):
-    cfg = BOLGE_TURLERI[tur]
-    kayitlar = bolgeleri_cek(tur, ad)
-    mevcut = [r["ilce"] for r in kayitlar]
-
-    secim = st.multiselect(
-        f"{cfg['etiket']} ilçeleri (en fazla {MAX_BOLGE})",
-        options=IZMIR_ILCELERI,
-        default=mevcut,
-        max_selections=MAX_BOLGE,
-        key=f"ab_{tur}_ilce_{ad}",
-        placeholder=f"İlçe seç (en fazla {MAX_BOLGE})...",
-    )
-    if st.button("Kaydet", key=f"ab_{tur}_kaydet_{ad}", type="primary"):
-        try:
-            bolgeleri_kaydet(tur, ad, secim)
-            st.session_state["ab_mesaj"] = f"{ad}: {cfg['etiket']} bölgeleri kaydedildi."
-            st.rerun()
-        except Exception as e:
-            st.error(f"Kaydedilemedi: {e}")
-
-    if not kayitlar:
-        st.info("Bu danışman için henüz kayıtlı ilçe yok.")
-        return
-
-    st.markdown("**İlçe bazlı ayarlar**")
-    for r in kayitlar:
-        ilce = r["ilce"]
-        if cfg["mahalle"]:
-            c1, c2 = st.columns([1, 3])
-        else:
-            c1, c2 = st.container(), None
-        with c1:
-            onceki_bildirim = r.get("bildirim_acik", True) is not False
-            yeni_bildirim = st.toggle(
-                f"{ilce} — bildirim", value=onceki_bildirim,
-                key=f"ab_{tur}_bildirim_{ad}_{ilce}",
+    # Aynı kişinin e-posta önekiyle (ör. "turgay.ozdemir") açılmış eski kayıtları
+    # varsa uyar — bildirimler isim eşleşmesiyle çalıştığı için bunlar kaybolur.
+    _alias = (secili.get("email") or "").split("@")[0].strip()
+    if _alias and _alias.lower() != ad.lower():
+        _alias_bulunan = []
+        for tur, cfg in BOLGE_TURLERI.items():
+            if bolgeleri_cek(tur, _alias):
+                _alias_bulunan.append(cfg["etiket"])
+        if _cihaz.get(_alias):
+            _alias_bulunan.append("bildirim cihazı")
+        if _alias_bulunan:
+            st.warning(
+                f"'{_alias}' adıyla da kayıt var ({', '.join(_alias_bulunan)}). "
+                f"Bu kayıtlar '{ad}' ile eşleşmez; birleştirilmesi gerekir."
             )
-            if yeni_bildirim != onceki_bildirim:
-                try:
-                    ilce_bildirim_ayarla(tur, ad, ilce, yeni_bildirim)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Kaydedilemedi: {e}")
-        if c2 is not None:
-            with c2:
-                onceki_mahalle = list(r.get("mahalleler") or [])
-                secenekler = sorted(
-                    set(ilcenin_mahalleleri(ilce, cfg["marka"])) | set(onceki_mahalle)
-                )
-                if not secenekler:
-                    st.caption(f"{ilce}: bu ilçede henüz mahalle verisi yok.")
-                    continue
-                yeni_mahalle = st.multiselect(
-                    f"{ilce} — mahalle", options=secenekler, default=onceki_mahalle,
-                    key=f"ab_{tur}_mahalle_{ad}_{ilce}",
-                    placeholder="Tüm mahalleler (daraltma yok)",
-                )
-                if set(yeni_mahalle) != set(onceki_mahalle):
+            # YENİ (09.10.2026): önizleme + onaylı birleştirme.
+            try:
+                _plan = alias_birlestirme_plani(_alias, ad)
+            except Exception as e:
+                _plan = None
+                st.error(f"Birleştirme planı çıkarılamadı: {e}")
+            if _plan:
+                _satirlar = []
+                for _tur, _cfg in BOLGE_TURLERI.items():
+                    _p = _plan[_tur]
+                    if not (_p["tasi"] or _p["zaten_var"] or _p["sigmayan"]):
+                        continue
+                    _parca = []
+                    if _p["tasi"]:
+                        _parca.append("taşınacak: " + ", ".join(_p["tasi"]))
+                    if _p["zaten_var"]:
+                        _parca.append(f"'{ad}' altında zaten var (eski kayıt silinecek): " + ", ".join(_p["zaten_var"]))
+                    if _p["sigmayan"]:
+                        _parca.append(f"en fazla {MAX_BOLGE} ilçe sınırına sığmıyor (olduğu yerde kalır): " + ", ".join(_p["sigmayan"]))
+                    _satirlar.append(f"- **{_cfg['etiket']}** — " + "; ".join(_parca))
+                if _plan.get("cihaz"):
+                    _satirlar.append(f"- **Bildirim cihazı**: {_plan['cihaz']} cihaz '{ad}' adına taşınacak")
+                st.markdown("\n".join(_satirlar))
+                if st.button(f"'{_alias}' kayıtlarını '{ad}' ile birleştir", key=f"ab_birlestir_{ad}"):
                     try:
-                        ilce_mahallelerini_ayarla(tur, ad, ilce, yeni_mahalle)
+                        alias_birlestir(_alias, ad)
+                        st.success("Birleştirildi. Sayfayı yenileyip uyarının kaybolduğunu kontrol et.")
+                    except Exception as e:
+                        st.error(f"Birleştirilemedi: {e}")
+
+
+    def _tur_sekmesi(tur):
+        cfg = BOLGE_TURLERI[tur]
+        kayitlar = bolgeleri_cek(tur, ad)
+        mevcut = [r["ilce"] for r in kayitlar]
+
+        secim = st.multiselect(
+            f"{cfg['etiket']} ilçeleri (en fazla {MAX_BOLGE})",
+            options=IZMIR_ILCELERI,
+            default=mevcut,
+            max_selections=MAX_BOLGE,
+            key=f"ab_{tur}_ilce_{ad}",
+            placeholder=f"İlçe seç (en fazla {MAX_BOLGE})...",
+        )
+        if st.button("Kaydet", key=f"ab_{tur}_kaydet_{ad}", type="primary"):
+            try:
+                bolgeleri_kaydet(tur, ad, secim)
+                st.session_state["ab_mesaj"] = f"{ad}: {cfg['etiket']} bölgeleri kaydedildi."
+                st.rerun()
+            except Exception as e:
+                st.error(f"Kaydedilemedi: {e}")
+
+        if not kayitlar:
+            st.info("Bu danışman için henüz kayıtlı ilçe yok.")
+            return
+
+        st.markdown("**İlçe bazlı ayarlar**")
+        for r in kayitlar:
+            ilce = r["ilce"]
+            if cfg["mahalle"]:
+                c1, c2 = st.columns([1, 3])
+            else:
+                c1, c2 = st.container(), None
+            with c1:
+                onceki_bildirim = r.get("bildirim_acik", True) is not False
+                yeni_bildirim = st.toggle(
+                    f"{ilce} — bildirim", value=onceki_bildirim,
+                    key=f"ab_{tur}_bildirim_{ad}_{ilce}",
+                )
+                if yeni_bildirim != onceki_bildirim:
+                    try:
+                        ilce_bildirim_ayarla(tur, ad, ilce, yeni_bildirim)
                         st.rerun()
                     except Exception as e:
                         st.error(f"Kaydedilemedi: {e}")
+            if c2 is not None:
+                with c2:
+                    onceki_mahalle = list(r.get("mahalleler") or [])
+                    secenekler = sorted(
+                        set(ilcenin_mahalleleri(ilce, cfg["marka"])) | set(onceki_mahalle)
+                    )
+                    if not secenekler:
+                        st.caption(f"{ilce}: bu ilçede henüz mahalle verisi yok.")
+                        continue
+                    yeni_mahalle = st.multiselect(
+                        f"{ilce} — mahalle", options=secenekler, default=onceki_mahalle,
+                        key=f"ab_{tur}_mahalle_{ad}_{ilce}",
+                        placeholder="Tüm mahalleler (daraltma yok)",
+                    )
+                    if set(yeni_mahalle) != set(onceki_mahalle):
+                        try:
+                            ilce_mahallelerini_ayarla(tur, ad, ilce, yeni_mahalle)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Kaydedilemedi: {e}")
 
 
-sekmeler = st.tabs([cfg["etiket"] for cfg in BOLGE_TURLERI.values()])
-for sekme, tur in zip(sekmeler, BOLGE_TURLERI):
-    with sekme:
-        _tur_sekmesi(tur)
+    sekmeler = st.tabs([cfg["etiket"] for cfg in BOLGE_TURLERI.values()])
+    for sekme, tur in zip(sekmeler, BOLGE_TURLERI):
+        with sekme:
+            _tur_sekmesi(tur)
 
-# ── iPHONE BİLDİRİM EŞLEŞTİRME KODU ──────────────────────────────────
-# YENİ (09.10.2026). iPhone'da bildirim izni yalnızca ana ekrana eklenmiş
-# uygulamadan verilebilir ve Karma App'ten açılan bağlantıdaki token o
-# uygulamaya taşınamaz. Çözüm: yönetici 6 haneli kod üretir, danışman
-# ana ekrandaki "SZ Bildirim" uygulamasına yazar; abonelik bu danışman
-# adına kaydolur. Kod 10 dk geçerli ve tek kullanımlıktır.
-with st.expander("iPhone bildirim eşleştirme kodu", expanded=(_cihaz.get(ad, 0) == 0)):
-    st.caption(
-        "Danışman iPhone'unda bildirim açamıyorsa: aşağıdan kod üret, danışmana ilet. "
-        "Danışman önce "
-        "https://blumel35.github.io/zeta-bildirim adresini Safari'de açıp "
-        "Paylaş > Ana Ekrana Ekle yapar, sonra ana ekrandaki 'SZ Bildirim' "
-        "simgesinden uygulamayı açıp kodu yazar ve izin verir."
-    )
-    _kod_anahtar = f"ab_eslestirme_{ad}"
-    if st.button("Kod üret", key=f"ab_kod_btn_{ad}"):
-        try:
-            _kod, _son = eslestirme_kodu_uret(ad)
-            st.session_state[_kod_anahtar] = (_kod, _son)
-        except Exception as e:
-            st.session_state.pop(_kod_anahtar, None)
-            st.error(f"Kod üretilemedi: {e}")
-    if st.session_state.get(_kod_anahtar):
-        _kod, _son = st.session_state[_kod_anahtar]
-        st.code(_kod, language=None)
-        st.caption(
-            f"{ad} için kod. 10 dakika geçerli, tek kullanımlık. "
-            "Kullanıldıktan sonra bu sayfayı yenileyince 'Bildirim cihazı' 1 olmalı."
-        )
-
-# ── GİRİŞ ŞİFRESİ BELİRLE ────────────────────────────────────────────
-# YENİ (06.10.2026, Meltem: "şifre değiştirmek isteyen bana müracaat etsin").
-# Danışman panosunda "şifremi unuttum" / şifre değiştirme ekranı YOK; bu
-# yüzden yönetici, seçili danışmanın giriş şifresini buradan belirler.
-# Şifre kaydedilmez/gösterilmez, yalnızca Supabase Auth'a gönderilir.
-with st.expander("Giriş şifresi belirle", expanded=False):
-    _hesap_email = (secili.get("email") or "").strip()
-    if not _hesap_email:
-        st.warning("Bu danışmanın personel listesinde e-posta adresi yok.")
-    else:
-        st.caption(
-            f"Hesap: {_hesap_email}. Belirlediğin şifreyi danışmana sen iletirsin; "
-            "danışmanın kendi başına değiştireceği bir ekran şu an yok."
-        )
-        with st.form(f"ab_sifre_form_{ad}", clear_on_submit=True):
-            _sifre1 = st.text_input("Yeni şifre (en az 8 karakter)", type="password")
-            _sifre2 = st.text_input("Yeni şifre (tekrar)", type="password")
-            _gonder = st.form_submit_button("Şifreyi belirle", type="primary")
-        if _gonder:
-            if _sifre1 != _sifre2:
-                st.error("Şifreler aynı değil.")
-            else:
+    # ── HESAP İŞLEMLERİ (iPhone kodu + şifre) — tek küçük alan ───────────
+    # iPhone'da bildirim izni yalnızca ana ekrana eklenmiş uygulamadan verilebilir
+    # ve Karma App'ten açılan bağlantıdaki token o uygulamaya taşınamaz. Çözüm:
+    # yönetici 6 haneli kod üretir, danışman ana ekrandaki "SZ Bildirim"
+    # uygulamasına yazar; abonelik bu danışman adına kaydolur (10 dk, tek kullanımlık).
+    # Şifre: danışman panosunda "şifremi unuttum" yok; yönetici belirler,
+    # şifre kaydedilmez/gösterilmez, yalnızca Supabase Auth'a gönderilir.
+    with st.expander(
+        "Hesap işlemleri — iPhone bildirim kodu · giriş şifresi",
+        expanded=(_cihaz.get(ad, 0) == 0),
+    ):
+        sek_kod, sek_sifre = st.tabs(["iPhone bildirim kodu", "Giriş şifresi"])
+        with sek_kod:
+            st.caption(
+                "Danışman iPhone'unda bildirim açamıyorsa: kod üret, danışmana ilet. "
+                "Danışman önce https://blumel35.github.io/zeta-bildirim adresini Safari'de "
+                "açıp Paylaş > Ana Ekrana Ekle yapar, sonra ana ekrandaki 'SZ Bildirim' "
+                "simgesinden uygulamayı açıp kodu yazar ve izin verir."
+            )
+            _kod_anahtar = f"ab_eslestirme_{ad}"
+            if st.button("Kod üret", key=f"ab_kod_btn_{ad}"):
                 try:
-                    sifre_belirle(_hesap_email, _sifre1)
-                    st.success(f"{ad} için giriş şifresi belirlendi.")
+                    _kod, _son = eslestirme_kodu_uret(ad)
+                    st.session_state[_kod_anahtar] = (_kod, _son)
                 except Exception as e:
-                    st.error(f"Şifre belirlenemedi: {e}")
+                    st.session_state.pop(_kod_anahtar, None)
+                    st.error(f"Kod üretilemedi: {e}")
+            if st.session_state.get(_kod_anahtar):
+                _kod, _son = st.session_state[_kod_anahtar]
+                st.code(_kod, language=None)
+                st.caption(
+                    f"{ad} için kod. 10 dakika geçerli, tek kullanımlık. "
+                    "Kullanıldıktan sonra sayfayı yenileyince 'Bildirim cihazı' 1 olmalı."
+                )
+        with sek_sifre:
+            _hesap_email = (secili.get("email") or "").strip()
+            if not _hesap_email:
+                st.warning("Bu danışmanın personel listesinde e-posta adresi yok.")
+            else:
+                st.caption(
+                    f"Hesap: {_hesap_email}. Belirlediğin şifreyi danışmana sen iletirsin; "
+                    "danışmanın kendi başına değiştireceği bir ekran şu an yok."
+                )
+                with st.form(f"ab_sifre_form_{ad}", clear_on_submit=True):
+                    _sifre1 = st.text_input("Yeni şifre (en az 8 karakter)", type="password")
+                    _sifre2 = st.text_input("Yeni şifre (tekrar)", type="password")
+                    _gonder = st.form_submit_button("Şifreyi belirle", type="primary")
+                if _gonder:
+                    if _sifre1 != _sifre2:
+                        st.error("Şifreler aynı değil.")
+                    else:
+                        try:
+                            sifre_belirle(_hesap_email, _sifre1)
+                            st.success(f"{ad} için giriş şifresi belirlendi.")
+                        except Exception as e:
+                            st.error(f"Şifre belirlenemedi: {e}")
+
+
+
+# ══ BÖLGEYE GÖRE GÖRÜNÜM ═════════════════════════════════════════════
+import html as _html
+
+
+def _takipci_kayitlari():
+    """Tüm bölge kayıtları, kişiye çözümlenmiş düz liste. Kayıt adı kanonik
+    ad_soyad ise doğrudan, e-posta önü ('ahmet.koc') ise o kişiye ama
+    eski=True ile; hiçbirine uymazsa kisi=None (listede yok)."""
+    ana = {k["ad_soyad"].strip().casefold(): k for k in _tum_kisiler}
+    alias = {}
+    for k in _tum_kisiler:
+        a = (k.get("email") or "").split("@")[0].strip().casefold()
+        if a and a not in ana:
+            alias[a] = k
+    sonuc = []
+    for tur, cfg in BOLGE_TURLERI.items():
+        for kayit_adi, satirlar in _veri[tur].items():
+            anahtar = kayit_adi.strip().casefold()
+            kisi, eski = ana.get(anahtar), False
+            if kisi is None and anahtar in alias:
+                kisi, eski = alias[anahtar], True
+            gorunen = kisi["ad_soyad"] if kisi else kayit_adi
+            for r in satirlar:
+                sonuc.append({
+                    "ad": gorunen, "kisi": kisi, "eski": eski, "tur": tur,
+                    "ilce": r.get("ilce") or "",
+                    "mahalleler": list(r.get("mahalleler") or []) if cfg["mahalle"] else [],
+                    "bildirim": r.get("bildirim_acik") is not False,
+                })
+    return sonuc
+
+
+def _kapsamdakiler(kayitlar, ilce, mahalle):
+    """İlçe (mahalle=None) ya da mahalle kapsamındaki takipçi kayıtları;
+    her birine 'kapsam' etiketi eklenir. Boş mahalle listesi = tüm ilçe."""
+    sonuc = []
+    for t in kayitlar:
+        if t["ilce"] != ilce:
+            continue
+        if t["tur"] == "uzmanlik":
+            sonuc.append({**t, "kapsam": "ilçe uzmanı"})
+        elif mahalle is None:
+            kapsam = "tüm ilçe" if not t["mahalleler"] else f"{len(t['mahalleler'])} mahalle"
+            sonuc.append({**t, "kapsam": kapsam})
+        elif not t["mahalleler"]:
+            sonuc.append({**t, "kapsam": "tüm ilçe (filtresiz)"})
+        elif mahalle in t["mahalleler"]:
+            sonuc.append({**t, "kapsam": "bu mahalle (özel)"})
+    return sonuc
+
+
+def bolge_gorunumu():
+    kayitlar = _takipci_kayitlari()
+
+    # Kapsam özeti: hangi ilçeyi kaç danışman takip ediyor
+    def _say(ilce, tur):
+        return len({t["ad"] for t in kayitlar if t["ilce"] == ilce and t["tur"] == tur})
+
+    ozet = [
+        {"İlçe": i, **{cfg["etiket"]: _say(i, tur) for tur, cfg in BOLGE_TURLERI.items()}}
+        for i in IZMIR_ILCELERI
+    ]
+    en_kalabalik = max(
+        range(len(IZMIR_ILCELERI)),
+        key=lambda n: sum(v for kk, v in ozet[n].items() if kk != "İlçe"),
+    )
+    with st.expander("Tüm ilçelerin kapsamı (0 = kimse takip etmiyor)", expanded=False):
+        st.dataframe(ozet, hide_index=True, use_container_width=True)
+
+    ilce = st.selectbox(
+        "İlçe", IZMIR_ILCELERI, index=en_kalabalik, key="ab_bolge_ilce",
+    )
+
+    # Mahalle listesi: canlı ilan verisi + takipçilerin seçtikleri
+    mahalleler = set()
+    for tur, cfg in BOLGE_TURLERI.items():
+        if cfg["mahalle"]:
+            mahalleler |= set(ilcenin_mahalleleri(ilce, cfg["marka"]))
+    for t in kayitlar:
+        if t["ilce"] == ilce:
+            mahalleler |= set(t["mahalleler"])
+    mahalleler = sorted(mahalleler, key=_tr_anahtar)
+
+    secenekler = ["(Tüm ilçe)"] + mahalleler
+    mah_secim = st.selectbox("Mahalle", secenekler, key=f"ab_bolge_mahalle_{ilce}")
+    mahalle = None if mah_secim == "(Tüm ilçe)" else mah_secim
+
+    kapsam = _kapsamdakiler(kayitlar, ilce, mahalle)
+    uzmanlar = sorted({t["ad"] for t in kapsam if t["tur"] == "uzmanlik"}, key=_tr_anahtar)
+
+    # Koyu bölge kartı + rozetler
+    def _rozet(metin, renk):
+        return (
+            f"<span style='display:inline-block;margin:6px 6px 0 0;padding:3px 10px;"
+            f"border-radius:6px;font-size:12px;font-weight:600;{renk}'>{_html.escape(metin)}</span>"
+        )
+
+    sayilar = {
+        tur: len({t["ad"] for t in kapsam if t["tur"] == tur}) for tur in BOLGE_TURLERI
+    }
+    kapali = len({t["ad"] for t in kapsam if not t["bildirim"]})
+    baslik = ilce if mahalle is None else f"{ilce} / {mahalle}"
+    uzman_metin = ", ".join(uzmanlar) if uzmanlar else "kimse seçmemiş"
+    rozetler = (
+        _rozet(f"FSBO {sayilar['fsbo']}", "background:#e0f2fe;color:#0369a1;")
+        + _rozet(f"Startkey {sayilar['startkey']}", "background:#e0e7ff;color:#4338ca;")
+        + _rozet(f"Uzmanlık {sayilar['uzmanlik']}", "background:#ede9fe;color:#6d28d9;")
+        + (_rozet(f"{kapali} danışmanda bildirim kapalı", "background:#fef3c7;color:#92400e;") if kapali else "")
+    )
+    st.markdown(
+        f"<div style='background:#1C2B47;color:#fff;border-radius:14px;padding:16px 18px;margin:8px 0'>"
+        f"<div style='font-size:20px;font-weight:700'>{_html.escape(baslik)}</div>"
+        f"<div style='font-size:12px;opacity:.75;margin-top:4px'>Bölge uzmanı: {_html.escape(uzman_metin)}</div>"
+        f"<div>{rozetler}</div></div>",
+        unsafe_allow_html=True,
+    )
+
+    # Mahalle tablosu (yalnızca ilçe görünümünde)
+    if mahalle is None and mahalleler:
+        satirlar = []
+        for m in mahalleler:
+            ozel = {t["tur"]: [] for t in kayitlar}
+            filtresiz = {"fsbo": set(), "startkey": set()}
+            tum = set()
+            for t in kayitlar:
+                if t["ilce"] != ilce or t["tur"] == "uzmanlik":
+                    continue
+                if not t["mahalleler"]:
+                    filtresiz[t["tur"]].add(t["ad"]); tum.add(t["ad"])
+                elif m in t["mahalleler"]:
+                    ozel.setdefault(t["tur"], []).append(t["ad"]); tum.add(t["ad"])
+            satirlar.append({
+                "Mahalle": m,
+                "FSBO (özel seçen)": ", ".join(sorted(set(ozel.get("fsbo", [])), key=_tr_anahtar)) or "—",
+                "Startkey (özel seçen)": ", ".join(sorted(set(ozel.get("startkey", [])), key=_tr_anahtar)) or "—",
+                "FSBO filtresiz": len(filtresiz["fsbo"]),
+                "Startkey filtresiz": len(filtresiz["startkey"]),
+                "Toplam danışman": len(tum),
+            })
+        st.dataframe(satirlar, hide_index=True, use_container_width=True)
+        st.caption(
+            "Özel seçen = mahalleyi filtresine bilerek koyan danışman. Filtresiz = "
+            "mahalle filtresi boş, ilçenin her mahallesini alan danışman sayısı."
+        )
+
+    # Takipçi listesi (danışman bazında toplanmış)
+    gruplar = {}
+    for t in kapsam:
+        g = gruplar.setdefault(t["ad"], {"kisi": t["kisi"], "kayit": []})
+        g["kayit"].append(t)
+    if not gruplar:
+        st.info("Bu kapsamda takip eden danışman yok.")
+        return
+    tablo = []
+    for ad_, g in sorted(gruplar.items(), key=lambda x: _tr_anahtar(x[0])):
+        parca = [f"{BOLGE_TURLERI[t['tur']]['etiket']}: {t['kapsam']}" for t in g["kayit"]]
+        acik = [t["bildirim"] for t in g["kayit"]]
+        notlar = []
+        if any(t["eski"] for t in g["kayit"]):
+            notlar.append("eski adla kayıt var")
+        if g["kisi"] is None:
+            notlar.append("personel listesinde yok")
+        tablo.append({
+            "Danışman": ad_,
+            "Ofis": (g["kisi"] or {}).get("ofis_adi", "") or "?",
+            "Takip": " · ".join(parca),
+            "Bildirim": "açık" if all(acik) else ("kapalı 🔕" if not any(acik) else "kısmen"),
+            "Cihaz": _cihaz.get(ad_, 0),
+            "Not": ", ".join(notlar),
+        })
+    st.markdown("**Bu kapsamı takip edenler**")
+    st.dataframe(tablo, hide_index=True, use_container_width=True)
+
+    acilabilir = [ad_ for ad_, g in gruplar.items() if g["kisi"] is not None]
+    acilabilir.sort(key=_tr_anahtar)
+    sec = st.selectbox(
+        "Danışmanı aç (bölge, hesap, şifre, kod)", ["—"] + acilabilir, key="ab_bolge_ac",
+    )
+    if sec != "—":
+        with st.container(border=True):
+            danisman_paneli(gruplar[sec]["kisi"])
+
+
+# ══ AKIŞ ═════════════════════════════════════════════════════════════
+if mod == "Bölgeye göre":
+    bolge_gorunumu()
+else:
+    secili = st.selectbox(
+        "Danışman",
+        kisiler,
+        format_func=lambda k: f"{k['ad_soyad']} — {k.get('ofis_adi', '')}",
+        key="ab_secili_kisi",
+    )
+    danisman_paneli(secili)
