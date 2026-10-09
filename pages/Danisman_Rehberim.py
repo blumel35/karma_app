@@ -41,7 +41,7 @@ hide_sidebar_css()
 render_topbar("Rehberim", ikon="📇", geri_hedefi="pages/Danisman_Secim.py")
 st.caption("Kişisel kişi defterin — sadece sana görünür, ofis geneli paylaşılmaz.")
 
-TIP_SECENEKLERI = ["Alıcı", "Satıcı", "Kiraya Veren", "Kiracı", "İş Ortağı", "Diğer"]
+TIP_SECENEKLERI = ["Alıcı", "Satıcı", "Kiraya Veren", "Kiracı", "İş Ortağı", "FSBO", "Diğer"]
 TUM_HARFLER = list("ABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZ")
 
 

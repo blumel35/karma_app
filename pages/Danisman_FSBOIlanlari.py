@@ -30,10 +30,14 @@ from datetime import date, datetime, timedelta
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import oturum_kontrol
-from core.pano_export import pazar_ilan_pano_html_olustur, pazar_pano_paylasim_blogu
+from core.pano_export import (
+    pazar_ilan_pano_html_olustur, pazar_pano_paylasim_blogu, ilan_no_cikar,
+    _sayi_ayikla, _sayi_formatla,
+)
 from core.danisman_ortak import (
     su_anki_danisman, IZMIR_ILCELERI, render_topbar, hide_sidebar_css,
     islem_tipi_filtrele, mulk_tipi_filtrele, ilce_ile_filtrele,
+    fsbo_kisisini_rehbere_ekle,
 )
 from core.bolge_secici import (
     bolgelerini_cek, bolgelerini_kaydet, etkin_ilceler, pazar_ilanlarini_cek,
@@ -326,6 +330,91 @@ if zaman_secim == "Bugün":
 else:
     _mesaj = f"Bölgenizde {_n} FSBO ilanı:"
 pazar_pano_paylasim_blogu(ilanlar, "FSBO İlanları", _mesaj, key_prefix="fsbo", dosya_on_eki="fsbo")
+
+# ── MÜLK SAHİBİ NUMARASINI REHBERİME KAYDET — YENİ (09.10.2026, Meltem:
+# "müşteri teli kopyalanabilip kendi kaydına eklenebilir bir bölüm").
+# Telefon numarası Revy'nin ilan detay sayfasında görünüyor, bizim
+# verimizde (Excel aktarımı) YOK ve toplu olarak çekilmiyor/saklanmıyor:
+# danışman numarayı Revy'den kendisi kopyalayıp buraya yapıştırır, kayıt
+# yalnızca KENDİ kişisel Rehberim'ine "FSBO" tipinde, tarih + ilan bilgisiyle
+# eklenir (başka hiçbir danışman görmez). Kartlar bir iframe içinde
+# çizildiği için form kartın içinde değil, listenin üstünde durur.
+def _tel_temizle(ham):
+    rakam = "".join(ch for ch in (ham or "") if ch.isdigit())
+    if len(rakam) == 12 and rakam.startswith("90"):
+        rakam = rakam[2:]
+    elif len(rakam) == 11 and rakam.startswith("0"):
+        rakam = rakam[1:]
+    if len(rakam) != 10 or not rakam.startswith("5"):
+        return None
+    return f"0{rakam[:3]} {rakam[3:6]} {rakam[6:8]} {rakam[8:]}"
+
+
+def _ilan_etiketi(v):
+    parcalar = [ilan_no_cikar(v.get("ilan_linki")) or "no yok"]
+    konum = " / ".join(x for x in [str(v.get("ilce") or "").strip(),
+                                   str(v.get("mahalle") or "").strip()] if x)
+    if konum:
+        parcalar.append(konum)
+    ozet = " ".join(x for x in [str(v.get("islem_tipi") or "").strip(),
+                                str(v.get("oda_sayisi") or "").strip()] if x)
+    if ozet:
+        parcalar.append(ozet)
+    fiyat = _sayi_ayikla(v.get("fiyat"))
+    if fiyat is not None:
+        parcalar.append(f"{_sayi_formatla(fiyat)} TL")
+    return " · ".join(parcalar)
+
+
+_tel_sayac = st.session_state.get("fsbo_tel_sayac", 0)
+if st.session_state.get("fsbo_tel_mesaj"):
+    st.success(st.session_state.pop("fsbo_tel_mesaj"))
+with st.expander("📞 Mülk sahibinin numarasını Rehberime kaydet", expanded=False):
+    st.caption(
+        "Numarayı Revy'deki ilan detayından kopyalayıp buraya yapıştır. Kayıt "
+        "yalnızca senin Rehberim'e, 'FSBO' tipinde, bugünün tarihi ve ilan "
+        "bilgisiyle eklenir — başka kimse görmez."
+    )
+    _ilan_map = {v["ilan_linki"]: v for v in ilanlar if v.get("ilan_linki")}
+    if not _ilan_map:
+        st.info("Listede ilan linki olan ilan yok.")
+    else:
+        _secili_link = st.selectbox(
+            "İlan (ilan no yazarak arayabilirsin)",
+            options=list(_ilan_map.keys()),
+            format_func=lambda k: _ilan_etiketi(_ilan_map[k]),
+            index=None, placeholder="İlan no ya da mahalle yaz...",
+            key=f"fsbo_tel_ilan_{_tel_sayac}",
+        )
+        if _secili_link:
+            _ilan = _ilan_map[_secili_link]
+            _ad_onerisi = str(_ilan.get("talep_eden_danisan") or "").strip()
+            _ad = st.text_input(
+                "Ad Soyad", value=_ad_onerisi,
+                key=f"fsbo_tel_ad_{_tel_sayac}_{abs(hash(_secili_link))}",
+                help="Revy'de görünen isim; tam adını biliyorsan düzeltebilirsin.",
+            )
+            _tel = st.text_input(
+                "Telefon (Revy'den yapıştır)", placeholder="+90 5xx xxx xx xx",
+                key=f"fsbo_tel_no_{_tel_sayac}_{abs(hash(_secili_link))}",
+            )
+            if st.button("Rehberime kaydet", type="primary", key=f"fsbo_tel_kaydet_{_tel_sayac}"):
+                _temiz = _tel_temizle(_tel)
+                if not _temiz:
+                    st.error("Telefon numarası anlaşılamadı — 10 haneli cep numarası olmalı (örn. 0532 062 55 77).")
+                else:
+                    try:
+                        _sonuc, _kisi = fsbo_kisisini_rehbere_ekle(su_kullanici, _ad, _temiz, _ilan)
+                    except Exception as _e:
+                        st.error(f"Kaydedilemedi: {_e}")
+                    else:
+                        st.session_state["fsbo_tel_sayac"] = _tel_sayac + 1
+                        st.session_state["fsbo_tel_mesaj"] = {
+                            "yeni": f"✅ {_kisi} Rehberim'e FSBO olarak eklendi.",
+                            "guncellendi": f"✅ {_kisi} zaten rehberindeydi — FSBO notu eklendi.",
+                            "ayni_ilan": f"ℹ️ {_kisi} için bu ilan zaten kayıtlı.",
+                        }[_sonuc]
+                        st.rerun()
 
 html_buf = pazar_ilan_pano_html_olustur(ilanlar, "FSBO İlanları", baslik_goster=False)
 components.html(html_buf.getvalue().decode("utf-8"), height=1800, scrolling=True)
