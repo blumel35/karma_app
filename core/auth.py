@@ -557,6 +557,18 @@ def _tarayici_oturumu_yukle() -> dict | None:
             "foto_bytes":   None,
             "logo_bytes":   None,
         }
+        # DÜZELTME (09.10.2026, Meltem: iPhone'lu danışmanların uzmanlık
+        # bölgeleri "sıfırlandı"): bu çerezle geri yükleme yolu personel
+        # listesiyle zenginleştirilmiyordu — profildeki "ad" boşsa ad,
+        # e-posta önüne ("ahmet.koc") düşüyordu; şifreyle girişte ise
+        # "Ahmet Koç" kullanılıyordu. Bölge/bildirim kayıtları ada göre
+        # tutulduğu için aynı kişi iki farklı kullanıcı gibi davranıyordu.
+        # Şimdi şifreyle girişle (Danisman_Giris.py) AYNI zenginleştirme.
+        try:
+            from core.personel_manager import enrich_session_from_personel
+            kullanici = enrich_session_from_personel(kullanici)
+        except Exception:
+            pass
         if not _valid_actor(kullanici):
             return None
 

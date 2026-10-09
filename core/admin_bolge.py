@@ -104,6 +104,60 @@ def cihaz_sayilari():
     return sonuc
 
 
+def alias_birlestirme_plani(alias, kanonik):
+    """E-posta önü adıyla ('ahmet.koc') kalmış kayıtların kanonik ada
+    ('Ahmet Koç') taşınması için ÖNİZLEME. Hiçbir şey yazmaz.
+    Kural: kanonik adda zaten olan ilçe -> alias satırı silinir (kanonik
+    kayıt, tercihleriyle birlikte korunur); olmayan ilçe -> taşınır, ancak
+    toplam MAX_BOLGE'yi aşıyorsa taşınmaz (silinmez, alias'ta kalır).
+    Döner: {tur: {"tasi": [...], "zaten_var": [...], "sigmayan": [...]}},
+    ayrıca "cihaz": alias'a bağlı bildirim cihazı sayısı."""
+    plan = {}
+    for tur in BOLGE_TURLERI:
+        a = bolgeleri_cek(tur, alias)
+        k = {r["ilce"] for r in bolgeleri_cek(tur, kanonik)}
+        tasi, var, sigmayan = [], [], []
+        for r in a:
+            if r["ilce"] in k:
+                var.append(r["ilce"])
+            elif len(k) + len(tasi) < MAX_BOLGE:
+                tasi.append(r["ilce"])
+            else:
+                sigmayan.append(r["ilce"])
+        plan[tur] = {"tasi": tasi, "zaten_var": var, "sigmayan": sigmayan}
+    try:
+        resp = supabase.table("push_abonelikleri").select("id").eq("kullanici", alias).execute()
+        plan["cihaz"] = len(resp.data or [])
+    except Exception:
+        plan["cihaz"] = 0
+    return plan
+
+
+def alias_birlestir(alias, kanonik):
+    """alias_birlestirme_plani'nın kuralıyla kayıtları gerçekten taşır.
+    Satırları yeniden eklemez, yalnızca kullanici alanını günceller (mahalle
+    ve bildirim tercihleri korunur). Sonunda yeni plan döner (boş olmalı)."""
+    alias = _kullanici_kontrol(alias)
+    kanonik = _kullanici_kontrol(kanonik)
+    if alias.casefold() == kanonik.casefold():
+        raise ValueError("Alias ile kanonik ad aynı.")
+    plan = alias_birlestirme_plani(alias, kanonik)
+    for tur, p in plan.items():
+        if tur == "cihaz":
+            continue
+        tablo = _tablo(tur)
+        if p["zaten_var"]:
+            (supabase.table(tablo).delete().eq("kullanici", alias)
+             .in_("ilce", p["zaten_var"]).execute())
+        if p["tasi"]:
+            (supabase.table(tablo).update({"kullanici": kanonik})
+             .eq("kullanici", alias).in_("ilce", p["tasi"]).execute())
+    if plan.get("cihaz"):
+        (supabase.table("push_abonelikleri").update({"kullanici": kanonik})
+         .eq("kullanici", alias).execute())
+    return alias_birlestirme_plani(alias, kanonik)
+
+
 def eslestirme_kodu_uret(kullanici):
     """iPhone bildirim eşleştirme kodu (09.10.2026): Supabase'deki
     eslestirme_kodu_uret() fonksiyonu 10 dk geçerli, tek kullanımlık 6 haneli
