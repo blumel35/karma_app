@@ -272,17 +272,37 @@ def _gorusme_satiri_html(m):
 su_kullanici = su_anki_danisman()
 tum_musteriler = musterileri_cek(su_kullanici)
 
-# Zamanı gelmiş (kurulu ve henüz silinmemiş) alarmlar — sayfa açılır açılmaz görünsün.
-_geciken = [
-    m for m in tum_musteriler
-    if _alarm_oku(m) and _alarm_oku(m) <= _simdi_yerel()
-]
+# Zamanı gelmiş (kurulu ve henüz kaldırılmamış) alarmlar — sayfa açılır açılmaz,
+# üzerinden doğrudan işlem yapılabilen bir liste olarak görünür.
+_geciken = sorted(
+    [m for m in tum_musteriler if _alarm_oku(m) and _alarm_oku(m) <= _simdi_yerel()],
+    key=lambda m: _alarm_oku(m),
+)
 if _geciken:
-    st.warning(
-        "⏰ Zamanı gelen alarm: "
-        + ", ".join(sorted((m.get("ad") or "—") for m in _geciken))
-        + " — kişinin ⋮ menüsünden Alarm sekmesinde yeni bir zaman kurabilir veya alarmı kaldırabilirsin."
-    )
+    with st.container(border=True):
+        st.markdown(f"**⏰ Yeniden aranacak kişiler ({len(_geciken)})**")
+        st.caption("Alarm zamanı gelen kişiler. Aradıktan sonra alarmı kaldır; "
+                   "ne konuştuğunu kişinin ⋮ menüsündeki Görüşmeler sekmesine yazabilirsin.")
+        for _gm in _geciken:
+            _gz = _alarm_oku(_gm)
+            _c1, _c2, _c3 = st.columns([5, 2, 2])
+            with _c1:
+                _satir = f"**{_esc(_gm.get('ad') or '—')}** · alarm: {_gz.strftime('%d.%m.%Y %H:%M')}"
+                _gn = (_gm.get("alarm_notu") or "").strip()
+                if _gn:
+                    _satir += f"  \n{_esc(_gn)}"
+                st.markdown(_satir)
+            with _c2:
+                if st.button("Yarına ertele", key=f"dp_mus_gec_ertele_{_gm['id']}", use_container_width=True):
+                    rehber_alarm_kur(
+                        _gm["id"], _dt.combine(_bugun() + _td(days=1), _time(10, 0)),
+                        _gm.get("alarm_notu") or "",
+                    )
+                    st.rerun()
+            with _c3:
+                if st.button("Alarmı kaldır", key=f"dp_mus_gec_kaldir_{_gm['id']}", use_container_width=True):
+                    rehber_alarm_kaldir(_gm["id"])
+                    st.rerun()
 
 # ── FİLTRE SATIRI 1: Tip + "+ Yeni Kişi Ekle" (aynı satırda, sağda) ─────
 col_filtre, col_ekle = st.columns([5, 1.3])
