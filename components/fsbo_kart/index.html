@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<style>
+  html, body { margin:0; padding:0; height:100%; background:transparent; }
+  iframe { border:0; width:100%; height:100%; display:block; }
+</style>
+</head>
+<body>
+<iframe id="kartlar" title="FSBO ilanları"></iframe>
+<script>
+// Streamlit bileşen protokolü — derleme gerektirmeyen minimal sürüm.
+// Kartların HTML'i iç iframe'de (srcdoc) çizilir; kart içindeki telefon
+// kutusu window.parent.postMessage ile buraya, buradan da
+// Streamlit.setComponentValue ile Python tarafına iletilir.
+var ifr = document.getElementById('kartlar');
+var sonAnahtar = null;
+var sonArgs = {};
+
+function gonder(tip, veri) {
+  window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type: tip }, veri), '*');
+}
+function durumuIlet() {
+  try {
+    ifr.contentWindow.postMessage({
+      fsboDurum: true, kayitli: sonArgs.kayitli || {}, sonuc: sonArgs.sonuc || null
+    }, '*');
+  } catch (e) {}
+}
+
+window.addEventListener('message', function (e) {
+  var m = e.data || {};
+  if (m.isStreamlitMessage === false || m.type === 'streamlit:render') {
+    var a = m.args || {};
+    sonArgs = a;
+    if (a.anahtar !== sonAnahtar) {          // sadece liste değişince yeniden çiz
+      sonAnahtar = a.anahtar;
+      ifr.srcdoc = a.html || '';
+    } else {
+      durumuIlet();
+    }
+    return;
+  }
+  if (m.fsboTel === true) {                  // iç iframe'den: numara yapıştırıldı
+    gonder('streamlit:setComponentValue', {
+      dataType: 'json', value: { link: m.link, tel: m.tel, n: m.n }
+    });
+  }
+});
+ifr.addEventListener('load', durumuIlet);
+
+gonder('streamlit:componentReady', { apiVersion: 1 });
+gonder('streamlit:setFrameHeight', { height: 1800 });
+</script>
+</body>
+</html>
