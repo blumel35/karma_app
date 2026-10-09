@@ -380,6 +380,9 @@ def _yeni_talep_ekle(ilceler, bolge, mulk_tipi, oda, butce, islem_tipi, ek_not, 
     # senkronize edilir — talep = "Alıcı" (bu kişi bir mülk arıyor).
     if musteri_adi.strip():
         _musteri_senkronize(danisman_adi, musteri_adi, musteri_telefon, "Alıcı")
+    # 09.10.2026: bildirim linki için eklenen kaydın kopyası (çağıranlar önceden
+    # dönüş değerini kullanmıyordu — geriye dönük uyumlu).
+    return kayit
 
 
 def _yeni_portfoy_ekle(ilceler, bolge, mulk_tipi, oda, fiyat, islem_tipi, ek_not, danisman_adi,
@@ -410,6 +413,7 @@ def _yeni_portfoy_ekle(ilceler, bolge, mulk_tipi, oda, fiyat, islem_tipi, ek_not
     # kiralanıyor).
     if musteri_adi.strip():
         _musteri_senkronize(danisman_adi, musteri_adi, musteri_telefon, "Satıcı")
+    return kayit
 
 
 def kayit_sil(tablo, kayit_id):
@@ -743,15 +747,16 @@ def ekle_dialog(varsayilan_tip="Talep"):
                 f_bolge = baslik_normalize(f_bolge)
                 danisman_adi = su_anki_danisman()
                 iliski_deger = "kopru" if f_iliski_tipi == "Köprü" else "kendi"
+                yeni_kayit = None
                 try:
                     if kayit_tipi_secim == "Talep":
-                        _yeni_talep_ekle(
+                        yeni_kayit = _yeni_talep_ekle(
                             f_ilceler, f_bolge, f_mulk, f_oda, f_deger, f_islem, f_ek_not, danisman_adi,
                             iliski_tipi=iliski_deger, musteri_adi=f_musteri_adi.strip(),
                             musteri_telefon=f_musteri_telefon.strip(),
                         )
                     else:
-                        _yeni_portfoy_ekle(
+                        yeni_kayit = _yeni_portfoy_ekle(
                             f_ilceler, f_bolge, f_mulk, f_oda, f_deger, f_islem, f_ek_not, danisman_adi,
                             iliski_tipi=iliski_deger, musteri_adi=f_musteri_adi.strip(),
                             musteri_telefon=f_musteri_telefon.strip(),
@@ -765,6 +770,7 @@ def ekle_dialog(varsayilan_tip="Talep"):
                     # akışını ETKİLEMEZ (bkz. bildirim_tetikleyici.py).
                     talep_portfoy_bildirim_gonder(
                         kayit_tipi_secim, f_ilceler, danisman_adi, islem_tipi=f_islem,
+                        kayit=yeni_kayit,
                     )
                     st.rerun()
                 except Exception as e:

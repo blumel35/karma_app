@@ -133,7 +133,7 @@ def _push_abone_kullanicilar():
     return {(r.get("kullanici") or "").strip() for r in (resp.data or []) if r.get("kullanici")}
 
 
-def talep_portfoy_bildirim_gonder(kayit_tipi, ilceler, olusturan, islem_tipi=None):
+def talep_portfoy_bildirim_gonder(kayit_tipi, ilceler, olusturan, islem_tipi=None, kayit=None):
     """Yeni bir talep/portföy kaydı BAŞARIYLA eklendikten sonra çağrılır.
 
     kayit_tipi: "Talep" | "Portföy"
@@ -144,12 +144,12 @@ def talep_portfoy_bildirim_gonder(kayit_tipi, ilceler, olusturan, islem_tipi=Non
 
     Hiçbir şey döndürmez, hiçbir hatayı dışarı sızdırmaz (best-effort)."""
     try:
-        _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi)
+        _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi, kayit)
     except Exception:
         pass
 
 
-def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
+def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi, kayit=None):
     ilceler = [i for i in (ilceler or []) if i]
     if not ilceler:
         return
@@ -162,6 +162,24 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
     # kayit_tipi) panosuna işaret eder — talep mi portföy mü olduğuna
     # göre doğru ekran.
     panosu_url = _PORTFOY_URL if portfoy_mu else _TALEP_URL
+
+    # YENİ (09.10.2026): kayıt verildiyse, ilan-linki açık kullanıcılara
+    # (_SNAPSHOT_LINK_KULLANICILARI) giriş istemeyen kayıt linki gider.
+    # Link TEK kez (ilk gereken anda) üretilir, aynı kayıt için herkese
+    # yeniden kullanılır; üretilemezse sessizce uygulama içi adrese düşer.
+    _snap = {"url": None, "denendi": False}
+
+    def _hedef(kullanici):
+        if kayit and _snapshot_acik_mi(kullanici):
+            if not _snap["denendi"]:
+                _snap["denendi"] = True
+                _snap["url"] = _kayit_pano_url(
+                    [kayit], "portfoy" if portfoy_mu else "talep",
+                    "Yeni Portföy" if portfoy_mu else "Yeni Talep", "portfoy" if portfoy_mu else "talep",
+                )
+            if _snap["url"]:
+                return _snap["url"]
+        return panosu_url
 
     # ── A) Uzmanlık Bölgesi eşleşenler — bölge bazlı, isimsiz/nesnel metin.
     # DEĞİŞTİ (26.09.2026, Meltem: "yazı karakteri renk değişse vs dikkat
@@ -180,7 +198,7 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
             kullanici,
             "📍 Uzmanlık Bölgeniz",
             f"Uzmanlık bölgeniz olan {ilce} bölgesinde 1 adet {islem_ek}{tur_adi} yayınlandı.",
-            url=panosu_url,
+            url=_hedef(kullanici),
         )
         bildirilenler.add(kullanici.strip().casefold())
         bildirilen_isimler.append(kullanici)
@@ -197,7 +215,7 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
         kullanici_norm = kullanici.strip().casefold()
         if kullanici_norm == olusturan_norm or kullanici_norm in bildirilenler:
             continue
-        bildirim_gonder(kullanici, "🔔 Zeta Etkileşimleri", govde, url=panosu_url)
+        bildirim_gonder(kullanici, "🔔 Zeta Etkileşimleri", govde, url=_hedef(kullanici))
         bildirilen_isimler.append(kullanici)
 
     # ── E) Kendine ONAY bildirimi — YENİ (26.09.2026, Meltem: "ama ben
@@ -223,7 +241,7 @@ def _gonder_ic(kayit_tipi, ilceler, olusturan, islem_tipi):
         )
     else:
         onay_govde = f"{tur_adi.capitalize()} kaydınız paylaşıldı — şu an eşleşen/abone bir danışman yoktu."
-    bildirim_gonder(olusturan, "✅ Paylaşıldı", onay_govde, url=panosu_url)
+    bildirim_gonder(olusturan, "✅ Paylaşıldı", onay_govde, url=_hedef(olusturan))
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -334,7 +352,14 @@ def _pazar_bugun_hesapla(tablo_adi, marka):
 # (Pano_Goruntule) kullanılır. Şimdilik YALNIZCA bu kullanıcılar için;
 # diğer herkes eskisi gibi uygulama içi "Bugün" filtreli sayfaya gider.
 # Genişletmek için bu küme genişletilir ya da None yapılıp herkese açılır.
-_SNAPSHOT_LINK_KULLANICILARI = {"Meltem Bulu"}
+# GENİŞLETİLDİ (09.10.2026, Meltem: iPhone'da bildirime dokununca giriş
+# ekranı çıkıyor, danışman ilanları linkten görmeli): pilot grup eklendi.
+# Herkese açmak için bu kümeyi None yap.
+_SNAPSHOT_LINK_KULLANICILARI = {
+    "Meltem Bulu",
+    "Ahmet Koç", "Sinan Yücesoy", "Ömer Bayraktar",
+    "Turgay Özdemir", "Mustafa Balcı", "Erhan Yaşar",
+}
 
 
 def _bildirim_hedef_url(kullanici, ilanlar, pano_basligi, dosya_on_eki, varsayilan_url):
@@ -354,6 +379,33 @@ def _bildirim_hedef_url(kullanici, ilanlar, pano_basligi, dosya_on_eki, varsayil
     except Exception as e:
         print(f"⚠️ Anlık görüntü linki üretilemedi ({kullanici}), varsayılan adres kullanılacak: {e}", flush=True)
         return varsayilan_url
+
+
+def _snapshot_acik_mi(kullanici):
+    """Bu kullanıcı için ilan-linkli (oturumsuz) bildirim açık mı?"""
+    return _SNAPSHOT_LINK_KULLANICILARI is None or kullanici in _SNAPSHOT_LINK_KULLANICILARI
+
+
+def _kayit_pano_url(kayitlar, kayit_tipi, pano_basligi, dosya_on_eki):
+    """Talep/portföy kayıtlarının donmuş kopyasını Pano_Goruntule linkine
+    çevirir (09.10.2026, Meltem: "aynen çevir"). kayit_tipi: "talep" |
+    "portfoy". Müşteri adı/telefonu kopyadan çıkarılır (zaten kartta
+    gösterilmiyor; yine de HTML'e hiç girmesin). Hata olursa None döner —
+    çağıran varsayılan (uygulama içi) adrese düşer, bildirim gitmemezlik
+    etmez."""
+    try:
+        from core.pano_export import pano_html_olustur, pano_yukle_ve_link_al
+        temiz = [
+            {k: v for k, v in kayit.items() if k not in ("musteri_adi", "musteri_telefon")}
+            for kayit in kayitlar
+        ]
+        html_buf = pano_html_olustur(temiz, pano_basligi, kayit_tipi=kayit_tipi, baslik_goster=False)
+        return pano_yukle_ve_link_al(
+            html_buf.getvalue(), dosya_on_eki, app_base_url=KARMA_APP_URL
+        )
+    except Exception as e:
+        print(f"⚠️ Kayıt anlık görüntü linki üretilemedi ({dosya_on_eki}): {e}", flush=True)
+        return None
 
 
 def _mail_kayit_taze_mi(kayit, saat=48):
@@ -413,8 +465,9 @@ def mail_kayit_ozet_bildirimleri_gonder(talepler, portfoyler):
             ham = list(k.get("ilceler") or []) + [k.get("ilce")]
             return {_ilce_normalize(i) for i in ham if i}
 
-        # {kullanici: {ilce: {"portföy": n, "talep": n}}}
+        # {kullanici: {ilce: {"portföy": n, "talep": n}}} + o kullanıcının kayıtları
         sayac = {}
+        kayit_listeleri = {}   # {kullanici: {"portföy": [kayıt...], "talep": [kayıt...]}}
         for tur, liste in (("portföy", portfoyler), ("talep", talepler)):
             for k in liste:
                 kayit_ilceleri = _kayit_ilceleri(k)
@@ -425,24 +478,48 @@ def mail_kayit_ozet_bildirimleri_gonder(talepler, portfoyler):
                     if eslesen:
                         d = sayac.setdefault(kullanici, {}).setdefault(eslesen, {"portföy": 0, "talep": 0})
                         d[tur] += 1
+                        kayit_listeleri.setdefault(kullanici, {"portföy": [], "talep": []})[tur].append(k)
 
         gonderilenler = []
         for kullanici, ilce_sayilari in sayac.items():
+            toplam_portfoy = sum(d["portföy"] for d in ilce_sayilari.values())
             parcalar = []
-            toplam_portfoy = 0
             for ilce in sorted(ilce_sayilari):
                 d = ilce_sayilari[ilce]
-                toplam_portfoy += d["portföy"]
                 alt = [f"{d[t]} {t}" for t in ("portföy", "talep") if d[t]]
                 parcalar.append(f"{ilce}: " + ", ".join(alt))
             govde = "Uzmanlık bölgenizde yeni kayıt eklendi — " + "; ".join(parcalar) + "."
+            hedef_url = _PORTFOY_URL if toplam_portfoy else _TALEP_URL
+            # YENİ (09.10.2026): ilan-linki açık kullanıcıda link, o kullanıcının
+            # kayıtlarının oturumsuz kopyasına gider. Hem portföy hem talep
+            # varsa ikisi ayrı sayfa olduğundan iki ayrı bildirim gider.
+            if _snapshot_acik_mi(kullanici):
+                kl = kayit_listeleri.get(kullanici, {})
+                turler = [(t, kl.get(t)) for t in ("portföy", "talep") if kl.get(t)]
+                if turler:
+                    try:
+                        for tur, kayitlar in turler:
+                            link = _kayit_pano_url(
+                                kayitlar, "portfoy" if tur == "portföy" else "talep",
+                                f"Yeni {tur}", "portfoy" if tur == "portföy" else "talep",
+                            )
+                            if len(turler) == 1:
+                                metin = govde
+                            else:
+                                alt = "; ".join(
+                                    f"{i}: {d[tur]} {tur}" for i, d in sorted(ilce_sayilari.items()) if d[tur]
+                                )
+                                metin = f"Uzmanlık bölgenizde yeni {tur} eklendi — {alt}."
+                            bildirim_gonder(
+                                kullanici, "📍 Uzmanlık Bölgeniz", metin,
+                                url=link or (_PORTFOY_URL if tur == "portföy" else _TALEP_URL),
+                            )
+                        gonderilenler.append(kullanici)
+                    except Exception:
+                        pass
+                    continue
             try:
-                bildirim_gonder(
-                    kullanici,
-                    "📍 Uzmanlık Bölgeniz",
-                    govde,
-                    url=_PORTFOY_URL if toplam_portfoy else _TALEP_URL,
-                )
+                bildirim_gonder(kullanici, "📍 Uzmanlık Bölgeniz", govde, url=hedef_url)
                 gonderilenler.append(kullanici)
             except Exception:
                 pass
