@@ -622,6 +622,90 @@ def musteri_sil(musteri_id):
     musterileri_cek.clear()
 
 
+def fsbo_kisisini_rehbere_ekle(danisman_adi, ad, telefon, ilan):
+    """FSBO ilanındaki mülk sahibinin telefonunu (danışmanın Revy'den
+    kendisinin kopyalayıp yapıştırdığı numara) danışmanın KİŞİSEL
+    Rehberim'ine 'FSBO' tipinde ekler (09.10.2026 — Meltem: "danışman
+    numarayı fsbo'ya kopyalar ve kayıt rehberime doğrudan kayıt tarihi ve
+    bilgiler ile fsbo kaydı olarak eklenir"). Numara sistemde başka hiçbir
+    yerde saklanmaz/gösterilmez — sadece bu danışmanın kendi rehberinde.
+
+    - Aynı numara (format farkı gözetmeksizin) zaten rehberdeyse YENİ kişi
+      açılmaz: 'FSBO' tipi eklenir, ilan bilgisi nota EKLENİR (öncekiler
+      silinmez). Aynı ilan no iki kez yazılmaz.
+    - ilan: izmir_pazar_ilanlar satırı (dict).
+    Döner: ("yeni" | "guncellendi" | "ayni_ilan", kisi_adi)"""
+    from core.pano_export import ilan_no_cikar, _sayi_ayikla, _sayi_formatla
+    try:
+        from zoneinfo import ZoneInfo
+        bugun = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%d.%m.%Y")
+    except Exception:
+        bugun = datetime.now().strftime("%d.%m.%Y")
+
+    ad = _isim_normalize(ad) or "FSBO Mülk Sahibi"
+    telefon = (telefon or "").strip()
+    telefon_norm = _telefon_normalize(telefon)
+
+    ilan_no = ilan_no_cikar(ilan.get("ilan_linki")) or ""
+    parcalar = ["FSBO ilanı"]
+    if ilan_no:
+        parcalar.append(f"İlan No {ilan_no}")
+    konum = " / ".join(x for x in [str(ilan.get("ilce") or "").strip(),
+                                   str(ilan.get("mahalle") or "").strip()] if x)
+    if konum:
+        parcalar.append(konum)
+    ozet = " ".join(x for x in [str(ilan.get("islem_tipi") or "").strip(),
+                                str(ilan.get("oda_sayisi") or "").strip()] if x)
+    if ozet:
+        parcalar.append(ozet)
+    fiyat = _sayi_ayikla(ilan.get("fiyat"))
+    if fiyat is not None:
+        parcalar.append(f"{_sayi_formatla(fiyat)} TL")
+    parcalar.append(f"Kayıt: {bugun}")
+    not_satiri = " · ".join(parcalar)
+    ilan_linki = str(ilan.get("ilan_linki") or "").strip()
+    if ilan_linki:
+        not_satiri += f"\n{ilan_linki}"
+
+    adaylar = (
+        supabase.table("danisman_kisiler")
+        .select("id, ad, telefon, tip, notlar")
+        .eq("danisman", danisman_adi)
+        .execute()
+        .data or []
+    )
+    eslesen = None
+    for a in adaylar:
+        if _telefon_normalize(a.get("telefon")) == telefon_norm:
+            eslesen = a
+            break
+
+    if eslesen:
+        mevcut_not = (eslesen.get("notlar") or "").strip()
+        if ilan_no and f"İlan No {ilan_no}" in mevcut_not:
+            return "ayni_ilan", eslesen.get("ad") or ad
+        alanlar = {
+            "notlar": (not_satiri + ("\n\n" + mevcut_not if mevcut_not else "")),
+        }
+        mevcut_tipler = _tip_listele(eslesen.get("tip"))
+        if "FSBO" not in mevcut_tipler:
+            alanlar["tip"] = mevcut_tipler + ["FSBO"]
+        musteri_guncelle(eslesen["id"], alanlar)
+        return "guncellendi", eslesen.get("ad") or ad
+
+    supabase.table("danisman_kisiler").insert({
+        "danisman": danisman_adi,
+        "ad": ad,
+        "telefon": telefon,
+        "tip": ["FSBO"],
+        "notlar": not_satiri,
+        "bolgeler": [],
+        "kaynak": "manuel",
+    }).execute()
+    musterileri_cek.clear()
+    return "yeni", ad
+
+
 # ── SENARYO HESAPLAYICI (kişiye özel link) — YENİ (14.08.2026) ─────────
 # "Üç Olası Yol" satış senaryoları aracı için: danışman burada müşteriye
 # özel rakamları kaydeder, benzersiz bir 'kod' üretilir, bu kod

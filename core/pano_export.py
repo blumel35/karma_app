@@ -747,6 +747,25 @@ function panoyaKaydir(harf) {{
     return buffer
 
 
+def ilan_no_cikar(ilan_linki):
+    """Portal ilan linkinin sonundaki ilan numarasını döner (örn.
+    '.../ilan/emlak-...-kiralik-daire-1344288155/detay' -> '1344288155').
+    09.10.2026 (Meltem: "link değil ilan numarası... ilan no belliyse kişi
+    kendi Revy'deki 'ilandan kalkanlar'dan bulur"). Revy'nin kendi UUID'li
+    detay linklerinde (revy.com.tr/app/portfoy/detay/<uuid>) ilan no
+    bulunmaz — o durumda None döner ve kartta hiçbir şey gösterilmez."""
+    import re as _re
+    from urllib.parse import urlparse as _urlparse
+    try:
+        u = _urlparse(str(ilan_linki or "").strip())
+    except Exception:
+        return None
+    if not u.netloc or "revy.com.tr" in u.netloc.lower():
+        return None
+    adaylar = _re.findall(r"(?:^|[/\-_=])(\d{7,12})(?=$|[/\-_?#&])", u.path + ("?" + u.query if u.query else ""))
+    return adaylar[-1] if adaylar else None
+
+
 def _pazar_ilan_kart_html(v):
     """izmir_pazar_ilanlar satırı için kart HTML'i — Danışman FSBO
     İlanları / Danışman Startkey İlanları ekranları için (30.08.2026).
@@ -830,6 +849,14 @@ def _pazar_ilan_kart_html(v):
             f'<a class="kart-ilan-link" href="{_esc(ilan_linki)}" '
             f'target="_blank" rel="noopener noreferrer">↗ İlana Git</a>'
         )
+    _no = ilan_no_cikar(ilan_linki)
+    if _no:
+        ilan_link_html += (
+            f'<span class="kart-ilan-no">İlan No: <b>{_esc(_no)}</b>'
+            f'<button type="button" class="kart-kopyala" onclick="ilanNoKopyala(this,\'{_esc(_no)}\')">Kopyala</button></span>'
+        )
+    if ilan_link_html:
+        ilan_link_html = f'<div class="kart-ilan-satir">{ilan_link_html}</div>'
 
     durum_notu = (
         ' <span class="kart-kopru-notu">(Yayından kalkmış)</span>'
@@ -1036,6 +1063,15 @@ def pazar_ilan_pano_html_olustur(kayitlar, pano_basligi, baslik_goster=False):
     margin-bottom: 8px; width: fit-content;
   }}
   .kart-ilan-link:hover {{ background: var(--gold); color: #fff; border-color: var(--gold); }}
+  .kart-ilan-satir {{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin-bottom:8px; }}
+  .kart-ilan-satir .kart-ilan-link {{ margin-bottom:0; }}
+  .kart-ilan-no {{ font-size:12px; color:var(--ink-soft); display:inline-flex; align-items:center; gap:6px; }}
+  .kart-ilan-no b {{ color:var(--navy); letter-spacing:.02em; user-select:all; }}
+  .kart-kopyala {{
+    font:inherit; font-size:11px; font-weight:700; color:var(--navy); cursor:pointer;
+    background:var(--cream-2); border:1px solid var(--border); border-radius:20px; padding:3px 10px;
+  }}
+  .kart-kopyala:hover {{ background:var(--gold); color:#fff; border-color:var(--gold); }}
   .kart-detay summary {{
     cursor: pointer; font-size: 12.5px; color: var(--navy); font-weight: 600;
     padding-top: 8px; border-top: 1px dashed var(--border);
@@ -1080,6 +1116,25 @@ def pazar_ilan_pano_html_olustur(kayitlar, pano_basligi, baslik_goster=False):
 {bolumler_html}
 </main>
 <script>
+function ilanNoKopyala(btn, metin) {{
+  function bitti() {{
+    var eski = btn.getAttribute('data-eski') || btn.textContent;
+    btn.setAttribute('data-eski', eski);
+    btn.textContent = 'Kopyalandı ✓';
+    setTimeout(function() {{ btn.textContent = eski; }}, 1500);
+  }}
+  function yedek() {{
+    var t = document.createElement('textarea');
+    t.value = metin; t.setAttribute('readonly', '');
+    t.style.position = 'fixed'; t.style.opacity = '0';
+    document.body.appendChild(t); t.select();
+    try {{ document.execCommand('copy'); }} catch (e) {{}}
+    document.body.removeChild(t); bitti();
+  }}
+  if (navigator.clipboard && navigator.clipboard.writeText) {{
+    navigator.clipboard.writeText(metin).then(bitti, yedek);
+  }} else {{ yedek(); }}
+}}
 function panoyaKaydir(harf) {{
   var hedef = document.querySelector('[data-harf-ilk="' + harf + '"]');
   if (!hedef) return;
