@@ -33,7 +33,7 @@ from core.bolge_secici import ilcenin_mahalleleri
 from core.admin_bolge import (
     BOLGE_TURLERI, MAX_BOLGE, bolgeleri_cek, tum_bolgeleri_cek, cihaz_sayilari,
     bolgeleri_kaydet, ilce_bildirim_ayarla, ilce_mahallelerini_ayarla,
-    sifre_belirle, giris_hesaplari,
+    sifre_belirle, giris_hesaplari, eslestirme_kodu_uret,
 )
 
 if not oturum_kontrol():
@@ -286,6 +286,36 @@ sekmeler = st.tabs([cfg["etiket"] for cfg in BOLGE_TURLERI.values()])
 for sekme, tur in zip(sekmeler, BOLGE_TURLERI):
     with sekme:
         _tur_sekmesi(tur)
+
+# ── iPHONE BİLDİRİM EŞLEŞTİRME KODU ──────────────────────────────────
+# YENİ (09.10.2026). iPhone'da bildirim izni yalnızca ana ekrana eklenmiş
+# uygulamadan verilebilir ve Karma App'ten açılan bağlantıdaki token o
+# uygulamaya taşınamaz. Çözüm: yönetici 6 haneli kod üretir, danışman
+# ana ekrandaki "SZ Bildirim" uygulamasına yazar; abonelik bu danışman
+# adına kaydolur. Kod 10 dk geçerli ve tek kullanımlıktır.
+with st.expander("iPhone bildirim eşleştirme kodu", expanded=(_cihaz.get(ad, 0) == 0)):
+    st.caption(
+        "Danışman iPhone'unda bildirim açamıyorsa: aşağıdan kod üret, danışmana ilet. "
+        "Danışman önce "
+        "https://blumel35.github.io/zeta-bildirim adresini Safari'de açıp "
+        "Paylaş > Ana Ekrana Ekle yapar, sonra ana ekrandaki 'SZ Bildirim' "
+        "simgesinden uygulamayı açıp kodu yazar ve izin verir."
+    )
+    _kod_anahtar = f"ab_eslestirme_{ad}"
+    if st.button("Kod üret", key=f"ab_kod_btn_{ad}"):
+        try:
+            _kod, _son = eslestirme_kodu_uret(ad)
+            st.session_state[_kod_anahtar] = (_kod, _son)
+        except Exception as e:
+            st.session_state.pop(_kod_anahtar, None)
+            st.error(f"Kod üretilemedi: {e}")
+    if st.session_state.get(_kod_anahtar):
+        _kod, _son = st.session_state[_kod_anahtar]
+        st.code(_kod, language=None)
+        st.caption(
+            f"{ad} için kod. 10 dakika geçerli, tek kullanımlık. "
+            "Kullanıldıktan sonra bu sayfayı yenileyince 'Bildirim cihazı' 1 olmalı."
+        )
 
 # ── GİRİŞ ŞİFRESİ BELİRLE ────────────────────────────────────────────
 # YENİ (06.10.2026, Meltem: "şifre değiştirmek isteyen bana müracaat etsin").
