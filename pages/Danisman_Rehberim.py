@@ -102,12 +102,12 @@ st.markdown("""
 .dp-k-di { --kc:#eceef2; --kt:#3d4457; }
 div[class*="st-key-dp_mus_row_"] {
     position: relative; gap: 0 !important;
-    border-bottom: 1px solid #f0f1f4; background: #fff;
+    border-bottom: 1px solid #d3d8e0; background: #fff;
 }
 div[class*="st-key-dp_mus_row_"]:hover { background: #fbfbfc; }
 .dp-row {
     display: grid; align-items: center; column-gap: 12px; row-gap: 4px;
-    grid-template-columns: 38px minmax(0,1.5fr) minmax(0,1.15fr) minmax(0,.95fr);
+    grid-template-columns: 38px minmax(0,1.25fr) minmax(0,1fr) minmax(0,1.35fr);
     padding: 9px 52px 9px 8px;
 }
 .dp-row.dp-dense { padding-top: 5px; padding-bottom: 5px; }
@@ -130,12 +130,26 @@ div[class*="st-key-dp_mus_row_"]:hover { background: #fbfbfc; }
 .dp-ib.dp-call { background: #1c2b47; }
 .dp-ib.dp-wa { background: #25d366; }
 .dp-ib svg { width: 15px; height: 15px; fill: #fff; }
-.dp-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; align-items: flex-start; }
 .dp-pin { font-size: 12px; color: #6b7385; white-space: nowrap; }
-.dp-st { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; font-weight: 700; border-radius: 6px; padding: 2px 8px; }
-.dp-st.dp-al { background: #fde8e6; color: #b42318; }
-.dp-st.dp-fu { background: #fdf3d8; color: #9a6b00; }
-.dp-st.dp-lc { background: #eef0f3; color: #6b7385; font-weight: 600; }
+/* NOT KAĞIDI (09.10.2026): sağdaki sarı not — alarm, son görüşme ve kişi notu
+   tek yerde. Zamanı gelen alarm kırmızı/kalın; kişi notu en fazla 2 satır. */
+.dp-note {
+    position: relative; min-width: 0; text-align: left;
+    background: #fff7c2; border: 1px solid #ecdc86; border-radius: 4px 4px 10px 4px;
+    padding: 6px 10px 7px; font-size: 12.5px; line-height: 1.35; color: #4a4220;
+    box-shadow: 0 2px 0 rgba(120,100,0,.12), 2px 3px 6px rgba(120,100,0,.10);
+    transform: rotate(-.4deg);
+}
+.dp-note::before {
+    content: ""; position: absolute; top: -5px; left: 50%; margin-left: -14px;
+    width: 28px; height: 9px; background: rgba(180,160,60,.28); border-radius: 2px;
+}
+.dp-ln { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dp-ln + .dp-ln { margin-top: 2px; }
+.dp-ln.dp-al { color: #b42318; font-weight: 800; }
+.dp-ln.dp-fu { color: #8a5d00; font-weight: 800; }
+.dp-ln.dp-tx { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.dp-dense .dp-note .dp-ln.dp-tx { -webkit-line-clamp: 1; }
 details.dp-fs { grid-column: 2 / -1; font-size: 12px; margin-top: -2px; }
 details.dp-fs summary { cursor: pointer; color: #b8892f; font-weight: 700; list-style: none; width: fit-content; }
 details.dp-fs summary::-webkit-details-marker { display: none; }
@@ -176,7 +190,7 @@ div[class*="st-key-dp_mus_ekle_pop"] button { white-space: nowrap !important; }
     .dp-row .dp-av { grid-row: 1 / span 2; align-self: start; margin-top: 2px; }
     .dp-row .dp-tel { grid-column: 2; }
     .dp-row .dp-num { margin-right: auto; }
-    .dp-row .dp-info { grid-column: 2; flex-direction: row; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .dp-row .dp-note { grid-column: 1 / -1; transform: none; margin-top: 4px; }
     details.dp-fs { grid-column: 1 / -1; }
     div[class*="st-key-dp_mus_aksiyon_"] { top: 22px; transform: none; right: 0; }
     div[class*="st-key-dp_mus_ekle_pop"] { width: auto !important; min-width: 0 !important; margin-left: auto !important; }
@@ -237,7 +251,7 @@ def _alarm_html(m):
     metin = z.strftime("%d.%m %H:%M")
     nt = _kisalt(m.get("alarm_notu"), 40)
     etiket = (f"⏰ Zamanı geldi · {metin}" if geldi else f"⏰ Ara: {metin}") + (f" · {nt}" if nt else "")
-    return f'<span class="dp-st {"dp-al" if geldi else "dp-fu"}">{_esc(etiket)}</span>'
+    return f'<span class="dp-ln {"dp-al" if geldi else "dp-fu"}">{_esc(etiket)}</span>'
 
 
 def _fsbo_blok_html(m):
@@ -277,7 +291,7 @@ def _gorusme_satiri_html(m):
     nt = _kisalt((g[0].get("not") or "") if g else "", 60)
     if nt:
         metin += " · " + nt
-    return f'<span class="dp-st dp-lc">{_esc(metin)}</span>'
+    return f'<span class="dp-ln">📞 {_esc(metin)}</span>'
 
 
 def _satir_html(m, kompakt=False):
@@ -292,17 +306,23 @@ def _satir_html(m, kompakt=False):
         f"<span class='dp-tg dp-k-{_TIP_SINIF.get(t, 'di')}'>{_esc(t)}</span>" for t in tipler
     )
     uz = f"<span>· {_esc(m['uzmanlik'])}</span>" if m.get("uzmanlik") else ""
-    bilgi = _alarm_html(m) + _gorusme_satiri_html(m)
-    if m.get("bolgeler"):
-        bilgi += f"<span class='dp-pin'>📍 {_esc(', '.join(m['bolgeler']))}</span>"
+    bolge = f"<span class='dp-pin'>📍 {_esc(', '.join(m['bolgeler']))}</span>" if m.get("bolgeler") else ""
+    nt = (m.get("notlar") or "").strip()
+    # FSBO'da (SQL öncesi geri dönüş) 'notlar' ilan özetini taşıyabilir — ilan özeti
+    # zaten ayrı gösterildiği için o durumda kişi notu olarak tekrar yazılmaz.
+    if nt and (m.get("ilan_ozeti") or "").strip():
+        nt = "" if nt in (m.get("ilan_ozeti") or "") else nt
+    not_satirlari = _alarm_html(m) + _gorusme_satiri_html(m) + (
+        f'<span class="dp-ln dp-tx">{_esc(nt)}</span>' if nt else "")
+    kagit = f"<div class='dp-note'>{not_satirlari}</div>" if not_satirlari else ""
     fsbo = _fsbo_blok_html(m)
     detay = f"<details class='dp-fs'><summary>▾ İlan özeti</summary>{fsbo}</details>" if fsbo else ""
     return (
         f"<div class='dp-row dp-k-{sinif}{' dp-dense' if kompakt else ''}'>"
         f"<div class='dp-av'>{_esc(bas)}</div>"
-        f"<div><div class='dp-nm'>{_esc(ad)}</div><div class='dp-sub'>{rozet}{uz}</div></div>"
+        f"<div><div class='dp-nm'>{_esc(ad)}</div><div class='dp-sub'>{rozet}{uz}{bolge}</div></div>"
         f"{_telefon_blok_html(m.get('telefon'))}"
-        f"<div class='dp-info'>{bilgi}</div>{detay}</div>"
+        f"{kagit}{detay}</div>"
     )
 
 
