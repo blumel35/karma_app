@@ -44,6 +44,11 @@ ZETA_PAYLASIM_KAYNAKLARI = {"zeta", "ofis"}
 ZETA_PORTFOY_KAYNAKLARI = {"zeta1", "zeta2"}
 MAX_SATIR = 3000     # tek tablodan en fazla bu kadar son kayıt okunur
 
+# Seçilen kayıtlardan paylaşılabilir pano linki: tür -> pano biçimi.
+# Yatırım talepleri/müşteri formları kişisel veri (ad, telefon) taşıdığı için
+# herkese açık link şimdilik KAPALI.
+LINK_BICIMI = {"startkey": "pazar", "talep": "talep", "paylasim": "portfoy", "zeta": "portfoy"}
+
 # ── DIŞ KANAL KAYDI ─────────────────────────────────────────────────
 # talep_tipi -> sekme. Yeni form = yeni satır.
 MUSTERI_FORM_KANALLARI = {
@@ -261,6 +266,7 @@ def _startkey(kesim, simdi):
             "sahip": "", "kaynak": "Startkey ilanı (Revy)", "fiyat": para(v.get("fiyat")), "mahalle": mah,
             "ilce": (v.get("ilce") or "").strip(), "ilceler": [(v.get("ilce") or "").strip()],
             "link": v.get("ilan_linki") or "",
+            "ham": v,
             "islem": islem_normal(v.get("islem_tipi")),
             "yas_kat": yas_kat_birlestir(yas_metni(v.get("bina_yasi")), v.get("kat")),
             "alanlar": [
@@ -299,6 +305,7 @@ def _alici_talepleri(kesim, simdi):
             "zaman": t, "yeni": (simdi - t) <= timedelta(hours=24), "sahip": sahip, "kaynak": _kaynak_etiketi(v),
             "fiyat": para(v.get("max_butce")), "mahalle": v.get("bolge_mahalle") or "",
             "ilce": v.get("ilce") or "", "ilceler": _ilceler_of(v), "link": "",
+            "ham": v,
             "islem": islem_normal(v.get("islem_tipi"), v.get("ozet")),
             "yas_kat": metinden_yas_kat(v.get("ozel_kriterler"), v.get("ozet"), v.get("mail_icerigi")),
             "alanlar": [
@@ -332,6 +339,7 @@ def _portfoyler(kesim, simdi):
             "kaynak": _kaynak_etiketi(v), "fiyat": para(v.get("fiyat")), "mahalle": v.get("bolge_mahalle") or "",
             "ilce": v.get("ilce") or "", "ilceler": _ilceler_of(v),
             "link": v.get("ilan_linki") or "",
+            "ham": v,
             "islem": islem_normal(v.get("islem_tipi"), v.get("ozet")),
             "yas_kat": metinden_yas_kat(v.get("ozellikler"), v.get("ozet"), v.get("mail_icerigi")),
             "alanlar": [

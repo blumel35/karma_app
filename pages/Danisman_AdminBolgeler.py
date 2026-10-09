@@ -40,6 +40,7 @@ from core.danisman_ortak import (
 from core.personel_manager import load_personel_listesi
 from core.bolge_secici import ilcenin_mahalleleri
 from core import bolge_havuzu as bh
+from core.havuz_tablo_bilesen import havuz_tablosu
 from core.admin_bolge import (
     BOLGE_TURLERI, MAX_BOLGE, bolgeleri_cek, tum_bolgeleri_cek, cihaz_sayilari,
     bolgeleri_kaydet, ilce_bildirim_ayarla, ilce_mahallelerini_ayarla,
@@ -609,16 +610,6 @@ _RENKLER = {
 }
 
 
-st.markdown(
-    "<style>"
-    "div[class*='st-key-bh_filtre_'] [data-testid='stHorizontalBlock']{gap:.4rem;flex-wrap:wrap;}"
-    "div[class*='st-key-bh_filtre_'] [data-testid='stColumn']{min-width:130px;}"
-    "div[class*='st-key-bh_filtre_'] input{font-size:13px;}"
-    "</style>",
-    unsafe_allow_html=True,
-)
-
-
 @st.cache_data(ttl=120, show_spinner="Havuz yükleniyor...")
 def _havuz_yukle(gun, ilceler):
     return bh.havuzu_yukle(gun, list(ilceler))
@@ -706,79 +697,93 @@ def havuz_gorunumu():
             _havuz_sekmesi(k, ad, renk, liste.get(k, []), ilce, kayitlar, donem)
 
 
+def _link_olustur(tur, secilenler, ad, ilce, donem):
+    """Seçilen kayıtlardan, bildirimlerdeki gibi tek dosyalık herkese açık
+    pano linki (Supabase Storage + Pano_Goruntule). Mevcut pano üreticileri
+    olduğu gibi kullanılır."""
+    from core.pano_export import (
+        pano_html_olustur, pazar_ilan_pano_html_olustur, pano_yukle_ve_link_al,
+    )
+    ham = [k["ham"] for k in secilenler]
+    baslik = f"Bölge Havuzu — {ad}" + (f" · {ilce}" if ilce and ilce != bh.ILCE_BELIRSIZ else "")
+    bicim = bh.LINK_BICIMI[tur]
+    if bicim == "pazar":
+        dosya = pazar_ilan_pano_html_olustur(ham, baslik, baslik_goster=False)
+    else:
+        dosya = pano_html_olustur(ham, baslik, bicim, baslik_goster=False)
+    return pano_yukle_ve_link_al(dosya.getvalue(), "havuz")
+
+
 def _havuz_sekmesi(tur, ad, renk, kayit_listesi, ilce, takipci_kayitlari, donem):
     if not kayit_listesi:
         st.info(f"{donem.lower()} içinde bu kapsamda {ad.lower()} kaydı yok.")
         return
     simdi = bh.datetime.now(bh.timezone.utc)
 
-    # ── Excel tarzı filtre satırı (sütun başlıklarının hemen üstü) ──────
-    # st.dataframe'in kendi sütun filtresi yok; her sütun için bir filtre
-    # kutusu: metin sütunlarında "içeren", az çeşitli sütunlarda çoklu seçim.
     def _ilce_metni(k):
         return ", ".join(i for i in k["ilceler"] if i) or "—"
 
-    def _secenekler(alan):
-        return sorted({alan(k) for k in kayit_listesi}, key=_tr_anahtar)
-
-    ek = f"bh_f_{tur}_{ilce}_{donem}"
-    with st.container(key=f"bh_filtre_{tur}"):
-        f = st.columns([2, 1.2, 1.7, 2, 1.5, 1.5, 1.5])
-        f_kayit = f[0].text_input("Kayıt", key=f"{ek}_kayit", placeholder="🔎 Kayıt", label_visibility="collapsed")
-        f_islem = f[1].multiselect("İşlem", _secenekler(lambda k: k.get("islem") or "—"), key=f"{ek}_islem",
-                                   placeholder="İşlem", label_visibility="collapsed")
-        f_yas = f[2].text_input("Yaş / Kat", key=f"{ek}_yas", placeholder="🔎 Yaş / kat", label_visibility="collapsed")
-        f_ayrinti = f[3].text_input("Ayrıntı", key=f"{ek}_ayr", placeholder="🔎 Ayrıntı", label_visibility="collapsed")
-        f_kaynak = f[4].multiselect("Kaynak", _secenekler(lambda k: k.get("kaynak") or "—"), key=f"{ek}_kaynak",
-                                    placeholder="Kaynak", label_visibility="collapsed")
-        f_sahip = f[5].multiselect("Sahibi", _secenekler(lambda k: k.get("sahip") or "—"), key=f"{ek}_sahip",
-                                   placeholder="Sahibi", label_visibility="collapsed")
-        f_ilce = f[6].multiselect("İlçe", _secenekler(_ilce_metni), key=f"{ek}_ilce",
-                                  placeholder="İlçe", label_visibility="collapsed")
-
-    def _icerir(metin, aranan):
-        return not aranan.strip() or bh.tr_kucuk(aranan) in bh.tr_kucuk(metin)
-
-    gorunen = [
-        k for k in kayit_listesi
-        if _icerir(k["baslik"], f_kayit)
-        and (not f_islem or (k.get("islem") or "—") in f_islem)
-        and _icerir(k.get("yas_kat") or "", f_yas)
-        and _icerir(k["alt"], f_ayrinti)
-        and (not f_kaynak or (k.get("kaynak") or "—") in f_kaynak)
-        and (not f_sahip or (k.get("sahip") or "—") in f_sahip)
-        and (not f_ilce or _ilce_metni(k) in f_ilce)
+    kolonlar = [
+        {"k": "Kayıt", "label": "Kayıt", "w": 200},
+        {"k": "İşlem", "label": "İşlem", "w": 90},
+        {"k": "Yaş / Kat", "label": "Yaş / Kat", "w": 140},
+        {"k": "Ayrıntı", "label": "Ayrıntı", "w": 210},
+        {"k": "Kaynak", "label": "Kaynak", "w": 140},
+        {"k": "Sahibi", "label": "Sahibi", "w": 120},
+        {"k": "İlçe", "label": "İlçe", "w": 100},
+        {"k": "Zaman", "label": "Zaman", "w": 100, "sk": True},
     ]
-    if len(gorunen) != len(kayit_listesi):
-        st.caption(f"Filtre: {len(gorunen)} / {len(kayit_listesi)} kayıt gösteriliyor.")
-    if not gorunen:
-        st.info("Filtreye uyan kayıt yok.")
-        return
-
-    tablo = [
+    satirlar = [
         {
-            "": "🆕" if k["yeni"] else "",
-            "Kayıt": k["baslik"],
-            "İşlem": k.get("islem") or "—",
-            "Yaş / Kat": k.get("yas_kat") or "—",
-            "Ayrıntı": k["alt"],
-            "Kaynak": k.get("kaynak") or "",
-            "Sahibi": k["sahip"] or "—",
-            "İlçe": _ilce_metni(k),
-            "Zaman": bh.zaman_etiketi(k["zaman"], simdi),
+            "id": k["id"], "yeni": bool(k["yeni"]),
+            "t": k["zaman"].timestamp() if k["zaman"] else 0,
+            "h": {
+                "Kayıt": k["baslik"], "İşlem": k.get("islem") or "—",
+                "Yaş / Kat": k.get("yas_kat") or "—", "Ayrıntı": k["alt"],
+                "Kaynak": k.get("kaynak") or "—", "Sahibi": k["sahip"] or "—",
+                "İlçe": _ilce_metni(k), "Zaman": bh.zaman_etiketi(k["zaman"], simdi),
+            },
         }
-        for k in gorunen
+        for k in kayit_listesi
     ]
-    olay = st.dataframe(
-        tablo, hide_index=True, use_container_width=True, height=min(460, 38 + 35 * len(tablo)),
-        on_select="rerun", selection_mode="single-row",
-        key=f"bh_df_{tur}_{ilce}_{donem}_{len(gorunen)}",
-    )
-    secili = list(olay.selection.rows) if olay and olay.selection else []
-    if not secili:
-        st.caption("Ayrıntı ve bildirim simülasyonu için bir satır seç.")
+    sonuc = havuz_tablosu(kolonlar, satirlar, key=f"bh_tbl_{tur}_{ilce}_{donem}") or {}
+    secili_idler = list(sonuc.get("sec") or [])
+    aktif_id = sonuc.get("aktif")
+    kayit_idleri = {k["id"]: k for k in kayit_listesi}
+    secilenler = [kayit_idleri[i] for i in secili_idler if i in kayit_idleri]
+    aktif = kayit_idleri.get(aktif_id)
+
+    # ── Seçilenleri ayrı HTML linkine çevir (bildirimlerdeki pano gibi) ──
+    link_var = tur in bh.LINK_BICIMI
+    if link_var:
+        hedef = secilenler or ([aktif] if aktif else [])
+        if hedef:
+            etiket = (f"🔗 Seçilen {len(hedef)} ilanı görüntüle (link)" if secilenler
+                      else "🔗 Bu ilanı görüntüle (link)")
+            parmak = f"{tur}|" + "|".join(sorted(k["id"] for k in hedef))
+            url_key, fp_key = f"bh_url_{tur}", f"bh_fp_{tur}"
+            if st.button(etiket, key=f"bh_link_btn_{tur}"):
+                with st.spinner("Link oluşturuluyor..."):
+                    try:
+                        st.session_state[url_key] = _link_olustur(tur, hedef, ad, ilce, donem)
+                        st.session_state[fp_key] = parmak
+                    except Exception as e:
+                        st.error(f"Link oluşturulamadı: {e}")
+            if st.session_state.get(url_key) and st.session_state.get(fp_key) == parmak:
+                st.success("Link hazır — telefondan da açılır:")
+                st.code(st.session_state[url_key], language=None)
+                st.link_button("Aç ↗", st.session_state[url_key])
+                st.caption("⚠️ Linki bilen herkes (giriş gerekmeden) bu ilanları görür. "
+                           "Link seçtiğin ilanların sabit bir kopyasıdır.")
+        else:
+            st.caption("Satırın başındaki kutuyla ilan seç → ayrı görüntüleme linki oluştur. "
+                       "Tek bir satıra tıklarsan ayrıntı ve bildirim simülasyonu açılır.")
+    else:
+        st.caption("Bu sekmede kişisel veri (müşteri adı/telefon) olduğu için herkese açık link üretimi kapalı.")
+
+    if not aktif:
         return
-    k = gorunen[secili[0]]
+    k = aktif
     kart, bildirim = st.columns([3, 2])
     with kart:
         with st.container(border=True):
