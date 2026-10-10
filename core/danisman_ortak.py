@@ -490,8 +490,23 @@ def _yeni_portfoy_ekle(ilceler, bolge, mulk_tipi, oda, fiyat, islem_tipi, ek_not
     return kayit
 
 
-def kayit_sil(tablo, kayit_id):
-    supabase.table(tablo).delete().eq("id", kayit_id).execute()
+def _sahip_kosulu(sorgu, sahip_alan, sahip_adlari):
+    """Yazma/silme sorgusuna 'kayıt bu kişiye ait olmalı' koşulunu ekler
+    (10.10.2026 — savunma katmanı): önceden silme/not güncelleme yalnız
+    id'ye göre yapılıyordu, 'sahibi ben miyim' kontrolü sadece ekranın
+    hangi kayıtları gösterdiğine dayanıyordu. Sahip alanı verilmişse ama
+    ad listesi boşsa işlem REDDEDİLİR (sessizce herkese açılmaz)."""
+    if not sahip_alan:
+        return sorgu
+    adlar = [a for a in (sahip_adlari or []) if a]
+    if not adlar:
+        raise PermissionError("Bu işlem için giriş yapan kullanıcı tespit edilemedi.")
+    return sorgu.in_(sahip_alan, adlar)
+
+
+def kayit_sil(tablo, kayit_id, sahip_alan=None, sahip_adlari=None):
+    sorgu = supabase.table(tablo).delete().eq("id", kayit_id)
+    _sahip_kosulu(sorgu, sahip_alan, sahip_adlari).execute()
 
 
 def sil_onayli(anahtar, etiket="Sil"):
@@ -522,7 +537,7 @@ def sil_onayli(anahtar, etiket="Sil"):
     return False
 
 
-def kayit_notunu_guncelle(tablo, kayit_id, alan, yeni_deger):
+def kayit_notunu_guncelle(tablo, kayit_id, alan, yeni_deger, sahip_alan=None, sahip_adlari=None):
     """Kendi Kayıtlarım ekranından bir kaydın not alanını günceller —
     talep için 'ozel_kriterler', portföy için 'ozellikler' (aynı alanlar
     ilk oluşturmada _yeni_talep_ekle/_yeni_portfoy_ekle'nin 'Ek Not'
@@ -534,7 +549,8 @@ def kayit_notunu_guncelle(tablo, kayit_id, alan, yeni_deger):
     VE talep_eden_danisan=giriş yapan kullanıcı olan kayıtları listeleyip
     bu fonksiyonu çağırıyor, dolayısıyla kullanıcı yalnızca kendi
     kayıtlarının notunu değiştirebilir."""
-    supabase.table(tablo).update({alan: yeni_deger}).eq("id", kayit_id).execute()
+    sorgu = supabase.table(tablo).update({alan: yeni_deger}).eq("id", kayit_id)
+    _sahip_kosulu(sorgu, sahip_alan, sahip_adlari).execute()
 
 
 # ── MÜŞTERİLERİM (kişi defteri) — YENİ (13.08.2026) ─────────────────────
@@ -751,7 +767,9 @@ def musteri_guncelle(musteri_id, alanlar):
 
 
 def musteri_sil(musteri_id):
-    supabase.table("danisman_kisiler").delete().eq("id", musteri_id).execute()
+    # 10.10.2026: yalnız giriş yapanın KENDİ rehber kaydı silinebilir.
+    sorgu = supabase.table("danisman_kisiler").delete().eq("id", musteri_id)
+    _sahip_kosulu(sorgu, "danisman", [su_anki_danisman()]).execute()
     musterileri_cek.clear()
 
 

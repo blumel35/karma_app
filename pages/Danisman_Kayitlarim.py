@@ -148,7 +148,7 @@ kendi_portfoyler = [
     v for v in kaynak_filtrele(_tum_portfoyler, "Zeta")
     # "zeta1"/"zeta2" (resmi ilanlar) burada DEĞİL, "Zeta Portföylerim"
     # sekmesinde — ikisi birbirine karışmasın diye.
-    and str(v.get("kaynak") or "").strip().lower() not in ILAN_PORTAL_DEGERLERI
+    if str(v.get("kaynak") or "").strip().lower() not in ILAN_PORTAL_DEGERLERI
 ]
 
 # YENİ (02.10.2026, Meltem: "kaydet butonu ile oluşan bilginin uygulamaya
@@ -215,7 +215,7 @@ with sekme_talep:
                     )
             with c2:
                 if sil_onayli(f"kayit_talep_{v['id']}"):
-                    kayit_sil("alici_talepleri", v["id"])
+                    kayit_sil("alici_talepleri", v["id"], "talep_eden_danisan", _adlar)
                     talepleri_cek.clear()
                     kendi_talepleri_cek.clear()
                     st.rerun()
@@ -226,7 +226,7 @@ with sekme_talep:
                 placeholder="Bu talep için not ekle (opsiyonel)...",
             )
             if st.button("Notu Kaydet", key=f"dp_not_kaydet_talep_{v['id']}"):
-                kayit_notunu_guncelle("alici_talepleri", v["id"], "ozel_kriterler", yeni_not.strip())
+                kayit_notunu_guncelle("alici_talepleri", v["id"], "ozel_kriterler", yeni_not.strip(), "talep_eden_danisan", _adlar)
                 talepleri_cek.clear()
                 kendi_talepleri_cek.clear()
                 st.success("Not kaydedildi.")
@@ -248,7 +248,7 @@ with sekme_portfoy:
                     )
             with c2:
                 if sil_onayli(f"kayit_portfoy_{v['id']}"):
-                    kayit_sil("portfoyler", v["id"])
+                    kayit_sil("portfoyler", v["id"], "talep_eden_danisan", _adlar)
                     portfoyleri_cek.clear()
                     kendi_portfoylerini_cek.clear()
                     st.rerun()
@@ -259,7 +259,7 @@ with sekme_portfoy:
                 placeholder="Bu portföy için not ekle (opsiyonel)...",
             )
             if st.button("Notu Kaydet", key=f"dp_not_kaydet_portfoy_{v['id']}"):
-                kayit_notunu_guncelle("portfoyler", v["id"], "ozellikler", yeni_not.strip())
+                kayit_notunu_guncelle("portfoyler", v["id"], "ozellikler", yeni_not.strip(), "talep_eden_danisan", _adlar)
                 portfoyleri_cek.clear()
                 kendi_portfoylerini_cek.clear()
                 st.success("Not kaydedildi.")
@@ -300,7 +300,7 @@ with sekme_yatirim:
                     )
             with c2:
                 if sil_onayli(f"kayit_yatirim_{v['id']}"):
-                    kayit_sil("musteri_talepleri", v["id"])
+                    kayit_sil("musteri_talepleri", v["id"], "danisman", [su_kullanici])
                     yatirim_taleplerini_cek.clear()
                     st.rerun()
             # Formun TÜM cevapları — client-side buildRows() ile AYNI
