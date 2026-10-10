@@ -51,7 +51,7 @@ edilebilir adımlar halinde ilerleniyor).
 import streamlit as st
 
 from core.supabase_client import get_client
-from core.danisman_ortak import su_anki_danisman
+from core.danisman_ortak import su_anki_danisman, bolgeleri_fark_ile_kaydet
 
 supabase = get_client()
 
@@ -96,32 +96,14 @@ def bolgelerini_kaydet(tablo_adi, ilceler):
             "Kaydedilemedi: giriş yapan kullanıcı tespit edilemedi "
             "(su_anki_danisman() boş döndü)."
         )
-    _mevcut_kayitlar = bolgelerini_cek(tablo_adi, kullanici)
-    _mevcut_mahalleler = {k["ilce"]: (k.get("mahalleler") or []) for k in _mevcut_kayitlar}
-    _mevcut_bildirim = {k["ilce"]: k.get("bildirim_acik", True) for k in _mevcut_kayitlar}
-    supabase.table(tablo_adi).delete().eq("kullanici", kullanici).execute()
-    if ilceler:
-        insert_resp = supabase.table(tablo_adi).insert(
-            [
-                {
-                    "kullanici": kullanici,
-                    "ilce": ilce,
-                    "mahalleler": _mevcut_mahalleler.get(ilce, []),
-                    "bildirim_acik": _mevcut_bildirim.get(ilce, True),
-                }
-                for ilce in ilceler
-            ]
-        ).execute()
-        donen_sayi = len(insert_resp.data or [])
-        if donen_sayi != len(ilceler):
-            raise RuntimeError(
-                f"{len(ilceler)} ilçe gönderildi ama Supabase yalnızca "
-                f"{donen_sayi} satır döndürdü. Bu genellikle '{tablo_adi}' "
-                f"tablosunun Row Level Security (RLS) politikasının INSERT "
-                f"işlemini sessizce reddettiği anlamına gelir — Supabase "
-                f"panelinde Authentication > Policies kısmından bu "
-                f"tablonun INSERT politikasını kontrol et."
-            )
+    # 10.10.2026: sil-yeniden-ekle yerine fark tabanlı kayıt (bkz.
+    # core/danisman_ortak.py:bolgeleri_fark_ile_kaydet) — seçili kalan
+    # ilçenin mahalleler/bildirim_acik değerlerine hiç dokunulmaz, ekleme
+    # başarısız olursa mevcut seçim silinmez.
+    bolgeleri_fark_ile_kaydet(
+        tablo_adi, kullanici, ilceler,
+        yeni_satir_ekleri={"mahalleler": [], "bildirim_acik": True},
+    )
 
 
 def ilce_mahallelerini_ayarla(tablo_adi, ilce, mahalleler):

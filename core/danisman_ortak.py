@@ -77,6 +77,25 @@ def su_anki_danisman():
     )
 
 
+def su_anki_danisman_varyantlari():
+    """Aynı kişinin kayıtlarının hangi adlarla yazılmış olabileceği.
+    Kayıtlar kişiye ada (metin) göre bağlı; geçmişte profil adı boşken
+    e-posta önü ("ahmet.koc") ya da tam e-posta kullanıldığı için aynı
+    kişinin eski kayıtları farklı bir ad altında kalabiliyordu ve
+    "eski kayıtlarım silindi" gibi görünüyordu (10.10.2026). Yalnız
+    OKUMA için kullanılır; yazma hâlâ su_anki_danisman()."""
+    ad = (st.session_state.get("user_name") or "").strip()
+    email = (st.session_state.get("kullanici", {}) or {}).get("email", "") or ""
+    email = email.strip()
+    adaylar = [ad, email, email.split("@")[0] if "@" in email else ""]
+    gorulen, sonuc = set(), []
+    for a_ in adaylar:
+        if a_ and a_.lower() not in gorulen:
+            gorulen.add(a_.lower())
+            sonuc.append(a_)
+    return sonuc
+
+
 # ── TÜRKÇE METİN YARDIMCILARI ─────────────────────────────────────────
 
 def _tr_lower(s):
@@ -152,6 +171,7 @@ def _tum_sayfalari_cek(tablo, secim, filtreler=None):
     tum_kayitlar = []
     baslangic = 0
     sayfa_boyutu = 1000
+    _t0 = time.time()
     while True:
         sorgu = supabase.table(tablo).select(secim)
         for alan, deger in (filtreler or {}).items():
@@ -166,7 +186,61 @@ def _tum_sayfalari_cek(tablo, secim, filtreler=None):
         if len(satirlar) < sayfa_boyutu:
             break
         baslangic += sayfa_boyutu
+    _perf_logla("tum_sayfalari_cek:" + tablo, _t0, len(tum_kayitlar))
     return tum_kayitlar
+
+
+def _perf_logla(etiket, t0, satir_sayisi=None):
+    """Teşhis günlüğü (10.10.2026, "uygulama donuyor" şikâyeti): hangi
+    veri çekmenin kaç satır/kaç saniye sürdüğünü Streamlit Cloud 'Manage
+    app' günlüğüne yazar. Yavaş (>2 sn) olanlar WARNING düzeyindedir —
+    aramak için günlükte "[perf]" yazılır."""
+    try:
+        import logging
+        sure = time.time() - t0
+        mesaj = "[perf] %s satir=%s sure=%.2fs" % (etiket, satir_sayisi, sure)
+        log = logging.getLogger("karma.perf")
+        (log.warning if sure > 2 else log.info)(mesaj)
+        if sure > 2:
+            print(mesaj, flush=True)
+    except Exception:
+        pass
+
+
+def _kendi_kayitlarini_cek(tablo, danisman_adlari, filtreler=None):
+    """Bir danışmanın KENDİ kayıtlarını sunucu tarafında süzerek çeker —
+    60 günlük pencere YOK, tüm tabloyu çekmez (hem eski kayıtların
+    ekrandan 'kaybolması' hem de her rerun'da koca tabloyu kopyalamanın
+    yarattığı yavaşlama için; 10.10.2026)."""
+    tum, baslangic, sayfa = [], 0, 1000
+    _t0 = time.time()
+    while True:
+        sorgu = supabase.table(tablo).select("*").in_(
+            "talep_eden_danisan", list(danisman_adlari)
+        )
+        for alan, deger in (filtreler or {}).items():
+            sorgu = sorgu.eq(alan, deger)
+        resp = sorgu.order("id", desc=True).range(baslangic, baslangic + sayfa - 1).execute()
+        satirlar = resp.data or []
+        tum.extend(satirlar)
+        if len(satirlar) < sayfa:
+            break
+        baslangic += sayfa
+    _perf_logla("kendi_kayitlari:" + tablo, _t0, len(tum))
+    return tum
+
+
+@st.cache_data(ttl=15, show_spinner="Taleplerin yükleniyor...")
+def kendi_talepleri_cek(danisman_adlari):
+    return _kendi_kayitlarini_cek(
+        "alici_talepleri", danisman_adlari,
+        filtreler={"kategori": "alici_talebi", "parse_status": "parsed"},
+    )
+
+
+@st.cache_data(ttl=15, show_spinner="Portföylerin yükleniyor...")
+def kendi_portfoylerini_cek(danisman_adlari):
+    return _kendi_kayitlarini_cek("portfoyler", danisman_adlari)
 
 
 @st.cache_data(ttl=60, show_spinner="Talepler yükleniyor...")
@@ -418,6 +492,34 @@ def _yeni_portfoy_ekle(ilceler, bolge, mulk_tipi, oda, fiyat, islem_tipi, ek_not
 
 def kayit_sil(tablo, kayit_id):
     supabase.table(tablo).delete().eq("id", kayit_id).execute()
+
+
+def sil_onayli(anahtar, etiket="Sil"):
+    """İki adımlı silme düğmesi (10.10.2026, "eski kayıtlarım siliniyor"
+    şikâyeti): tek dokunuşla silme, özellikle telefonda yanlışlıkla
+    dokunmayla kaydı geri dönüşsüz yok ediyordu. İlk dokunuşta "Emin
+    misin?" + [Evet, sil] [Vazgeç] gösterilir; yalnız "Evet, sil"
+    True döndürür.
+
+    Kullanım:
+        if sil_onayli(f"musteri_{id}"):
+            musteri_sil(id); st.rerun()
+    """
+    bayrak = f"_sil_onay_{anahtar}"
+    if not st.session_state.get(bayrak):
+        if st.button(etiket, key=f"{bayrak}_ac", use_container_width=True):
+            st.session_state[bayrak] = True
+            st.rerun()
+        return False
+    st.caption("Emin misin? Geri alınamaz.")
+    if st.button("Evet, sil", key=f"{bayrak}_evet", type="primary",
+                 use_container_width=True):
+        st.session_state.pop(bayrak, None)
+        return True
+    if st.button("Vazgeç", key=f"{bayrak}_iptal", use_container_width=True):
+        st.session_state.pop(bayrak, None)
+        st.rerun()
+    return False
 
 
 def kayit_notunu_guncelle(tablo, kayit_id, alan, yeni_deger):
@@ -1056,30 +1158,70 @@ def uzmanlik_bolgelerini_cek(kullanici):
     return resp.data or []
 
 
+def bolgeleri_fark_ile_kaydet(tablo_adi, kullanici, ilceler, yeni_satir_ekleri=None):
+    """Bölge kaydının GÜVENLİ (fark tabanlı) çekirdeği — uzmanlik_bolgeleri,
+    FSBO ve Startkey bölge tabloları aynı fonksiyonu kullanır.
+
+    DÜZELTME (10.10.2026, "eski kayıtlarım siliniyor" şikâyeti): eski
+    sürüm her "Kaydet"te kullanıcının TÜM satırlarını silip yeniden
+    ekliyordu. Silme başarılı, ekleme başarısız olursa (ağ kopması,
+    RLS'in sessiz reddi, mobilde websocket düşmesi, iki kaydın üst üste
+    binmesi) kullanıcı seçimini TAMAMEN kaybediyordu — mahalle ve
+    bildirim ayarları dahil. Artık:
+      1) mevcut ilçeler okunur,
+      2) yalnız YENİ eklenen ilçeler eklenir (sayısı doğrulanır),
+      3) ancak ekleme başarılı olduktan SONRA seçimden çıkarılan ilçeler
+         silinir.
+    Seçili kalan ilçelerin satırına (mahalleler, bildirim_acik)
+    DOKUNULMAZ; dolayısıyla onları taşımak için ayrı kod gerekmez.
+    En kötü senaryoda (ekleme sonrası silme düşerse) kullanıcıda
+    fazladan bir ilçe kalır — veri kaybı olmaz."""
+    ilceler = list(dict.fromkeys(ilceler))
+    mevcut = bolgelerini_oku(tablo_adi, kullanici)
+    mevcut_ilceler = {k["ilce"] for k in mevcut}
+    eklenecek = [i for i in ilceler if i not in mevcut_ilceler]
+    silinecek = [i for i in mevcut_ilceler if i not in set(ilceler)]
+
+    if eklenecek:
+        satirlar = [
+            {"kullanici": kullanici, "ilce": ilce, **(yeni_satir_ekleri or {})}
+            for ilce in eklenecek
+        ]
+        insert_resp = supabase.table(tablo_adi).insert(satirlar).execute()
+        donen_sayi = len(insert_resp.data or [])
+        if donen_sayi != len(eklenecek):
+            raise RuntimeError(
+                f"{len(eklenecek)} ilçe gönderildi ama Supabase yalnızca "
+                f"{donen_sayi} satır döndürdü. Bu genellikle '{tablo_adi}' "
+                f"tablosunun Row Level Security (RLS) politikasının INSERT "
+                f"işlemini sessizce reddettiği anlamına gelir — Supabase "
+                f"panelinde Authentication > Policies kısmından bu "
+                f"tablonun INSERT politikasını kontrol et (kullanılan API "
+                f"key'in — anon/service — bu tabloya yazma izni olduğundan "
+                f"emin ol). Mevcut seçimin korundu."
+            )
+    if silinecek:
+        supabase.table(tablo_adi).delete().eq("kullanici", kullanici).in_(
+            "ilce", silinecek
+        ).execute()
+
+
+def bolgelerini_oku(tablo_adi, kullanici):
+    resp = supabase.table(tablo_adi).select("*").eq("kullanici", kullanici).execute()
+    return resp.data or []
+
+
 def uzmanlik_bolgelerini_kaydet(ilceler):
-    """Kullanıcının uzmanlık bölgelerini TAMAMEN değiştirir (mevcut
-    kayıtları silip yeni seçimi ekler). En fazla 5 ilçe — UI tarafında
-    (st.multiselect max_selections=5) zaten zorlanıyor, burada ikinci
-    bir güvenlik önlemi olarak tekrar kesiliyor.
+    """Kullanıcının uzmanlık bölgelerini yeni seçimle eşitler. En fazla 5
+    ilçe — UI tarafında (st.multiselect max_selections=5) zaten
+    zorlanıyor, burada ikinci bir güvenlik önlemi olarak tekrar kesiliyor.
 
-    DÜZELTME (12.08.2026): Önceden insert()'in dönüş değeri hiç kontrol
-    edilmiyordu. Supabase/PostgREST, tablonun Row Level Security (RLS)
-    politikası INSERT'i reddettiğinde çoğu zaman Python tarafında bir
-    İSTİSNA FIRLATMAZ — 200 OK + boş bir data listesiyle sessizce döner.
-    Sonuç: çağıran ekran "başarılı" mesajı gösterir ama satır hiç
-    eklenmemiş olur (canlıda gözlemlenen belirti tam olarak buydu).
-    Artık dönen satır sayısı gönderilenle eşleşmezse AÇIKÇA hata
-    fırlatılıyor — çağıran ekran bunu yakalayıp göstermeli.
-
-    DÜZELTME (28.09.2026, Meltem: "uzmanlık bölgelerindeki ilçelere tek
-    tek bildirim açık/kapalı butonu olmalı"): bu fonksiyon her "Kaydet"
-    tıklamasında TÜM satırları silip yeniden ekliyor — bildirim_acik
-    sütunu eklendiğinden beri, halihazırda seçili kalan bir ilçenin
-    (örn. hem eski hem yeni seçimde olan Balçova) kapatılmış bildirim
-    tercihi bu sil-yeniden-ekle sırasında sessizce True'ya sıfırlanırdı.
-    Artık silmeden ÖNCE mevcut {ilce: bildirim_acik} durumu okunup, yeni
-    eklenen satırlara aktarılıyor — sadece YENİ eklenen bir ilçe
-    (önceden seçili değildi) varsayılan True ile başlıyor."""
+    10.10.2026: artık "hepsini sil, yeniden ekle" YOK — yalnız değişen
+    ilçeler eklenir/silinir (bkz. bolgeleri_fark_ile_kaydet). Bu aynı
+    zamanda önceki turlarda tek tek korunmaya çalışılan bildirim_acik
+    ayarını kendiliğinden korur, çünkü seçili kalan ilçenin satırına hiç
+    dokunulmaz. RLS'in sessiz INSERT reddi hâlâ açıkça hataya çevrilir
+    (12.08.2026 düzeltmesi)."""
     kullanici = su_anki_danisman()
     ilceler = list(ilceler)[:5]
     if not kullanici:
@@ -1087,34 +1229,10 @@ def uzmanlik_bolgelerini_kaydet(ilceler):
             "Kaydedilemedi: giriş yapan kullanıcı tespit edilemedi "
             "(su_anki_danisman() boş döndü)."
         )
-    _mevcut_durum = {
-        k["ilce"]: k.get("bildirim_acik", True)
-        for k in uzmanlik_bolgelerini_cek(kullanici)
-    }
-    supabase.table("uzmanlik_bolgeleri").delete().eq("kullanici", kullanici).execute()
-    if ilceler:
-        insert_resp = supabase.table("uzmanlik_bolgeleri").insert(
-            [
-                {
-                    "kullanici": kullanici,
-                    "ilce": ilce,
-                    "bildirim_acik": _mevcut_durum.get(ilce, True),
-                }
-                for ilce in ilceler
-            ]
-        ).execute()
-        donen_sayi = len(insert_resp.data or [])
-        if donen_sayi != len(ilceler):
-            raise RuntimeError(
-                f"{len(ilceler)} ilçe gönderildi ama Supabase yalnızca "
-                f"{donen_sayi} satır döndürdü. Bu genellikle "
-                f"'uzmanlik_bolgeleri' tablosunun Row Level Security (RLS) "
-                f"politikasının INSERT işlemini sessizce reddettiği anlamına "
-                f"gelir — Supabase panelinde Authentication > Policies "
-                f"kısmından bu tablonun INSERT politikasını kontrol et "
-                f"(kullanılan API key'in — anon/service — bu tabloya yazma "
-                f"izni olduğundan emin ol)."
-            )
+    bolgeleri_fark_ile_kaydet(
+        "uzmanlik_bolgeleri", kullanici, ilceler,
+        yeni_satir_ekleri={"bildirim_acik": True},
+    )
 
 
 def uzmanlik_bolgesi_bildirim_ayarla(ilce, acik: bool):

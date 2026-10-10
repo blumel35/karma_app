@@ -27,7 +27,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.auth import oturum_kontrol
 from core.danisman_ortak import (
     talepleri_cek, portfoyleri_cek, kaynak_filtrele, su_anki_danisman,
-    kayit_sil, kayit_notunu_guncelle, render_topbar, hide_sidebar_css,
+    su_anki_danisman_varyantlari, kendi_talepleri_cek, kendi_portfoylerini_cek,
+    kayit_sil, sil_onayli, kayit_notunu_guncelle, render_topbar, hide_sidebar_css,
     ILAN_PORTAL_DEGERLERI, yatirim_taleplerini_cek,
 )
 
@@ -79,7 +80,8 @@ div[class*="st-key-dp_kayit_card_"] {
     padding: 14px 16px !important;
     margin-bottom: 10px !important;
 }
-div[class*="st-key-dp_kayit_sil_"] button {
+div[class*="st-key-dp_kayit_sil_"] button,
+div[class*="st-key-_sil_onay_"][class*="_ac"] button {
     border-color: #e3e1da !important;
     color: #b3261e !important;
     font-size: 12.5px !important;
@@ -126,18 +128,24 @@ su_kullanici = su_anki_danisman()
 # DÜZELTME (12.08.2026 — 2. tur): Üç bölüm artık ALT ALTA koşullu
 # başlıklar yerine SEKME (st.tabs) olarak gösteriliyor — Favoriler ve
 # Uzmanlık Bölgelerim'deki aynı desen, tutarlılık için.
+# DÜZELTME (10.10.2026, "eski kayıtlarım silindi" şikâyeti): önceden
+# burada talepleri_cek()/portfoyleri_cek() (TÜM danışmanların SON 60 GÜN
+# kayıtları) çekilip içinden kişinin kayıtları süzülüyordu — yani 60
+# günden eski her kayıt veritabanında dururken ekrandan kayboluyordu
+# (Zeta Portföylerim'de de, çünkü Revy ilanlarının kayit_tarihi yalnız
+# ilk eklemede yazılır). Artık kişinin kendi kayıtları tarih sınırı
+# olmadan, sunucu tarafında süzülerek çekiliyor; ayrıca aynı kişinin
+# e-posta/e-posta önü adıyla yazılmış eski kayıtları da dahil.
+_adlar = tuple(su_anki_danisman_varyantlari() or [su_kullanici])
+_tum_portfoyler = kendi_portfoylerini_cek(_adlar)
+_tum_talepler = kendi_talepleri_cek(_adlar)
 kendi_ilanlarim = [
-    v for v in portfoyleri_cek()
+    v for v in _tum_portfoyler
     if str(v.get("kaynak") or "").strip().lower() in ILAN_PORTAL_DEGERLERI
-    and v.get("talep_eden_danisan") == su_kullanici
 ]
-kendi_talepler = [
-    v for v in kaynak_filtrele(talepleri_cek(), "Zeta")
-    if v.get("talep_eden_danisan") == su_kullanici
-]
+kendi_talepler = kaynak_filtrele(_tum_talepler, "Zeta")
 kendi_portfoyler = [
-    v for v in kaynak_filtrele(portfoyleri_cek(), "Zeta")
-    if v.get("talep_eden_danisan") == su_kullanici
+    v for v in kaynak_filtrele(_tum_portfoyler, "Zeta")
     # "zeta1"/"zeta2" (resmi ilanlar) burada DEĞİL, "Zeta Portföylerim"
     # sekmesinde — ikisi birbirine karışmasın diye.
     and str(v.get("kaynak") or "").strip().lower() not in ILAN_PORTAL_DEGERLERI
@@ -206,9 +214,10 @@ with sekme_talep:
                         + (f" · 📞 {v.get('musteri_telefon')}" if v.get("musteri_telefon") else "")
                     )
             with c2:
-                if st.button("Sil", key=f"dp_kayit_sil_talep_{v['id']}", use_container_width=True):
+                if sil_onayli(f"kayit_talep_{v['id']}"):
                     kayit_sil("alici_talepleri", v["id"])
                     talepleri_cek.clear()
+                    kendi_talepleri_cek.clear()
                     st.rerun()
             yeni_not = st.text_area(
                 "Not", value=v.get("ozel_kriterler") or "",
@@ -219,6 +228,7 @@ with sekme_talep:
             if st.button("Notu Kaydet", key=f"dp_not_kaydet_talep_{v['id']}"):
                 kayit_notunu_guncelle("alici_talepleri", v["id"], "ozel_kriterler", yeni_not.strip())
                 talepleri_cek.clear()
+                kendi_talepleri_cek.clear()
                 st.success("Not kaydedildi.")
                 st.rerun()
 
@@ -237,9 +247,10 @@ with sekme_portfoy:
                         + (f" · 📞 {v.get('musteri_telefon')}" if v.get("musteri_telefon") else "")
                     )
             with c2:
-                if st.button("Sil", key=f"dp_kayit_sil_portfoy_{v['id']}", use_container_width=True):
+                if sil_onayli(f"kayit_portfoy_{v['id']}"):
                     kayit_sil("portfoyler", v["id"])
                     portfoyleri_cek.clear()
+                    kendi_portfoylerini_cek.clear()
                     st.rerun()
             yeni_not = st.text_area(
                 "Not", value=v.get("ozellikler") or "",
@@ -250,6 +261,7 @@ with sekme_portfoy:
             if st.button("Notu Kaydet", key=f"dp_not_kaydet_portfoy_{v['id']}"):
                 kayit_notunu_guncelle("portfoyler", v["id"], "ozellikler", yeni_not.strip())
                 portfoyleri_cek.clear()
+                kendi_portfoylerini_cek.clear()
                 st.success("Not kaydedildi.")
                 st.rerun()
 
@@ -287,7 +299,7 @@ with sekme_yatirim:
                         unsafe_allow_html=True,
                     )
             with c2:
-                if st.button("Sil", key=f"dp_kayit_sil_yatirim_{v['id']}", use_container_width=True):
+                if sil_onayli(f"kayit_yatirim_{v['id']}"):
                     kayit_sil("musteri_talepleri", v["id"])
                     yatirim_taleplerini_cek.clear()
                     st.rerun()

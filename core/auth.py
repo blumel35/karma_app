@@ -148,6 +148,8 @@ def giris_yap(email: str, sifre: str, beni_hatirla: bool = True) -> dict | None:
             # 28.09.2026: artık beni_hatirla=False ise YAZILMIYOR, ayrıca
             # bu cihazda önceden kalmış olabilecek eski cookie de silinir
             # (bkz. yukarıdaki fonksiyon docstring'i).
+            st.session_state.pop("_son_refresh_token", None)
+            st.session_state.pop("_cerez_restore_basarisiz", None)
             if beni_hatirla:
                 _tarayici_oturumu_kaydet(kullanici)
             else:
@@ -181,6 +183,8 @@ def cikis_yap():
     # Tarayıcı cookie'sini sil — aksi hâlde çıkış yapan kullanıcı bir
     # sonraki ziyarette otomatik geri giriş yapmış gibi görünür.
     _tarayici_oturumu_temizle()
+    st.session_state.pop("_son_refresh_token", None)
+    st.session_state.pop("_cerez_restore_basarisiz", None)
 
     # Local login session dosyasını sil
     try:
@@ -528,19 +532,52 @@ def _tarayici_oturumu_yukle() -> dict | None:
     except Exception:
         return None
 
+    # DÜZELTME (10.10.2026, "beni hatırla işaretli ama şifre isteniyor"
+    # şikâyetleri): Supabase refresh token'ları TEK KULLANIMLIK ve
+    # dönüşümlüdür. İki ayrı kayıp senaryosu vardı:
+    #  (1) Bu oturumda zaten yenilenmiş, ama çerezi tarayıcıya henüz
+    #      yazılamamış (script yeniden başladı / sayfa değişti) bir token
+    #      varsa, çerezdeki ESKİ (artık geçersiz) token ile denemek
+    #      Supabase'in "çalıntı token" korumasını tetikleyip tüm oturumu
+    #      iptal edebiliyor. Önce bu oturumda ürettiğimiz son token'ı
+    #      kullanıyoruz.
+    #  (2) Geri yükleme başarısız olduysa her rerun'da aynı ölü token'la
+    #      tekrar tekrar denemek yine aynı korumayı tetikler. Aynı token
+    #      için bu oturumda yalnız BİR deneme yapılır.
+    refresh_token = st.session_state.get("_son_refresh_token") or refresh_token
+    if st.session_state.get("_cerez_restore_basarisiz") == refresh_token:
+        return None
+
     supa = _get_supa()
     if not supa:
         return None
+    _t0 = time.time()
     try:
         res = supa.auth.refresh_session(refresh_token)
         if not res.user:
+            st.session_state["_cerez_restore_basarisiz"] = refresh_token
             return None
         if (
             not res.session
             or not getattr(res.session, "access_token", None)
             or not getattr(res.session, "refresh_token", None)
         ):
+            st.session_state["_cerez_restore_basarisiz"] = refresh_token
             return None
+
+        # Token döndü → ESKİSİ ARTIK ÖLÜ. Yenisini HEMEN (profil/log
+        # sorguları yapılmadan önce) hem bu oturumun belleğine hem
+        # tarayıcı çerezine yaz; sonra çerezin gerçekten tarayıcıya
+        # ulaşması için kısa bir bekleme (giriş akışındaki kanıtlanmış
+        # time.sleep(1) deseni). Eskiden yazma, en sondaki yavaş sorgulardan
+        # sonra yapılıyordu; araya giren bir rerun/sayfa geçişi yazmayı
+        # kaçırırsa kullanıcı bir sonraki ziyarette şifre soruluyordu.
+        st.session_state["_son_refresh_token"] = res.session.refresh_token
+        _tarayici_oturumu_kaydet({
+            "refresh_token": res.session.refresh_token,
+            "email": res.user.email,
+        })
+        time.sleep(1)
 
         profil = _profil_cek(supa, res.user.id)
         kullanici = {
@@ -592,16 +629,19 @@ def _tarayici_oturumu_yukle() -> dict | None:
         except Exception:
             pass
 
-        # Supabase token rotation yapmış olabilir (yeni refresh_token
-        # dönmüş olabilir) — cookie'yi güncel tut, aksi hâlde bir
-        # sonraki restore denemesi eski/geçersiz token kullanır.
-        _tarayici_oturumu_kaydet(kullanici)
+        # (Cookie güncellemesi artık yukarıda, token döner dönmez yapılıyor.)
+        import logging
+        logging.getLogger(__name__).info(
+            "[perf] cerez_restore %.2fs", time.time() - _t0
+        )
 
         _clear_identity_lock_on_verified_auth()
         return kullanici
     except Exception as e:
         import logging
         logging.getLogger(__name__).exception("Tarayıcı oturumu geri yükleme hatası: %s", e)
+        # Aynı ölü token'la bu oturumda tekrar tekrar denenmesin.
+        st.session_state["_cerez_restore_basarisiz"] = refresh_token
         return None
 
 

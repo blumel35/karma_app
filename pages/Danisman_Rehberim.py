@@ -33,7 +33,7 @@ from core.auth import oturum_kontrol
 from core.ajanda_ui import ajanda_sekmesi, geciken_alarmlar
 from core.danisman_ortak import (
     su_anki_danisman, musterileri_cek, musteri_ekle, musteri_guncelle,
-    musteri_sil, rehber_takip_ayarla, takip_ozelligi_var, rehber_alarm_kur, rehber_alarm_kaldir, rehber_gorusme_ekle, rehber_gorusme_sil, render_topbar, hide_sidebar_css, IZMIR_ILCELERI, _tip_listele,
+    musteri_sil, sil_onayli, rehber_takip_ayarla, takip_ozelligi_var, rehber_alarm_kur, rehber_alarm_kaldir, rehber_gorusme_ekle, rehber_gorusme_sil, render_topbar, hide_sidebar_css, IZMIR_ILCELERI, _tip_listele,
     _tr_lower,
 )
 
@@ -541,7 +541,7 @@ with sekme_rehber:
                                     st.success("Kaydedildi.")
                                     st.rerun()
                             with bp2:
-                                if st.button("Sil", key=f"dp_mus_sil_{onek}{m['id']}", use_container_width=True):
+                                if sil_onayli(f"mus_{onek}{m['id']}"):
                                     musteri_sil(m["id"])
                                     st.rerun()
 
