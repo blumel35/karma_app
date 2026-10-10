@@ -34,6 +34,12 @@ ADAY_PENCERESI_GUN = 60
 GUCLU_ESIK = 70
 OLASI_ESIK = 40
 MAX_KAYNAK = 200        # bir ekranda hesaplanacak en fazla kaynak kayıt
+# Olay niteliğindeki kayıtların (alıcı talebi, paylaşım) eşleşmede yaşayabileceği süre.
+# Kiralık talepler hızlı kapandığı için kısa; satılık talepler uzun yaşar. Tahmini
+# varsayılanlar — ekrandaki "Eşleşme kuralları"ndan değiştirilebilir. İşlem tipi
+# anlaşılamayan kayıt satılık süresine tabidir. Aktif stok (Zeta portföyü, Startkey) süresizdir.
+KIRALIK_OMUR_GUN = 14
+SATILIK_OMUR_GUN = 45
 
 _TALEP_ALANLARI = ("islem_tipi", "mulk_tipi", "il", "ilce", "max_butce",
                    "oda_sayisi_m2", "ozel_kriterler", "ozet")
@@ -225,22 +231,39 @@ def _ilce_uyar(kayit, ilce):
     return any(bh.tr_kucuk(i) == h for i in ilceler)
 
 
-def hesapla(veri, yon, ilce, gun, ust_n=5, min_skor=OLASI_ESIK, simdi=None):
+def omre_gore(kayitlar, simdi, kira_gun=KIRALIK_OMUR_GUN, satis_gun=SATILIK_OMUR_GUN):
+    """İşlem tipine göre süresi dolmamış kayıtlar (tarihsiz kayıt elenmez)."""
+    sonuc = []
+    for k in kayitlar:
+        z = k.get("zaman")
+        if not z:
+            sonuc.append(k)
+            continue
+        sinir = kira_gun if k.get("islem") == "Kiralık" else satis_gun
+        if (simdi - z) <= timedelta(days=sinir):
+            sonuc.append(k)
+    return sonuc
+
+
+def hesapla(veri, yon, ilce, gun, ust_n=5, min_skor=OLASI_ESIK, simdi=None,
+            kira_gun=KIRALIK_OMUR_GUN, satis_gun=SATILIK_OMUR_GUN):
     """Ekranın tek giriş noktası.
     yon: 'zeta_talep' (Zeta portföyü → alıcılar) | 'talep_portfoy' (talep → portföyler)
     Dönüş: (çiftler, kaynak_sayisi, kirpildi)"""
     simdi = simdi or datetime.now(timezone.utc)
+    talepler = omre_gore(veri["talep"], simdi, kira_gun, satis_gun)
+    paylasimlar = omre_gore(veri["paylasim"], simdi, kira_gun, satis_gun)
     if yon == "zeta_talep":
         kaynaklar = [k for k in veri["zeta"] if _ilce_uyar(k, ilce)]
         kirpildi = len(kaynaklar) > MAX_KAYNAK
         kaynaklar = kaynaklar[:MAX_KAYNAK]
-        return portfoyden_taleplere(kaynaklar, veri["talep"], ust_n, min_skor), len(kaynaklar), kirpildi
+        return portfoyden_taleplere(kaynaklar, talepler, ust_n, min_skor), len(kaynaklar), kirpildi
     kesim = simdi - timedelta(days=gun)
-    kaynaklar = [k for k in veri["talep"]
+    kaynaklar = [k for k in talepler
                  if _ilce_uyar(k, ilce) and k["zaman"] and k["zaman"] >= kesim]
     kirpildi = len(kaynaklar) > MAX_KAYNAK
     kaynaklar = kaynaklar[:MAX_KAYNAK]
-    adaylar = veri["zeta"] + veri["paylasim"] + veri["startkey"]
+    adaylar = veri["zeta"] + paylasimlar + veri["startkey"]
     return talepten_portfoylere(kaynaklar, adaylar, ust_n, min_skor), len(kaynaklar), kirpildi
 
 

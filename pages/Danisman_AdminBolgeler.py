@@ -187,19 +187,20 @@ def _ilce_ozeti(satirlar, mahalle_var):
     return ", ".join(parcalar) if parcalar else "—"
 
 
-with st.expander("Genel durum", expanded=(mod == "Danışmana göre")):
-    tablo_satirlari = []
-    for k in kisiler:
-        ad = k["ad_soyad"]
-        satir = {"Danışman": ad, "Ofis": k.get("ofis_adi", "")}
-        for tur, cfg in BOLGE_TURLERI.items():
-            satir[cfg["etiket"]] = _ilce_ozeti(_veri[tur].get(ad, []), cfg["mahalle"])
-        satir["Uygulama hesabı"] = _hesap_durumu(k)
-        satir["Bildirim cihazı"] = _cihaz.get(ad, 0)
-        satir["Telefon"] = "var" if k.get("telefon", "").strip() else "yok"
-        tablo_satirlari.append(satir)
-    st.dataframe(tablo_satirlari, hide_index=True, use_container_width=True)
-    st.caption("🔕 = bu ilçe için bildirim kapalı.")
+if mod == "Danışmana göre":
+    with st.expander("Genel durum (danışman × bölge)", expanded=True):
+        tablo_satirlari = []
+        for k in kisiler:
+            ad = k["ad_soyad"]
+            satir = {"Danışman": ad, "Ofis": k.get("ofis_adi", "")}
+            for tur, cfg in BOLGE_TURLERI.items():
+                satir[cfg["etiket"]] = _ilce_ozeti(_veri[tur].get(ad, []), cfg["mahalle"])
+            satir["Uygulama hesabı"] = _hesap_durumu(k)
+            satir["Bildirim cihazı"] = _cihaz.get(ad, 0)
+            satir["Telefon"] = "var" if k.get("telefon", "").strip() else "yok"
+            tablo_satirlari.append(satir)
+        st.dataframe(tablo_satirlari, hide_index=True, use_container_width=True)
+        st.caption("🔕 = bu ilçe için bildirim kapalı.")
 
 def danisman_paneli(secili):
     """Seçili danışmanın bilgi satırı, eski-ad uyarısı/birleştirme, bölge
@@ -617,6 +618,41 @@ def _havuz_yukle(gun, ilceler):
     return bh.havuzu_yukle(gun, list(ilceler))
 
 
+def _ilce_ozet_tablosu(sayilar, tanimlar, donem):
+    """İlçe × tür sayıları (seçili dönem). Zeta portföyü AKTİF STOKtur (dönemden bağımsız)."""
+    satirlar = []
+    for i, v in sayilar.items():
+        satirlar.append({"İlçe": i, **{ad: v.get(k, 0) for k, ad, _kisa, _r in tanimlar}})
+    if not satirlar:
+        return
+    ad_talep, ad_pay, ad_zeta, ad_sk = "Alıcı talebi", "Paylaşım", "Zeta portföyü", "Startkey ilanı"
+    satirlar.sort(key=lambda r: (-r.get(ad_talep, 0), -r.get(ad_zeta, 0), _tr_anahtar(r["İlçe"])))
+    sirali = ["İlçe", ad_talep, ad_pay, ad_zeta, ad_sk] + [
+        ad for _k, ad, _kisa, _r in tanimlar if ad not in (ad_talep, ad_pay, ad_zeta, ad_sk)
+    ]
+    for r in satirlar:
+        for a_ in sirali[1:]:
+            r.setdefault(a_, 0)
+    toplam = {a_: sum(r.get(a_, 0) for r in satirlar) for a_ in sirali[1:]}
+    with st.expander(f"İlçe özeti — {donem.lower()} ({len(satirlar)} ilçe)", expanded=True):
+        cfg = {}
+        for a_ in (ad_talep, ad_pay, ad_zeta):
+            tavan = max([r.get(a_, 0) for r in satirlar] + [1])
+            cfg[a_] = st.column_config.ProgressColumn(a_, format="%d", min_value=0, max_value=tavan)
+        st.dataframe(
+            [{a_: r.get(a_, 0) for a_ in sirali} for r in satirlar],
+            hide_index=True, use_container_width=True, column_config=cfg,
+            height=min(38 + 35 * len(satirlar), 420),
+        )
+        st.caption(
+            f"Tüm ilçeler toplam — alıcı talebi {toplam[ad_talep]} · paylaşım {toplam[ad_pay]} · "
+            f"Zeta portföyü {toplam[ad_zeta]} · Startkey ilanı {toplam[ad_sk]}. "
+            f"Alıcı talebi, paylaşım ve Startkey ilanı {donem.lower()} içinde gelenlerdir; "
+            "Zeta portföyü ise ofisin aktif stokudur (dönemden bağımsız). Bir kayıt birden çok ilçeyi "
+            "kapsıyorsa her birinde sayılır."
+        )
+
+
 def havuz_gorunumu():
     tanimlar = bh.sekme_tanimlari()
     kayitlar = _takipci_kayitlari()
@@ -648,6 +684,7 @@ def havuz_gorunumu():
                 key=lambda x: x["zaman"] or bh.datetime.min.replace(tzinfo=bh.timezone.utc), reverse=True,
             )
 
+    ozet_kap = st.container()
     sayilar = bh.ilce_sayilari(havuz)
     belirsiz_var = bh.ILCE_BELIRSIZ in sayilar
     secenekler = ["(Tüm ilçeler)"] + list(IZMIR_ILCELERI) + ([bh.ILCE_BELIRSIZ] if belirsiz_var else [])
@@ -655,9 +692,21 @@ def havuz_gorunumu():
         (i for i in sayilar if i in IZMIR_ILCELERI),
         key=lambda i: sum(sayilar[i].values()), default=None,
     )
+
+    def _ilce_etiketi(i):
+        """Seçicide ilçe adının yanında: Zeta portföyü ve alıcı talebi sayısı."""
+        if i == "(Tüm ilçeler)":
+            return i
+        v = sayilar.get(i, {})
+        z, t = v.get("zeta", 0), v.get("talep", 0)
+        return f"{i}  ·  {z} portföy  ·  {t} talep" if (z or t) else f"{i}  ·  —"
+
+    # İlçe özeti: seçimden ÖNCE çizilir (kapsayıcı yukarıda), hangi ilçenin dolu olduğu görünsün.
+    with ozet_kap:
+        _ilce_ozet_tablosu(sayilar, tanimlar, donem)
     with c1:
         ilce_secim = st.selectbox(
-            "İlçe", secenekler, key="bh_ilce",
+            "İlçe", secenekler, key="bh_ilce", format_func=_ilce_etiketi,
             index=secenekler.index(en_yogun) if en_yogun else 0,
         )
     ilce = None if ilce_secim == "(Tüm ilçeler)" else ilce_secim
@@ -695,19 +744,6 @@ def havuz_gorunumu():
         "(bağlandıklarında kendi sekmeleriyle buraya düşer)."
     )
 
-    # Tüm ilçeler: ilçe x tür özet tablosu
-    if ilce is None and sayilar:
-        satirlar = []
-        for i, v in sayilar.items():
-            satirlar.append({
-                "İlçe": i,
-                **{ad: v.get(k, 0) for k, ad, _kisa, _r in tanimlar},
-                "Toplam": sum(v.values()),
-            })
-        satirlar.sort(key=lambda r: (-r["Toplam"], _tr_anahtar(r["İlçe"])))
-        with st.expander(f"İlçelere göre dağılım ({len(satirlar)} ilçe)", expanded=False):
-            st.dataframe(satirlar, hide_index=True, use_container_width=True)
-
     sekmeler = st.tabs(
         [f"{ad} ({len(liste.get(k, []))})" for k, ad, _kisa, _r in tanimlar] + ["🎯 Eşleşme"]
     )
@@ -734,16 +770,23 @@ GRUP_SAYFA = 15      # bir seferde gösterilen grup
 
 
 @st.cache_data(ttl=120, show_spinner="Eşleşmeler hesaplanıyor...")
-def _eslesme_gruplari(yon, ilce, gun, ust_n, min_skor):
+def _eslesme_gruplari(yon, ilce, gun, ust_n, min_skor, kira_gun, satis_gun):
     """Gruplu eşleşmeler (kart HTML'leri dahil). Önbelleğe en çok GRUP_TAVAN grup girer."""
     veri, hatalar, bilgi = _eslesme_verisi()
-    ciftler, kaynak_sayisi, kirpildi = es.hesapla(veri, yon, ilce, gun, ust_n, min_skor)
+    simdi = es.datetime.now(es.timezone.utc)
+    omur_elenen = sum(
+        1 for k in veri["talep"] if es._ilce_uyar(k, ilce)
+    ) - sum(1 for k in es.omre_gore(veri["talep"], simdi, kira_gun, satis_gun) if es._ilce_uyar(k, ilce))
+    ciftler, kaynak_sayisi, kirpildi = es.hesapla(
+        veri, yon, ilce, gun, ust_n, min_skor, kira_gun=kira_gun, satis_gun=satis_gun,
+    )
     gruplar = es.gruplari_kur(ciftler)
     toplam_grup = len(gruplar)
     guclu = sum(1 for c in ciftler if c["guclu"])
     return {
         "gruplar": gruplar[:GRUP_TAVAN], "toplam_grup": toplam_grup, "kaynak_sayisi": kaynak_sayisi,
         "guclu": guclu, "kirpildi": kirpildi, "hatalar": hatalar, "bilgi": bilgi,
+        "omur_elenen": omur_elenen,
     }
 
 
@@ -766,8 +809,24 @@ def _eslesme_sekmesi(ilce, ilce_secim, donem):
         ust_n = st.selectbox("Her kayıt için en fazla", [3, 5, 10], index=1, key="bh_es_ustn")
     min_skor = es.GUCLU_ESIK if duzey.startswith("Sadece") else es.OLASI_ESIK
     gun = bh.DONEMLER[donem]
+    with st.expander("Eşleşme kuralları — talep ve paylaşım ömrü", expanded=False):
+        k1, k2 = st.columns(2)
+        with k1:
+            kira_gun = st.selectbox(
+                "Kiralık talep/paylaşım en fazla kaç günlük olsun?", [7, 14, 21, 30],
+                index=[7, 14, 21, 30].index(es.KIRALIK_OMUR_GUN), key="bh_es_kira",
+            )
+        with k2:
+            satis_gun = st.selectbox(
+                "Satılık talep/paylaşım en fazla kaç günlük olsun?", [30, 45, 60],
+                index=[30, 45, 60].index(es.SATILIK_OMUR_GUN), key="bh_es_satis",
+            )
+        st.caption(
+            "Kiralık talepler çabuk kapandığı için kısa tutulur. İşlem tipi anlaşılamayan kayıt satılık "
+            "süresine tabidir. Zeta portföyü ve Startkey ilanı aktif stok olduğu için süreye bağlı değildir."
+        )
 
-    sonuc = _eslesme_gruplari(yon, ilce, gun, ust_n, min_skor)
+    sonuc = _eslesme_gruplari(yon, ilce, gun, ust_n, min_skor, kira_gun, satis_gun)
     for kaynak, msj in sonuc["hatalar"].items():
         st.warning(f"{kaynak} okunamadı, eşleştirmeye dahil edilmedi: {msj}")
     if yon == "zeta_talep":
@@ -781,6 +840,11 @@ def _eslesme_sekmesi(ilce, ilce_secim, donem):
     if bayat_n:
         st.caption(f"{bayat_n} Zeta ilanı, son {bh.BAYAT_ESIK_SAAT // 24} gündür Revy senkronunda görünmediği "
                    "için (yayından kalkmış olabilir) eşleştirmeye alınmadı.")
+    if sonuc.get("omur_elenen"):
+        st.caption(
+            f"{sonuc['omur_elenen']} alıcı talebi, süresi dolduğu için (kiralık {kira_gun} gün, "
+            f"satılık {satis_gun} gün) eşleştirmeye alınmadı."
+        )
     if not sonuc["kaynak_sayisi"]:
         st.info("Bu kapsamda eşleştirilecek kayıt yok.")
         return
@@ -806,14 +870,14 @@ def _eslesme_sekmesi(ilce, ilce_secim, donem):
         g for g in gruplar
         if (sahip_sec == "(Tümü)" or g["sahip"] == sahip_sec) and (not ara or ara in g["arama"])
     ]
-    sayfa_anahtar = f"bh_es_n_{yon}_{ilce}_{donem}_{ust_n}_{min_skor}_{sahip_sec}_{ara}"
+    sayfa_anahtar = f"bh_es_n_{yon}_{ilce}_{donem}_{ust_n}_{min_skor}_{kira_gun}_{satis_gun}_{sahip_sec}_{ara}"
     n = st.session_state.get(sayfa_anahtar, GRUP_SAYFA)
     if not gorunen:
         st.info("Süzgece uyan kayıt yok.")
         return
     secilen = gorunen[:n]
     imza = "|".join([str(len(gorunen)), str(n), sahip_sec, ara, yon, str(ilce), donem, str(ust_n), str(min_skor)]
-                    + [g["kaynak"]["baslik"][:20] + str(g["en_iyi"]) for g in secilen[:5]])
+                    + [str(kira_gun), str(satis_gun)] + [g["kaynak"]["baslik"][:20] + str(g["en_iyi"]) for g in secilen[:5]])
     eslesme_kartlari(
         [{"kaynak": g["kaynak"], "adaylar": g["adaylar"]} for g in secilen],
         es.kart_css(), imza, key=f"bh_es_k_{yon}_{ilce}",
