@@ -92,6 +92,7 @@ def _talep_kaydi(k):
         "fiyat": k.get("fiyat") or str(ham.get("max_butce") or "").strip(), "ilceler": motor["ilceler"],
         "zaman": k.get("zaman"),
         "link": "", "yas_kat": k.get("yas_kat") or "", "islem": k.get("islem") or "",
+        "ham": ham,
     }
 
 
@@ -108,16 +109,18 @@ def _portfoy_kaydi(k, etiket):
         "fiyat": k.get("fiyat") or "", "ilceler": [i for i in (k.get("ilceler") or []) if i],
         "zaman": k.get("zaman"), "link": k.get("link") or "",
         "yas_kat": k.get("yas_kat") or "", "islem": k.get("islem") or "",
+        "ham": ham, "bayat": bool(k.get("bayat")),
     }
 
 
 def veri_yukle(simdi=None):
-    """Eşleşme için ince kayıtlar. Dönüş: ({'talep','zeta','paylasim','startkey'}, hatalar).
+    """Eşleşme için kayıtlar. Dönüş: ({'talep','zeta','paylasim','startkey'}, hatalar, bilgi).
     Bir kaynak okunamazsa diğerleri yine gelir (hatalar sözlüğünde görünür)."""
     simdi = simdi or datetime.now(timezone.utc)
     kesim = simdi - timedelta(days=ADAY_PENCERESI_GUN)
     veri = {"talep": [], "zeta": [], "paylasim": [], "startkey": []}
     hatalar = {}
+    bilgi = {"bayat_zeta": 0}
 
     def dene(ad, fn):
         try:
@@ -133,12 +136,15 @@ def veri_yukle(simdi=None):
     if r is not None:
         paylasim, zeta = r
         veri["paylasim"] = [_portfoy_kaydi(k, "Paylaşım") for k in paylasim]
-        veri["zeta"] = [_portfoy_kaydi(k, "Zeta portföyü") for k in zeta]
+        tum_zeta = [_portfoy_kaydi(k, "Zeta portföyü") for k in zeta]
+        # Revy'den kalkıp hâlâ aktif görünen (bayat) ilanlar eşleştirmeye girmez.
+        veri["zeta"] = [k for k in tum_zeta if not k["bayat"]]
+        bilgi["bayat_zeta"] = len(tum_zeta) - len(veri["zeta"])
     # Startkey: aktif stok — tarih süzgeci yok (çok eski tarih = süzgeçsiz)
     r = dene("Startkey ilanı", lambda: bh._startkey(simdi - timedelta(days=3650), simdi))
     if r is not None:
         veri["startkey"] = [_portfoy_kaydi(k, "Startkey ilanı") for k in r]
-    return veri, hatalar
+    return veri, hatalar, bilgi
 
 
 # ── İNDEKS / EŞLEŞTİRME ─────────────────────────────────────────────────
@@ -236,3 +242,106 @@ def hesapla(veri, yon, ilce, gun, ust_n=5, min_skor=OLASI_ESIK, simdi=None):
     kaynaklar = kaynaklar[:MAX_KAYNAK]
     adaylar = veri["zeta"] + veri["paylasim"] + veri["startkey"]
     return talepten_portfoylere(kaynaklar, adaylar, ust_n, min_skor), len(kaynaklar), kirpildi
+
+
+# ── GÖSTERİM: gruplu kart verisi ────────────────────────────────────────
+_CSS_ONBELLEK = {}
+
+
+def kart_css():
+    """Orijinal kartların stilleri — pano_export'taki ŞABLONLARDAN çıkarılır
+    (kopya yok; kart tasarımı değişirse burası kendiliğinden güncellenir).
+    Shadow DOM içinde kullanılacağı için :root/html/body seçicileri uyarlanır."""
+    if _CSS_ONBELLEK:
+        return dict(_CSS_ONBELLEK)
+    import re
+    from core import pano_export as pe
+
+    def cikar(html):
+        m = re.search(r"<style>(.*?)</style>", html, re.S)
+        css = m.group(1) if m else ""
+        css = css.replace(":root", ":host").replace("html {", ".x-html {").replace("body {", ".x-body {")
+        # Orijinal sayfa gövdesi min-height:100vh ister; iframe içinde bu, iframe yüksekliğini
+        # sonsuz büyütür (yükseklik ↔ vh geri beslemesi). Kart listesinde gerekmez.
+        css = re.sub(r"min-height:\s*100vh;?", "", css)
+        return css
+
+    _CSS_ONBELLEK["talep"] = cikar(pe.pano_html_olustur([], "x", "talep", baslik_goster=False).getvalue().decode("utf-8"))
+    _CSS_ONBELLEK["pazar"] = cikar(pe.pazar_ilan_pano_html_olustur([], "x", baslik_goster=False).getvalue().decode("utf-8"))
+    return dict(_CSS_ONBELLEK)
+
+
+def kart_html(kayit):
+    """{'css': 'talep'|'pazar', 'html': orijinal kart HTML'i} — uygulamadaki
+    Talep/Portföy/Zeta Portföyleri/Startkey İlanları ekranlarının kullandığı
+    aynı şablonlar."""
+    from core import pano_export as pe
+    ham = kayit.get("ham") or {}
+    try:
+        if kayit["tur"] == "startkey":
+            return {"css": "pazar", "html": pe._pazar_ilan_kart_html(ham)}
+        if kayit["tur"] == "talep":
+            return {"css": "talep", "html": pe._kart_html(ham, "talep")}
+        return {"css": "talep", "html": pe._kart_html(ham, "portfoy")}
+    except Exception as e:      # noqa: BLE001 — tek kartın hatası listeyi bozmasın
+        return {"css": "talep", "html": f"<div>Kart oluşturulamadı: {type(e).__name__}</div>"}
+
+
+def _kisi(kayit):
+    from core.rapor_export import _isim_ayikla
+    return _isim_ayikla(kayit.get("sahip") or "") or ""
+
+
+def _tarih_metni(kayit):
+    """Kartta görünenle aynı biçim: gg.aa.yyyy ss:dd (mail/portföy), Startkey'de ilk görülme günü."""
+    from core import pano_export as pe
+    ham = kayit.get("ham") or {}
+    if kayit["tur"] == "startkey":
+        g = str(ham.get("ilk_gorulme_tarihi") or "")[:10]
+        if len(g) == 10 and g[4] == "-":
+            return f"{g[8:10]}.{g[5:7]}.{g[0:4]}"
+        return ""
+    return pe._tarih_saat_kisalt(ham.get("kayit_tarihi")) or (
+        kayit["zaman"].strftime("%d.%m.%Y %H:%M") if kayit.get("zaman") else "")
+
+
+def _meta(kayit):
+    return " · ".join(x for x in (_tarih_metni(kayit), _kisi(kayit)) if x)
+
+
+def gruplari_kur(ciftler):
+    """Düz çift listesini kaynak bazında gruplar; gruplar en iyi skora göre,
+    adaylar skora göre sıralıdır. Dönüş: bileşenin beklediği sözlük listesi
+    (kart HTML'leri DAHİL) + süzme için 'sahip' anahtarı."""
+    gruplar, sira = {}, []
+    for c in ciftler:
+        kid = c["kaynak"]["kid"]
+        if kid not in gruplar:
+            gruplar[kid] = {"kaynak": c["kaynak"], "ciftler": []}
+            sira.append(kid)
+        gruplar[kid]["ciftler"].append(c)
+    cikti = []
+    for kid in sira:
+        g = gruplar[kid]
+        k = g["kaynak"]
+        adaylar_ = sorted(g["ciftler"], key=lambda c: -c["skor"])
+        ilce = ", ".join(i for i in k["ilceler"] if i)
+        cikti.append({
+            "en_iyi": adaylar_[0]["skor"],
+            "sahip": _kisi(k),
+            "arama": " ".join([k["baslik"], k.get("alt") or "", ilce, _kisi(k)]).lower(),
+            "kaynak": {
+                "baslik": k["baslik"],
+                "chips": [x for x in (ilce, k.get("fiyat"), k.get("kaynak"), _meta(k)) if x],
+                "link": bh.guvenli_url(k.get("link")),
+                "kart": kart_html(k),
+            },
+            "adaylar": [{
+                "oran": c["skor"], "guclu": c["guclu"], "baslik": c["aday"]["baslik"],
+                "gerekce": c["gerekce"], "kaynak": c["aday"].get("kaynak") or "",
+                "link": bh.guvenli_url(c["aday"].get("link")), "meta": _meta(c["aday"]),
+                "kart": kart_html(c["aday"]),
+            } for c in adaylar_],
+        })
+    cikti.sort(key=lambda g: -g["en_iyi"])
+    return cikti

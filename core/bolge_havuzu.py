@@ -42,6 +42,7 @@ ILCE_BELIRSIZ = "(İlçe belirsiz)"
 DONEMLER = {"Son 24 saat": 1, "Son 7 gün": 7, "Son 30 gün": 30}
 ZETA_PAYLASIM_KAYNAKLARI = {"zeta", "ofis"}
 ZETA_PORTFOY_KAYNAKLARI = {"zeta1", "zeta2"}
+BAYAT_ESIK_SAAT = 48  # Zeta portföyü: son Revy senkronundan bu kadar önce görülmüşse "bayat"
 MAX_SATIR = 3000     # tek tablodan en fazla bu kadar son kayıt okunur
 
 # Seçilen kayıtlardan paylaşılabilir pano linki: tür -> pano biçimi.
@@ -366,6 +367,34 @@ def _portfoy_kaydi(v, tur, t, simdi):
     }
 
 
+def _bayat_isaretle(zeta):
+    """Revy senkronu (revy_sync.py), export'ta GÖRDÜĞÜ her ilanın
+    guncelleme_tarihi'ni her koşuda tazeler; export'tan kalkan (yayından
+    kalkmış) ilanın tarihi ise donar. Pasifleştirme (aktif=False) henüz
+    üretime açık olmadığından (revy_sync.PASIFLESTIRME_URETIME_HAZIR=False)
+    bu ilanlar aktif=True kalır. Burada, kaynak (zeta1/zeta2) bazında en son
+    senkron zamanına göre BAYAT_ESIK_SAAT'ten daha eski güncellenmiş ilanları
+    'bayat' işaretliyoruz — silmeden, yalnızca ekranda ayırmak için.
+    guncelleme_tarihi olmayan kayıt bayat sayılmaz (belirsiz = dışlama)."""
+    son = {}
+    for k in zeta:
+        ham = k.get("ham") or {}
+        g = _zaman(ham.get("guncelleme_tarihi"))
+        k["_g"] = g
+        kay = tr_kucuk(ham.get("kaynak"))
+        if g and (kay not in son or g > son[kay]):
+            son[kay] = g
+    esik = timedelta(hours=BAYAT_ESIK_SAAT)
+    for k in zeta:
+        g = k.pop("_g", None)
+        kay = tr_kucuk((k.get("ham") or {}).get("kaynak"))
+        k["bayat"] = bool(g and kay in son and (son[kay] - g) > esik)
+        if k["bayat"]:
+            k["baslik"] = "⚠ " + k["baslik"]
+            k["alanlar"] = [("Durum", "Son 2+ gündür Revy export'unda görünmüyor — yayından kalkmış olabilir")] + list(k["alanlar"])
+    return zeta
+
+
 def _portfoyler(kesim, simdi):
     """İki tür:
     - Paylaşım: mail sistemi + Zeta paylaşımı (dönem süzgeci uygulanır).
@@ -381,6 +410,7 @@ def _portfoyler(kesim, simdi):
             continue
         t = _zaman(v.get("kayit_tarihi"), v.get("olusturma_tarihi"), v.get("created_at"))
         zeta.append(_portfoy_kaydi(v, "zeta", t, simdi))
+    _bayat_isaretle(zeta)
 
     paylasim = []
     for v in _sayfalar("portfoyler", "*"):
@@ -463,8 +493,9 @@ def sekme_tanimlari():
 
 
 def havuzu_yukle(gun, ilce_listesi, simdi=None):
-    """{tur: [kayıt, ...]} — tüm ilçeler, son `gun` gün. Hata veren
-    kaynak tüm sayfayı çökertmez: {tur: [...]} yanında hatalar sözlüğü döner."""
+    """({tur: [kayıt, ...]}, hatalar, bilgi) — tüm ilçeler, son `gun` gün. Hata veren
+    kaynak tüm sayfayı çökertmez. bilgi["bayat_zeta"]: ana listeden ayrılan,
+    yayından kalkmış olabilecek Zeta ilanları."""
     simdi = simdi or datetime.now(timezone.utc)
     kesim = simdi - timedelta(days=gun)
     havuz = {k: [] for k, *_ in sekme_tanimlari()}
@@ -490,9 +521,14 @@ def havuzu_yukle(gun, ilce_listesi, simdi=None):
     if r is not None:
         for k, liste in r.items():
             havuz[k] = liste
+    # Bayat (yayından kalkmış olabilecek) Zeta ilanları varsayılan olarak
+    # ana listeden ayrılır; ekran isterse "bilgi['bayat_zeta']" ile geri ekler.
+    bilgi = {"bayat_zeta": [k for k in havuz.get("zeta", []) if k.get("bayat")]}
+    havuz["zeta"] = [k for k in havuz.get("zeta", []) if not k.get("bayat")]
     for liste in havuz.values():
         liste.sort(key=lambda x: x["zaman"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
-    return havuz, hatalar
+    bilgi["bayat_zeta"].sort(key=lambda x: x["zaman"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    return havuz, hatalar, bilgi
 
 
 def ilceye_gore(havuz, ilce):

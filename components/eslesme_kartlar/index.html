@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{--ink:#1c2b47;--muted:#6b7385;--line:#e1e4e9;--line2:#c9ced6;--navy:#1c2b47;--bg:#fff;--g:#0f766e;--gbg:#ccfbf1;--o:#92400e;--obg:#fef3c7}
+  *{box-sizing:border-box}
+  body{margin:0;background:transparent;color:var(--ink);font-family:-apple-system,"Segoe UI",Roboto,Inter,sans-serif;font-size:13.5px;line-height:1.35}
+  .grp{border:1px solid var(--line);border-radius:12px;background:var(--bg);margin:0 0 14px;overflow:hidden}
+  details>summary{list-style:none;cursor:pointer}
+  details>summary::-webkit-details-marker{display:none}
+  .src>summary{padding:12px 14px;background:#1c2b47;color:#fff}
+  .src .t{font-weight:800;font-size:15px;display:flex;gap:8px;align-items:flex-start}
+  .src .t:before{content:"▸";font-size:12px;margin-top:3px;opacity:.8}
+  .src[open] .t:before{content:"▾"}
+  .src .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;font-size:12px;opacity:.92}
+  .src .chip{background:rgba(255,255,255,.14);border-radius:6px;padding:2px 8px}
+  .src .n{margin-left:auto;font-weight:700;font-size:12px;white-space:nowrap;opacity:.9}
+  .src a.il{color:#bae6fd;font-weight:700;text-decoration:none}
+  .cands{padding:6px 10px 8px}
+  .cand{border-bottom:1px solid var(--line)}
+  .cand:last-child{border-bottom:0}
+  .cand>summary{display:flex;gap:12px;padding:10px 4px;align-items:flex-start}
+  .cand>summary:hover{background:#f8f9fb}
+  .rz{flex:0 0 66px;text-align:center}
+  .rz b{display:block;font-size:17px}
+  .rz span{display:inline-block;margin-top:2px;font-size:11px;font-weight:700;border-radius:5px;padding:1px 7px}
+  .rz.g b{color:var(--g)} .rz.g span{background:var(--gbg);color:var(--g)}
+  .rz.o b{color:var(--o)} .rz.o span{background:var(--obg);color:var(--o)}
+  .ic{flex:1;min-width:0}
+  .ic .bs{font-weight:700;font-size:14px}
+  .ic .ge{color:var(--muted);font-size:12px;margin-top:3px}
+  .ic .alt{display:flex;justify-content:flex-end;gap:8px;align-items:center;margin-top:5px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+  .ic .alt .ky{margin-right:auto;background:#eef0f3;border-radius:5px;padding:1px 8px;font-weight:600}
+  .ic a.il{color:#0369a1;font-weight:700;text-decoration:none}
+  .host{padding:10px 12px 14px;background:#f3f4f6}
+  .host .x-body{min-height:0!important}
+  .bos{padding:30px;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+var CSS={},grup=[];
+function gonder(tip,veri){window.parent.postMessage(Object.assign({isStreamlitMessage:true,type:tip},veri),'*')}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function link(u){return u&&/^https?:\/\//i.test(u)?'<a class="il" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">↗ İlan</a>':''}
+function ciz(){
+  var h='';
+  if(!grup.length){h='<div class="bos">Gösterilecek eşleşme yok.</div>'}
+  grup.forEach(function(g,gi){
+    var s=g.kaynak;
+    h+='<div class="grp"><details class="src" data-k="'+gi+'|s"><summary><div class="t"><span>'+esc(s.baslik)+'</span><span class="n">'+g.adaylar.length+' uygun aday</span></div>'
+      +'<div class="chips">'+(s.chips||[]).map(function(c){return c?'<span class="chip">'+esc(c)+'</span>':''}).join('')+(s.link?'<span class="chip">'+link(s.link)+'</span>':'')+'</div></summary><div class="host" data-h></div></details>'
+      +'<div class="cands">';
+    g.adaylar.forEach(function(a,ai){
+      h+='<details class="cand" data-k="'+gi+'|'+ai+'"><summary><div class="rz '+(a.guclu?'g':'o')+'"><b>%'+esc(a.oran)+'</b><span>'+(a.guclu?'Güçlü':'Olası')+'</span></div>'
+        +'<div class="ic"><div class="bs">'+esc(a.baslik)+'</div><div class="ge">'+esc(a.gerekce)+'</div>'
+        +'<div class="alt"><span class="ky">'+esc(a.kaynak||'')+'</span>'+link(a.link)+'<span>'+esc(a.meta||'')+'</span></div></div></summary><div class="host" data-h></div></details>'});
+    h+='</div></div>'});
+  document.getElementById('app').innerHTML=h;
+  Array.prototype.forEach.call(document.querySelectorAll('a.il'),function(e){e.onclick=function(ev){ev.stopPropagation()}});
+  Array.prototype.forEach.call(document.querySelectorAll('details[data-k]'),function(d){
+    d.addEventListener('toggle',function(){
+      if(!d.open)return;
+      var host=d.querySelector('[data-h]');
+      if(host.dataset.ok){boyut();return}
+      var p=d.dataset.k.split('|'),g=grup[+p[0]],it=p[1]==='s'?g.kaynak:g.adaylar[+p[1]];
+      if(!it.kart){host.textContent='Kart bulunamadı.';return}
+      // Orijinal kart: kendi CSS'iyle, sayfanın geri kalanından yalıtılmış (Shadow DOM).
+      var kok=host.attachShadow({mode:'open'});
+      kok.innerHTML='<style>'+(CSS[it.kart.css]||'')+'.x-body{min-height:0!important;height:auto!important}</style><div class="x-body">'+it.kart.html+'</div>';
+      Array.prototype.forEach.call(kok.querySelectorAll('a'),function(a){a.target='_blank';a.rel='noopener noreferrer'});
+      host.dataset.ok='1';boyut();
+    });
+  });
+  boyut();
+}
+function boyut(){gonder('streamlit:setFrameHeight',{height:Math.max(60,Math.ceil(document.getElementById('app').getBoundingClientRect().height)+16)})}
+var son=null;
+window.addEventListener('message',function(e){
+  var m=e.data||{};if(m.type!=='streamlit:render')return;var a=m.args||{};
+  var imza=JSON.stringify([a.imza]);
+  CSS=a.css||{};
+  if(son!==imza){son=imza;grup=a.gruplar||[];ciz()}
+});
+if(window.ResizeObserver){new ResizeObserver(function(){boyut()}).observe(document.getElementById('app'))}
+gonder('streamlit:componentReady',{apiVersion:1});
+gonder('streamlit:setFrameHeight',{height:200});
+</script>
+</body>
+</html>

@@ -41,6 +41,7 @@ from core.personel_manager import load_personel_listesi
 from core.bolge_secici import ilcenin_mahalleleri
 from core import bolge_havuzu as bh
 from core.havuz_tablo_bilesen import havuz_tablosu
+from core.eslesme_kart_bilesen import eslesme_kartlari
 from core import eslesme_havuzu as es
 from core.admin_bolge import (
     BOLGE_TURLERI, MAX_BOLGE, bolgeleri_cek, tum_bolgeleri_cek, cihaz_sayilari,
@@ -628,11 +629,24 @@ def havuz_gorunumu():
         if st.button("↻ Yenile", key="bh_yenile"):
             _havuz_yukle.clear()
             _eslesme_verisi.clear()
-            _eslesme_satirlari.clear()
+            _eslesme_gruplari.clear()
             st.rerun()
-    havuz, hatalar = _havuz_yukle(bh.DONEMLER[donem], tuple(IZMIR_ILCELERI))
+    havuz, hatalar, bilgi = _havuz_yukle(bh.DONEMLER[donem], tuple(IZMIR_ILCELERI))
     for kaynak, msj in hatalar.items():
         st.warning(f"{kaynak} okunamadı, havuza dahil edilmedi: {msj}")
+    bayat = bilgi.get("bayat_zeta", [])
+    if bayat:
+        # Revy'de yayından kalkıp veritabanında hâlâ aktif görünen Zeta ilanları
+        # (pasifleştirme henüz üretimde kapalı) — varsayılan gizli, istenirse göster.
+        if st.checkbox(
+            f"Yayından kalkmış olabilecek {len(bayat)} Zeta ilanını da göster "
+            f"(son {bh.BAYAT_ESIK_SAAT // 24} gündür Revy senkronunda görünmüyorlar)",
+            key="bh_bayat_goster",
+        ):
+            havuz["zeta"] = sorted(
+                list(havuz.get("zeta", [])) + bayat,
+                key=lambda x: x["zaman"] or bh.datetime.min.replace(tzinfo=bh.timezone.utc), reverse=True,
+            )
 
     sayilar = bh.ilce_sayilari(havuz)
     belirsiz_var = bh.ILCE_BELIRSIZ in sayilar
@@ -715,71 +729,21 @@ _ESLESME_YONLERI = {
 }
 
 
-def _eslesme_kolonlari(yon):
-    # Sıra bilinçli: en önemli bilgiler (oran, aday, fiyat, gerekçe) ilk ekranda,
-    # kaynak/sahip ayrıntıları sağda.
-    if yon == "zeta_talep":
-        return [
-            {"k": "Kayıt", "label": "Zeta portföyü", "w": 190},
-            {"k": "İlan", "label": "İlan", "w": 62, "link": True},
-            {"k": "Oran", "label": "Oran", "w": 64, "sk": True},
-            {"k": "Düzey", "label": "Düzey", "w": 72},
-            {"k": "Aday", "label": "Uygun alıcı talebi", "w": 200},
-            {"k": "Bütçe", "label": "Bütçe", "w": 100},
-            {"k": "Gerekçe", "label": "Gerekçe", "w": 260},
-            {"k": "Aday sahibi", "label": "Talep sahibi", "w": 120},
-            {"k": "Aday kaynağı", "label": "Talep kaynağı", "w": 140},
-            {"k": "İlçe", "label": "İlçe", "w": 90},
-        ]
-    return [
-        {"k": "Kayıt", "label": "Alıcı talebi", "w": 190},
-        {"k": "Oran", "label": "Oran", "w": 64, "sk": True},
-        {"k": "Düzey", "label": "Düzey", "w": 72},
-        {"k": "Aday", "label": "Uygun portföy", "w": 190},
-        {"k": "İlan", "label": "İlan", "w": 62, "link": True},
-        {"k": "Fiyat", "label": "Fiyat", "w": 100},
-        {"k": "Gerekçe", "label": "Gerekçe", "w": 260},
-        {"k": "Yaş / Kat", "label": "Yaş / Kat", "w": 120},
-        {"k": "Aday kaynağı", "label": "Portföy kaynağı", "w": 130},
-        {"k": "Aday sahibi", "label": "Portföy sahibi", "w": 120},
-        {"k": "Kayıt sahibi", "label": "Talep sahibi", "w": 110},
-        {"k": "İlçe", "label": "İlçe", "w": 90},
-    ]
+GRUP_TAVAN = 60      # bir ekranda hesaplanıp önbelleğe alınacak en fazla grup (en yüksek skorlular)
+GRUP_SAYFA = 15      # bir seferde gösterilen grup
 
 
 @st.cache_data(ttl=120, show_spinner="Eşleşmeler hesaplanıyor...")
-def _eslesme_satirlari(yon, ilce, gun, ust_n, min_skor):
-    """Tablo satırları + özet. Önbelleğe ince (yalnız ekran) veri girer."""
-    veri, hatalar = _eslesme_verisi()
+def _eslesme_gruplari(yon, ilce, gun, ust_n, min_skor):
+    """Gruplu eşleşmeler (kart HTML'leri dahil). Önbelleğe en çok GRUP_TAVAN grup girer."""
+    veri, hatalar, bilgi = _eslesme_verisi()
     ciftler, kaynak_sayisi, kirpildi = es.hesapla(veri, yon, ilce, gun, ust_n, min_skor)
-    satirlar = []
-    for c in ciftler:
-        kay, aday = c["kaynak"], c["aday"]
-        ilce_m = ", ".join(i for i in kay["ilceler"] if i) or "—"
-        h = {
-            "Kayıt": kay["baslik"], "Oran": f"%{c['skor']}",
-            "Düzey": "Güçlü" if c["guclu"] else "Olası",
-            "Aday": aday["baslik"], "Gerekçe": c["gerekce"], "İlçe": ilce_m,
-            "Aday kaynağı": aday["kaynak"] or "—", "Aday sahibi": aday["sahip"] or "—",
-        }
-        if yon == "zeta_talep":
-            h["Bütçe"] = aday["fiyat"] or "—"
-            link = kay["link"]
-        else:
-            h["Kayıt sahibi"] = kay["sahip"] or "—"
-            h["Fiyat"] = aday["fiyat"] or "—"
-            h["Yaş / Kat"] = aday["yas_kat"] or "—"
-            link = aday["link"]
-        satirlar.append({
-            "id": f"{kay['kid']}>{aday['kid']}", "yeni": False,
-            "u": bh.guvenli_url(link), "t": c["skor"], "h": h,
-        })
-    kaynak_ids = {c["kaynak"]["kid"] for c in ciftler}
+    gruplar = es.gruplari_kur(ciftler)
+    toplam_grup = len(gruplar)
     guclu = sum(1 for c in ciftler if c["guclu"])
     return {
-        "satirlar": satirlar, "kaynak_sayisi": kaynak_sayisi, "adayli_kaynak": len(kaynak_ids),
-        "guclu": guclu, "kirpildi": kirpildi, "hatalar": hatalar,
-        "aday_sayilari": {k: len(v) for k, v in veri.items()},
+        "gruplar": gruplar[:GRUP_TAVAN], "toplam_grup": toplam_grup, "kaynak_sayisi": kaynak_sayisi,
+        "guclu": guclu, "kirpildi": kirpildi, "hatalar": hatalar, "bilgi": bilgi,
     }
 
 
@@ -787,7 +751,8 @@ def _eslesme_sekmesi(ilce, ilce_secim, donem):
     st.caption(
         "Salt-okunur: eşleştirme önerisidir, kimseye bildirim gitmez. Oran, mevcut eşleştirme motorunun "
         "puanıdır (ilçe 40 · bütçe/fiyat 35 · oda/m² 15 · özel kriter 10; işlem/mülk tipi uyumsuzsa eleme). "
-        "Mail kayıtlarında bütçe/oda çoğu zaman boş olduğundan oranlar daha düşük çıkar — gerekçe sütununa bak."
+        "Mail kayıtlarında bütçe/oda çoğu zaman boş olduğundan oranlar daha düşük çıkar — gerekçeye bak. "
+        "Başlığa tıklayınca kayıt, uygulamadaki orijinal kartıyla açılır."
     )
     c1, c2, c3 = st.columns([3, 2, 2])
     with c1:
@@ -802,7 +767,7 @@ def _eslesme_sekmesi(ilce, ilce_secim, donem):
     min_skor = es.GUCLU_ESIK if duzey.startswith("Sadece") else es.OLASI_ESIK
     gun = bh.DONEMLER[donem]
 
-    sonuc = _eslesme_satirlari(yon, ilce, gun, ust_n, min_skor)
+    sonuc = _eslesme_gruplari(yon, ilce, gun, ust_n, min_skor)
     for kaynak, msj in sonuc["hatalar"].items():
         st.warning(f"{kaynak} okunamadı, eşleştirmeye dahil edilmedi: {msj}")
     if yon == "zeta_talep":
@@ -812,24 +777,54 @@ def _eslesme_sekmesi(ilce, ilce_secim, donem):
         kapsam = (f"{ilce_secim.strip('()') if ilce is None else ilce} · {donem.lower()} gelen alıcı talepleri · "
                   f"adaylar: Zeta portföyleri, paylaşımlar (son {es.ADAY_PENCERESI_GUN} gün), Startkey ilanları")
     st.markdown(f"**{_html.escape(kapsam)}**")
+    bayat_n = (sonuc.get("bilgi") or {}).get("bayat_zeta", 0)
+    if bayat_n:
+        st.caption(f"{bayat_n} Zeta ilanı, son {bh.BAYAT_ESIK_SAAT // 24} gündür Revy senkronunda görünmediği "
+                   "için (yayından kalkmış olabilir) eşleştirmeye alınmadı.")
     if not sonuc["kaynak_sayisi"]:
         st.info("Bu kapsamda eşleştirilecek kayıt yok.")
         return
     m1, m2, m3 = st.columns(3)
     m1.metric("Taranan kayıt", sonuc["kaynak_sayisi"])
-    m2.metric("Adayı çıkan", sonuc["adayli_kaynak"])
+    m2.metric("Adayı çıkan", sonuc["toplam_grup"])
     m3.metric("Güçlü eşleşme", sonuc["guclu"])
     if sonuc["kirpildi"]:
         st.warning(f"Çok fazla kayıt var; ilk {es.MAX_KAYNAK} tanesi tarandı. İlçe seçerek daralt.")
-    if not sonuc["satirlar"]:
+    gruplar = sonuc["gruplar"]
+    if not gruplar:
         st.info("Bu kapsamda uygun aday bulunamadı. Eşik düşük/yüksek olabilir; ayrıca ilçe, işlem tipi veya mülk tipi uyuşmayabilir.")
         return
-    satirlar = sorted(sonuc["satirlar"], key=lambda r: -r["t"])
-    havuz_tablosu(
-        _eslesme_kolonlari(yon), satirlar, secimsiz=True,
-        key=f"bh_es_tbl_{yon}_{ilce}_{donem}_{ust_n}_{min_skor}",
+
+    # Süzgeçler (kaynak kaydın danışmanı + serbest arama)
+    f1, f2 = st.columns([2, 3])
+    sahipler = sorted({g["sahip"] for g in gruplar if g["sahip"]}, key=_tr_anahtar)
+    with f1:
+        sahip_sec = st.selectbox("Kaynak kaydın danışmanı", ["(Tümü)"] + sahipler, key="bh_es_sahip")
+    with f2:
+        ara = st.text_input("Ara (başlık, ilçe, danışman)", key="bh_es_ara").strip().lower()
+    gorunen = [
+        g for g in gruplar
+        if (sahip_sec == "(Tümü)" or g["sahip"] == sahip_sec) and (not ara or ara in g["arama"])
+    ]
+    sayfa_anahtar = f"bh_es_n_{yon}_{ilce}_{donem}_{ust_n}_{min_skor}_{sahip_sec}_{ara}"
+    n = st.session_state.get(sayfa_anahtar, GRUP_SAYFA)
+    if not gorunen:
+        st.info("Süzgece uyan kayıt yok.")
+        return
+    secilen = gorunen[:n]
+    imza = "|".join([str(len(gorunen)), str(n), sahip_sec, ara, yon, str(ilce), donem, str(ust_n), str(min_skor)]
+                    + [g["kaynak"]["baslik"][:20] + str(g["en_iyi"]) for g in secilen[:5]])
+    eslesme_kartlari(
+        [{"kaynak": g["kaynak"], "adaylar": g["adaylar"]} for g in secilen],
+        es.kart_css(), imza, key=f"bh_es_k_{yon}_{ilce}",
     )
-    st.caption("Sütun başlığındaki ▾ ile süz (örn. yalnız 'Zeta portföyü' kaynaklı adaylar), başlığa tıklayarak sırala.")
+    alt = f"{len(secilen)} / {len(gorunen)} kayıt gösteriliyor"
+    if sonuc["toplam_grup"] > GRUP_TAVAN:
+        alt += f" (en yüksek skorlu {GRUP_TAVAN} kayıt hesaplandı — daraltmak için ilçe seç)"
+    st.caption(alt)
+    if len(gorunen) > n and st.button(f"Daha fazla göster (+{GRUP_SAYFA})", key="bh_es_daha"):
+        st.session_state[sayfa_anahtar] = n + GRUP_SAYFA
+        st.rerun()
 
 
 def _kopyala_dugmesi(url):
