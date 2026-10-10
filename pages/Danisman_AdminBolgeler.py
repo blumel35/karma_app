@@ -657,7 +657,7 @@ def havuz_gorunumu():
     tanimlar = bh.sekme_tanimlari()
     kayitlar = _takipci_kayitlari()
 
-    c1, c2, c3 = st.columns([3, 3, 1])
+    c2, c3 = st.columns([5, 1])
     with c2:
         donem = st.selectbox("Dönem", list(bh.DONEMLER), index=1, key="bh_donem")
     with c3:
@@ -685,6 +685,7 @@ def havuz_gorunumu():
             )
 
     ozet_kap = st.container()
+    ilce_kap = st.container()     # özet tablonun ALTINDA: önce tabloya bak, sonra ilçeyi seç
     sayilar = bh.ilce_sayilari(havuz)
     belirsiz_var = bh.ILCE_BELIRSIZ in sayilar
     secenekler = ["(Tüm ilçeler)"] + list(IZMIR_ILCELERI) + ([bh.ILCE_BELIRSIZ] if belirsiz_var else [])
@@ -704,7 +705,7 @@ def havuz_gorunumu():
     # İlçe özeti: seçimden ÖNCE çizilir (kapsayıcı yukarıda), hangi ilçenin dolu olduğu görünsün.
     with ozet_kap:
         _ilce_ozet_tablosu(sayilar, tanimlar, donem)
-    with c1:
+    with ilce_kap:
         ilce_secim = st.selectbox(
             "İlçe", secenekler, key="bh_ilce", format_func=_ilce_etiketi,
             index=secenekler.index(en_yogun) if en_yogun else 0,
