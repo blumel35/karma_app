@@ -41,6 +41,7 @@ from core.personel_manager import load_personel_listesi
 from core.bolge_secici import ilcenin_mahalleleri
 from core import bolge_havuzu as bh
 from core.havuz_tablo_bilesen import havuz_tablosu
+from core import eslesme_havuzu as es
 from core.admin_bolge import (
     BOLGE_TURLERI, MAX_BOLGE, bolgeleri_cek, tum_bolgeleri_cek, cihaz_sayilari,
     bolgeleri_kaydet, ilce_bildirim_ayarla, ilce_mahallelerini_ayarla,
@@ -626,6 +627,8 @@ def havuz_gorunumu():
         st.write("")
         if st.button("↻ Yenile", key="bh_yenile"):
             _havuz_yukle.clear()
+            _eslesme_verisi.clear()
+            _eslesme_satirlari.clear()
             st.rerun()
     havuz, hatalar = _havuz_yukle(bh.DONEMLER[donem], tuple(IZMIR_ILCELERI))
     for kaynak, msj in hatalar.items():
@@ -691,10 +694,142 @@ def havuz_gorunumu():
         with st.expander(f"İlçelere göre dağılım ({len(satirlar)} ilçe)", expanded=False):
             st.dataframe(satirlar, hide_index=True, use_container_width=True)
 
-    sekmeler = st.tabs([f"{ad} ({len(liste.get(k, []))})" for k, ad, _kisa, _r in tanimlar])
-    for sekme, (k, ad, _kisa, renk) in zip(sekmeler, tanimlar):
+    sekmeler = st.tabs(
+        [f"{ad} ({len(liste.get(k, []))})" for k, ad, _kisa, _r in tanimlar] + ["🎯 Eşleşme"]
+    )
+    for sekme, (k, ad, _kisa, renk) in zip(sekmeler[:-1], tanimlar):
         with sekme:
             _havuz_sekmesi(k, ad, renk, liste.get(k, []), ilce, kayitlar, donem)
+    with sekmeler[-1]:
+        _eslesme_sekmesi(ilce, ilce_secim, donem)
+
+
+@st.cache_data(ttl=300, show_spinner="Eşleşme verisi yükleniyor...")
+def _eslesme_verisi():
+    return es.veri_yukle()
+
+
+_ESLESME_YONLERI = {
+    "zeta_talep": "Zeta portföyü → uygun alıcı talepleri",
+    "talep_portfoy": "Alıcı talebi → uygun portföyler",
+}
+
+
+def _eslesme_kolonlari(yon):
+    # Sıra bilinçli: en önemli bilgiler (oran, aday, fiyat, gerekçe) ilk ekranda,
+    # kaynak/sahip ayrıntıları sağda.
+    if yon == "zeta_talep":
+        return [
+            {"k": "Kayıt", "label": "Zeta portföyü", "w": 190},
+            {"k": "İlan", "label": "İlan", "w": 62, "link": True},
+            {"k": "Oran", "label": "Oran", "w": 64, "sk": True},
+            {"k": "Düzey", "label": "Düzey", "w": 72},
+            {"k": "Aday", "label": "Uygun alıcı talebi", "w": 200},
+            {"k": "Bütçe", "label": "Bütçe", "w": 100},
+            {"k": "Gerekçe", "label": "Gerekçe", "w": 260},
+            {"k": "Aday sahibi", "label": "Talep sahibi", "w": 120},
+            {"k": "Aday kaynağı", "label": "Talep kaynağı", "w": 140},
+            {"k": "İlçe", "label": "İlçe", "w": 90},
+        ]
+    return [
+        {"k": "Kayıt", "label": "Alıcı talebi", "w": 190},
+        {"k": "Oran", "label": "Oran", "w": 64, "sk": True},
+        {"k": "Düzey", "label": "Düzey", "w": 72},
+        {"k": "Aday", "label": "Uygun portföy", "w": 190},
+        {"k": "İlan", "label": "İlan", "w": 62, "link": True},
+        {"k": "Fiyat", "label": "Fiyat", "w": 100},
+        {"k": "Gerekçe", "label": "Gerekçe", "w": 260},
+        {"k": "Yaş / Kat", "label": "Yaş / Kat", "w": 120},
+        {"k": "Aday kaynağı", "label": "Portföy kaynağı", "w": 130},
+        {"k": "Aday sahibi", "label": "Portföy sahibi", "w": 120},
+        {"k": "Kayıt sahibi", "label": "Talep sahibi", "w": 110},
+        {"k": "İlçe", "label": "İlçe", "w": 90},
+    ]
+
+
+@st.cache_data(ttl=120, show_spinner="Eşleşmeler hesaplanıyor...")
+def _eslesme_satirlari(yon, ilce, gun, ust_n, min_skor):
+    """Tablo satırları + özet. Önbelleğe ince (yalnız ekran) veri girer."""
+    veri, hatalar = _eslesme_verisi()
+    ciftler, kaynak_sayisi, kirpildi = es.hesapla(veri, yon, ilce, gun, ust_n, min_skor)
+    satirlar = []
+    for c in ciftler:
+        kay, aday = c["kaynak"], c["aday"]
+        ilce_m = ", ".join(i for i in kay["ilceler"] if i) or "—"
+        h = {
+            "Kayıt": kay["baslik"], "Oran": f"%{c['skor']}",
+            "Düzey": "Güçlü" if c["guclu"] else "Olası",
+            "Aday": aday["baslik"], "Gerekçe": c["gerekce"], "İlçe": ilce_m,
+            "Aday kaynağı": aday["kaynak"] or "—", "Aday sahibi": aday["sahip"] or "—",
+        }
+        if yon == "zeta_talep":
+            h["Bütçe"] = aday["fiyat"] or "—"
+            link = kay["link"]
+        else:
+            h["Kayıt sahibi"] = kay["sahip"] or "—"
+            h["Fiyat"] = aday["fiyat"] or "—"
+            h["Yaş / Kat"] = aday["yas_kat"] or "—"
+            link = aday["link"]
+        satirlar.append({
+            "id": f"{kay['kid']}>{aday['kid']}", "yeni": False,
+            "u": bh.guvenli_url(link), "t": c["skor"], "h": h,
+        })
+    kaynak_ids = {c["kaynak"]["kid"] for c in ciftler}
+    guclu = sum(1 for c in ciftler if c["guclu"])
+    return {
+        "satirlar": satirlar, "kaynak_sayisi": kaynak_sayisi, "adayli_kaynak": len(kaynak_ids),
+        "guclu": guclu, "kirpildi": kirpildi, "hatalar": hatalar,
+        "aday_sayilari": {k: len(v) for k, v in veri.items()},
+    }
+
+
+def _eslesme_sekmesi(ilce, ilce_secim, donem):
+    st.caption(
+        "Salt-okunur: eşleştirme önerisidir, kimseye bildirim gitmez. Oran, mevcut eşleştirme motorunun "
+        "puanıdır (ilçe 40 · bütçe/fiyat 35 · oda/m² 15 · özel kriter 10; işlem/mülk tipi uyumsuzsa eleme). "
+        "Mail kayıtlarında bütçe/oda çoğu zaman boş olduğundan oranlar daha düşük çıkar — gerekçe sütununa bak."
+    )
+    c1, c2, c3 = st.columns([3, 2, 2])
+    with c1:
+        yon = st.radio(
+            "Yön", list(_ESLESME_YONLERI), format_func=_ESLESME_YONLERI.get,
+            key="bh_es_yon", horizontal=False,
+        )
+    with c2:
+        duzey = st.radio("Gösterilecek", ["Güçlü + olası (%40+)", "Sadece güçlü (%70+)"], key="bh_es_duzey")
+    with c3:
+        ust_n = st.selectbox("Her kayıt için en fazla", [3, 5, 10], index=1, key="bh_es_ustn")
+    min_skor = es.GUCLU_ESIK if duzey.startswith("Sadece") else es.OLASI_ESIK
+    gun = bh.DONEMLER[donem]
+
+    sonuc = _eslesme_satirlari(yon, ilce, gun, ust_n, min_skor)
+    for kaynak, msj in sonuc["hatalar"].items():
+        st.warning(f"{kaynak} okunamadı, eşleştirmeye dahil edilmedi: {msj}")
+    if yon == "zeta_talep":
+        kapsam = (f"{ilce_secim.strip('()') if ilce is None else ilce} · Zeta portföyleri (aktif stok) · "
+                  f"adaylar: son {es.ADAY_PENCERESI_GUN} günün alıcı talepleri")
+    else:
+        kapsam = (f"{ilce_secim.strip('()') if ilce is None else ilce} · {donem.lower()} gelen alıcı talepleri · "
+                  f"adaylar: Zeta portföyleri, paylaşımlar (son {es.ADAY_PENCERESI_GUN} gün), Startkey ilanları")
+    st.markdown(f"**{_html.escape(kapsam)}**")
+    if not sonuc["kaynak_sayisi"]:
+        st.info("Bu kapsamda eşleştirilecek kayıt yok.")
+        return
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Taranan kayıt", sonuc["kaynak_sayisi"])
+    m2.metric("Adayı çıkan", sonuc["adayli_kaynak"])
+    m3.metric("Güçlü eşleşme", sonuc["guclu"])
+    if sonuc["kirpildi"]:
+        st.warning(f"Çok fazla kayıt var; ilk {es.MAX_KAYNAK} tanesi tarandı. İlçe seçerek daralt.")
+    if not sonuc["satirlar"]:
+        st.info("Bu kapsamda uygun aday bulunamadı. Eşik düşük/yüksek olabilir; ayrıca ilçe, işlem tipi veya mülk tipi uyuşmayabilir.")
+        return
+    satirlar = sorted(sonuc["satirlar"], key=lambda r: -r["t"])
+    havuz_tablosu(
+        _eslesme_kolonlari(yon), satirlar, secimsiz=True,
+        key=f"bh_es_tbl_{yon}_{ilce}_{donem}_{ust_n}_{min_skor}",
+    )
+    st.caption("Sütun başlığındaki ▾ ile süz (örn. yalnız 'Zeta portföyü' kaynaklı adaylar), başlığa tıklayarak sırala.")
 
 
 def _kopyala_dugmesi(url):

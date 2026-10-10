@@ -17,11 +17,12 @@ _YOL = os.path.join(
 _bilesen = components.declare_component("havuz_tablo", path=_YOL)
 
 
-def havuz_tablosu(kolonlar, satirlar, secili0=None, aktif0=None, key="havuz_tablo"):
+def havuz_tablosu(kolonlar, satirlar, secili0=None, aktif0=None, key="havuz_tablo", secimsiz=False):
     """kolonlar: [{'k': anahtar, 'label': başlık, 'w': px, 'sk': True(zaman gibi
     sayısal sıralı sütun)}]. satirlar: [{'id', 'yeni', 't' (sıralama sayısı),
-    'h': {anahtar: metin}}]. Döner: {'sec': [id...], 'aktif': id|None, 'n'} ya da None."""
+    'h': {anahtar: metin}}]. Döner: {'sec': [id...], 'aktif': id|None, 'n'} ya da None.
+    secimsiz=True: onay kutuları gizlenir (ör. Eşleşme sekmesi)."""
     return _bilesen(
         kolonlar=kolonlar, satirlar=satirlar, secili0=secili0 or [],
-        aktif0=aktif0, key=key, default=None,
+        aktif0=aktif0, key=key, default=None, secimsiz=bool(secimsiz),
     )

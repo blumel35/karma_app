@@ -61,15 +61,15 @@ function gorunen(){
   return l}
 function tumDegerler(k){var c={};st.satir.forEach(function(r){if(!gecer(r,k))return;var v=r.h[k]||'—';c[v]=(c[v]||0)+1});return c}
 function ciz(){
-  var l=gorunen(),h='<div class="wrap"><table><thead><tr><th class="ck"><div class="h" style="justify-content:center;padding:8px 0"><input type="checkbox" id="hepsi" class="hp"'+(l.length&&l.every(function(r){return st.sec[r.id]})?' checked':'')+' style="width:17px;height:17px;cursor:pointer"></div></th>';
+  var l=gorunen(),h='<div class="wrap"><table><thead><tr>'+(st.secimsiz?'':'<th class="ck"><div class="h" style="justify-content:center;padding:8px 0"><input type="checkbox" id="hepsi" class="hp"'+(l.length&&l.every(function(r){return st.sec[r.id]})?' checked':'')+' style="width:17px;height:17px;cursor:pointer"></div></th>');
   st.kol.forEach(function(c){
     var on=!!st.f[c.k],ar=st.sirala&&st.sirala.k===c.k?(st.sirala.y>0?' ▲':' ▼'):'';
     if(c.link){h+='<th style="min-width:'+(c.w||70)+'px"><div class="h"><span class="lbl" style="cursor:default">'+esc(c.label)+'</span></div></th>';return}
     h+='<th style="min-width:'+(c.w||110)+'px"><div class="h"><span class="lbl" data-s="'+esc(c.k)+'">'+esc(c.label)+'<span class="ar">'+ar+'</span></span><button class="fb'+(on?' on':'')+'" data-f="'+esc(c.k)+'" title="Filtre">▾</button></div></th>'});
   h+='</tr></thead><tbody>';
-  if(!l.length){h+='<tr><td colspan="'+(st.kol.length+1)+'" class="bos">Filtreye uyan kayıt yok.</td></tr>'}
+  if(!l.length){h+='<tr><td colspan="'+(st.kol.length+(st.secimsiz?0:1))+'" class="bos">Filtreye uyan kayıt yok.</td></tr>'}
   l.forEach(function(r){
-    h+='<tr class="r'+(st.sec[r.id]?' s':'')+(st.aktif===r.id?' a':'')+'" data-id="'+esc(r.id)+'"><td class="ck"><input type="checkbox" data-c="'+esc(r.id)+'"'+(st.sec[r.id]?' checked':'')+'></td>';
+    h+='<tr class="r'+(st.sec[r.id]?' s':'')+(st.aktif===r.id?' a':'')+'" data-id="'+esc(r.id)+'">'+(st.secimsiz?'':'<td class="ck"><input type="checkbox" data-c="'+esc(r.id)+'"'+(st.sec[r.id]?' checked':'')+'></td>');
     st.kol.forEach(function(c,i){
       if(c.link){h+='<td>'+(r.u&&/^https?:\/\//i.test(r.u)?'<a class="il" href="'+esc(r.u)+'" target="_blank" rel="noopener noreferrer">↗ İlan</a>':'—')+'</td>';return}
       var v=r.h[c.k]||'—';
@@ -77,7 +77,7 @@ function ciz(){
     h+='</tr>'});
   h+='</tbody></table></div>';
   var nf=Object.keys(st.f).length,ns=Object.keys(st.sec).length;
-  h+='<div class="alt"><span>'+l.length+' / '+st.satir.length+' kayıt</span><span>·</span><span>'+ns+' seçili</span>'
+  h+='<div class="alt"><span>'+l.length+' / '+st.satir.length+' kayıt</span><span>·</span><span>'+(st.secimsiz?'':ns+' seçili')+'</span>'
     +(nf||st.sirala?'<button id="temizle">Filtre ve sıralamayı temizle</button>':'')
     +(ns?'<button id="secTemizle">Seçimi kaldır</button>':'')+'</div>';
   if(st.acik){h+=popHtml()}
@@ -119,7 +119,7 @@ document.addEventListener('click',function(){if(st.acik){st.acik=null;ciz()}});
 window.addEventListener('message',function(e){
   var m=e.data||{};if(m.type!=='streamlit:render')return;var a=m.args||{};
   var imza=JSON.stringify([a.kolonlar,a.satirlar.map(function(r){return r.id})]);
-  st.kol=a.kolonlar||[];st.satir=(a.satirlar||[]).map(function(r){return{id:r.id,yeni:r.yeni,t:r.t||0,h:r.h,u:r.u||''}});
+  st.secimsiz=!!a.secimsiz;st.kol=a.kolonlar||[];st.satir=(a.satirlar||[]).map(function(r){return{id:r.id,yeni:r.yeni,t:r.t||0,h:r.h,u:r.u||''}});
   if(st.imza!==imza){ // yeni veri: durumu sıfırla, Python'dan gelen seçimi al
     st.imza=imza;st.f={};st.sirala=null;st.acik=null;st.sec={};(a.secili0||[]).forEach(function(i){st.sec[i]=1});st.aktif=a.aktif0||null}
   ciz()});
