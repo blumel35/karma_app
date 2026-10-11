@@ -456,73 +456,112 @@ LOCAL_SESSION_RESTORE = _local_restore_enabled()
 _COOKIE_ADI = "startkey_session"
 
 
-def _cookie_ctrl():
-    """DÜZELTME (08.08.2026): Controller nesnesini artık session_state
-    içinde SAKLAMIYORUZ. Kök sebep: streamlit-cookies-controller ilk
-    oluşturulduğunda tarayıcıya asenkron bir `getAll` isteği gönderiyor;
-    ilk anda boş ({}) dönebiliyor, tarayıcıdan gerçek cookie listesi
-    gelince component kendi kendine bir rerun tetikliyor — kütüphane
-    bilerek HER rerun'da YENİ bir instance oluşturulacak şekilde
-    tasarlanmış (kendi `key`'i session_state'te zaten varsa oradan
-    cookie listesini okuyor, yoksa browser'dan istiyor). Biz ilk (boş)
-    anda oluşan nesneyi kalıcı tutup tekrar tekrar aynı nesneyi
-    döndürdüğümüz için, tarayıcıda gerçekten var olan cookie'yi hiç
-    görmüyorduk — bu, Auth Restore Teşhisi'nde net şekilde doğrulandı.
-    """
+_COOKIE_GUN = 30
+_CEREZ_BEKLEME_SN = 15      # onay gelmezse en fazla bu kadar bekle, sonra vazgeç (kullanıcı yine girebilir)
+_CEREZ_OKUMA_SN = 8         # tarayıcı çerez okumasına en fazla bu kadar bekle
+
+
+def _cerez_bilesen():
     try:
-        from streamlit_cookies_controller import CookieController
+        from core import cerez_bilesen
+        return cerez_bilesen
     except Exception:
         return None
-    try:
-        return CookieController(key="startkey_auth_cookies")
-    except Exception:
-        return None
+
+
+def _bekleme_mesaji(metin):
+    st.markdown(
+        f"<div style='text-align:center;color:#5b6478;font-size:14px;padding:24vh 0 0'>{metin}</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _cerez_sonraki_nonce():
+    import uuid
+    return uuid.uuid4().hex[:12]
 
 
 def _tarayici_oturumu_kaydet(kullanici: dict) -> None:
-    """Yalnız refresh_token'ı (+ email, teşhis amaçlı) tarayıcı
-    cookie'sine yazar. Şifre veya access_token asla yazılmaz."""
-    ctrl = _cookie_ctrl()
-    if not ctrl:
-        return
-    try:
-        import json
-        ctrl.set(
-            _COOKIE_ADI,
-            json.dumps({
-                "refresh_token": kullanici.get("refresh_token", ""),
-                "email": kullanici.get("email", ""),
-            }),
-            max_age=60 * 60 * 24 * 30,  # 30 gün
-        )
-    except Exception:
-        pass
+    """Yalnız refresh_token'ı (+ email, teşhis amaçlı) çereze yazılmak üzere SIRAYA koyar.
+    Şifre veya access_token asla yazılmaz. Yazma, bir sonraki oturum_kontrol() çağrısında
+    (aynı veya sonraki sayfa) bileşen aracılığıyla yapılır ve tarayıcıdan ONAY beklenir
+    (bkz. _cerez_bekleyeni_isle)."""
+    import json
+    st.session_state["_cerez_bekleyen"] = {
+        "op": "write",
+        "deger": json.dumps({
+            "refresh_token": kullanici.get("refresh_token", ""),
+            "email": kullanici.get("email", ""),
+        }),
+        "nonce": _cerez_sonraki_nonce(),
+        "t0": time.time(),
+    }
+    st.session_state["_cerez_dongu"] = st.session_state.get("_cerez_dongu", 0) + 1
 
 
 def _tarayici_oturumu_temizle() -> None:
-    """Çıkışta tarayıcı cookie'sini de sil — aksi hâlde çıkış yapan
-    kullanıcı bir sonraki ziyarette otomatik geri giriş yapmış olurdu."""
-    ctrl = _cookie_ctrl()
-    if not ctrl:
+    """Çıkışta çerezi silmek üzere SIRAYA koyar — silme tarayıcıdan onay gelene kadar
+    beklenir; bitmeden çerez okunmaz (aksi hâlde çıkış yapan kullanıcı geri alınırdı)."""
+    st.session_state["_cerez_bekleyen"] = {
+        "op": "remove", "deger": "", "nonce": _cerez_sonraki_nonce(), "t0": time.time(),
+    }
+    st.session_state["_cerez_dongu"] = st.session_state.get("_cerez_dongu", 0) + 1
+
+
+def _cerez_bekleyeni_isle() -> None:
+    """Sıradaki çerez yazma/silme işlemini bileşene verir ve tarayıcıdan ONAY gelene kadar
+    (en fazla _CEREZ_BEKLEME_SN) sayfayı tutar. Onay bileşenin kendisiyle (otomatik rerun) gelir;
+    sleep+rerun yalnız bileşen hiç cevap vermezse sonsuz bekleme olmasın diye emniyet."""
+    p = st.session_state.get("_cerez_bekleyen")
+    if not p:
         return
-    try:
-        ctrl.remove(_COOKIE_ADI)
-    except Exception:
-        pass
+    cb = _cerez_bilesen()
+    if cb is None:
+        st.session_state.pop("_cerez_bekleyen", None)
+        return
+    ack = cb.cerez_islem(p["op"], _COOKIE_ADI, p.get("deger", ""), _COOKIE_GUN * 86400,
+                         p["nonce"], key="oc_islem_" + p["nonce"])
+    if isinstance(ack, dict) and ack.get("nonce") == p["nonce"]:
+        st.session_state.pop("_cerez_bekleyen", None)
+        if not ack.get("ok"):
+            import logging
+            logging.getLogger(__name__).warning("Çerez %s işlemi doğrulanamadı: %s", p["op"], ack.get("err"))
+        return
+    if time.time() - p.get("t0", time.time()) > _CEREZ_BEKLEME_SN:
+        import logging
+        logging.getLogger(__name__).warning("Çerez %s işlemi için tarayıcıdan onay gelmedi", p["op"])
+        st.session_state.pop("_cerez_bekleyen", None)
+        return
+    _bekleme_mesaji("Oturum kaydediliyor…" if p["op"] == "write" else "Çıkış yapılıyor…")
+    time.sleep(0.8)
+    st.rerun()
 
 
 def _tarayici_oturumu_yukle() -> dict | None:
-    """Cookie'deki refresh_token ile Supabase'den YENİ bir oturum ister.
+    """Çerezdeki refresh_token ile Supabase'den YENİ bir oturum ister.
     Kör dosya güvenine dayanan LOCAL_SESSION_RESTORE'un aksine, token
     burada gerçekten Supabase'e karşı doğrulanır — geçersiz/süresi
     dolmuş token'da sessizce None döner, kullanıcı normal giriş
-    ekranına düşer."""
-    ctrl = _cookie_ctrl()
-    if not ctrl:
+    ekranına düşer.
+
+    11.10.2026: çerez okuması artık ONAYLI. Tarayıcı henüz cevap vermediyse (soğuk
+    başlangıç/yavaş cihaz) "çerez yok" denmez; cevap gelene kadar (en fazla
+    _CEREZ_OKUMA_SN) kısa bir 'Oturum kontrol ediliyor…' gösterilir."""
+    import json
+    cb = _cerez_bilesen()
+    if cb is None:
         return None
+    nonce = f"oku{st.session_state.get('_cerez_dongu', 0)}"
+    yanit = cb.cerez_islem("read", _COOKIE_ADI, "", 0, nonce, key="oc_" + nonce)
+    if not (isinstance(yanit, dict) and yanit.get("nonce") == nonce):
+        t0 = st.session_state.setdefault("_cerez_oku_t0_" + nonce, time.time())
+        if time.time() - t0 < _CEREZ_OKUMA_SN:
+            _bekleme_mesaji("Oturum kontrol ediliyor…")
+            time.sleep(0.6)
+            st.rerun()
+        return None       # tarayıcı hiç cevap vermedi → çerez bilinmiyor, giriş formu
     try:
-        import json
-        raw = ctrl.get(_COOKIE_ADI)
+        raw = yanit.get("value")
         if not raw:
             return None
         data = json.loads(raw) if isinstance(raw, str) else raw
@@ -565,19 +604,14 @@ def _tarayici_oturumu_yukle() -> dict | None:
             st.session_state["_cerez_restore_basarisiz"] = refresh_token
             return None
 
-        # Token döndü → ESKİSİ ARTIK ÖLÜ. Yenisini HEMEN (profil/log
-        # sorguları yapılmadan önce) hem bu oturumun belleğine hem
-        # tarayıcı çerezine yaz; sonra çerezin gerçekten tarayıcıya
-        # ulaşması için kısa bir bekleme (giriş akışındaki kanıtlanmış
-        # time.sleep(1) deseni). Eskiden yazma, en sondaki yavaş sorgulardan
-        # sonra yapılıyordu; araya giren bir rerun/sayfa geçişi yazmayı
-        # kaçırırsa kullanıcı bir sonraki ziyarette şifre soruluyordu.
+        # Token döndü → ESKİSİ ARTIK ÖLÜ (tek kullanımlık). Yenisini hem bu oturumun
+        # belleğine hem çereze yazılmak üzere SIRAYA koy; çereze yazma ve tarayıcıdan ONAY
+        # alma oturum_kontrol() sonunda yapılır (_cerez_bekleyeni_isle) — sabit sleep yok.
         st.session_state["_son_refresh_token"] = res.session.refresh_token
         _tarayici_oturumu_kaydet({
             "refresh_token": res.session.refresh_token,
             "email": res.user.email,
         })
-        time.sleep(1)
 
         profil = _profil_cek(supa, res.user.id)
         kullanici = {
@@ -1090,10 +1124,7 @@ def _oturum_kontrol_ic() -> bool:
     # cevabının Python'a ulaşmasını bekliyoruz). Şimdi rerun'dan ÖNCE
     # kısa bir gerçek bekleme ekleniyor — bu, tarayıcının cevabının asıl
     # zamanında ulaşma ihtimalini ciddi şekilde artırıyor.
-    if not st.session_state.get("_cookie_soguk_baslangic_denendi"):
-        st.session_state["_cookie_soguk_baslangic_denendi"] = True
-        time.sleep(0.7)
-        st.rerun()
+    # (Soğuk başlangıç yarışı artık _tarayici_oturumu_yukle() içinde, tarayıcı onayıyla çözülüyor.)
 
     if not LOCAL_SESSION_RESTORE:
         return False
@@ -1181,7 +1212,14 @@ def giris_sonrasi_sayfa(varsayilan="pages/Danisman_Secim.py"):
 def oturum_kontrol() -> bool:
     """Bkz. _oturum_kontrol_ic(). Oturum yoksa (False) bildirimden gelen
     ?git= hedefini giriş sonrası için saklar."""
+    # Bekleyen çerez silme (çıkış) ÖNCE biter — silinmeden çerez okunursa çıkış yapan
+    # kullanıcı geri alınırdı. Bekleyen yazma (giriş / yenilenen token) ise oturum
+    # kararından SONRA işlenir (restore yeni token üretir) ve onay gelene kadar tutulur.
+    p = st.session_state.get("_cerez_bekleyen")
+    if p and p.get("op") == "remove":
+        _cerez_bekleyeni_isle()
     sonuc = _oturum_kontrol_ic()
+    _cerez_bekleyeni_isle()
     if not sonuc:
         _giris_sonrasi_hedefi_kaydet()
     return sonuc
