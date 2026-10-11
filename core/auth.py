@@ -476,6 +476,20 @@ def _bekleme_mesaji(metin):
     )
 
 
+def _teshis_yaz(**kw):
+    d = st.session_state.setdefault("_cerez_teshis", {})
+    d.update(kw)
+
+
+def _teshis_paneli():
+    """?teshis=1 ile açılan, GİZLİ DEĞER İÇERMEYEN (token yok) çerez/oturum teşhisi."""
+    d = dict(st.session_state.get("_cerez_teshis", {}))
+    d["surum"] = "auth-v10 (onayli cerez)"
+    d["bekleyen_islem"] = (st.session_state.get("_cerez_bekleyen") or {}).get("op")
+    with st.expander("Oturum teşhisi (?teshis=1)", expanded=True):
+        st.json(d)
+
+
 def _cerez_sonraki_nonce():
     import uuid
     return uuid.uuid4().hex[:12]
@@ -553,6 +567,7 @@ def _tarayici_oturumu_yukle() -> dict | None:
         return None
     nonce = f"oku{st.session_state.get('_cerez_dongu', 0)}"
     yanit = cb.cerez_islem("read", _COOKIE_ADI, "", 0, nonce, key="oc_" + nonce)
+    _teshis_yaz(tarayici_cevap_verdi=bool(isinstance(yanit, dict) and yanit.get("nonce") == nonce))
     if not (isinstance(yanit, dict) and yanit.get("nonce") == nonce):
         t0 = st.session_state.setdefault("_cerez_oku_t0_" + nonce, time.time())
         if time.time() - t0 < _CEREZ_OKUMA_SN:
@@ -562,13 +577,16 @@ def _tarayici_oturumu_yukle() -> dict | None:
         return None       # tarayıcı hiç cevap vermedi → çerez bilinmiyor, giriş formu
     try:
         raw = yanit.get("value")
+        _teshis_yaz(cerez_var=bool(raw))
         if not raw:
             return None
         data = json.loads(raw) if isinstance(raw, str) else raw
         refresh_token = (data or {}).get("refresh_token", "")
+        _teshis_yaz(cerez_ayristi=True, token_uzunlugu=len(refresh_token or ""), cerezdeki_email=(data or {}).get("email", ""))
         if not refresh_token:
             return None
-    except Exception:
+    except Exception as _e:
+        _teshis_yaz(cerez_ayristi=False, ayrisma_hatasi=str(_e)[:120])
         return None
 
     # DÜZELTME (10.10.2026, "beni hatırla işaretli ama şifre isteniyor"
@@ -593,6 +611,7 @@ def _tarayici_oturumu_yukle() -> dict | None:
     _t0 = time.time()
     try:
         res = supa.auth.refresh_session(refresh_token)
+        _teshis_yaz(refresh_sonucu="basarili")
         if not res.user:
             st.session_state["_cerez_restore_basarisiz"] = refresh_token
             return None
@@ -675,6 +694,7 @@ def _tarayici_oturumu_yukle() -> dict | None:
         import logging
         logging.getLogger(__name__).exception("Tarayıcı oturumu geri yükleme hatası: %s", e)
         # Aynı ölü token'la bu oturumda tekrar tekrar denenmesin.
+        _teshis_yaz(refresh_sonucu="HATA: " + str(e)[:160])
         st.session_state["_cerez_restore_basarisiz"] = refresh_token
         return None
 
@@ -1220,6 +1240,8 @@ def oturum_kontrol() -> bool:
         _cerez_bekleyeni_isle()
     sonuc = _oturum_kontrol_ic()
     _cerez_bekleyeni_isle()
+    if st.query_params.get("teshis") == "1":
+        _teshis_paneli()
     if not sonuc:
         _giris_sonrasi_hedefi_kaydet()
     return sonuc
