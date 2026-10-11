@@ -48,7 +48,7 @@ MAX_SATIR = 3000     # tek tablodan en fazla bu kadar son kayıt okunur
 # Seçilen kayıtlardan paylaşılabilir pano linki: tür -> pano biçimi.
 # Yatırım talepleri/müşteri formları kişisel veri (ad, telefon) taşıdığı için
 # herkese açık link şimdilik KAPALI.
-LINK_BICIMI = {"startkey": "pazar", "talep": "talep", "paylasim": "portfoy", "zeta": "portfoy"}
+LINK_BICIMI = {"startkey": "pazar", "fsbo": "pazar", "talep": "talep", "paylasim": "portfoy", "zeta": "portfoy"}
 
 # ── DIŞ KANAL KAYDI ─────────────────────────────────────────────────
 # talep_tipi -> sekme. Yeni form = yeni satır.
@@ -253,9 +253,18 @@ def metinden_yas_kat(*metinler):
 
 # ── ADAPTÖRLER ──────────────────────────────────────────────────────
 def _startkey(kesim, simdi):
+    return _pazar_ilanlari("startkey", "startkey", "Startkey ilanı", "Startkey ilanı (Revy)", kesim, simdi)
+
+
+def _fsbo(kesim, simdi):
+    """Mülk sahibinden (FSBO) ilanları — Startkey ile AYNI tablo (izmir_pazar_ilanlar), marka='mulk_sahibi'."""
+    return _pazar_ilanlari("mulk_sahibi", "fsbo", "FSBO ilanı", "FSBO ilanı (mülk sahibi)", kesim, simdi)
+
+
+def _pazar_ilanlari(marka, tur, varsayilan_baslik, kaynak_etiketi, kesim, simdi):
     satirlar = _sayfalar(
         "izmir_pazar_ilanlar", "*",
-        filtreler={"marka": "startkey", "aktif": True},
+        filtreler={"marka": marka, "aktif": True},
         tarih_alani="ilk_gorulme_tarihi", kesim_iso=kesim.isoformat(),
     )
     sonuc = []
@@ -264,13 +273,13 @@ def _startkey(kesim, simdi):
         if not t or t < kesim:
             continue
         parca = [str(v.get(a)).strip() for a in ("mulk_tipi", "oda_sayisi") if v.get(a)]
-        baslik = " · ".join(parca) or "Startkey ilanı"
+        baslik = " · ".join(parca) or varsayilan_baslik
         mah = (v.get("mahalle") or "").strip()
         alt = " · ".join(x for x in [mah, para(v.get("fiyat"))] if x)
         sonuc.append({
-            "id": f"startkey:{v.get('id')}", "tur": "startkey", "baslik": baslik,
+            "id": f"{tur}:{v.get('id')}", "tur": tur, "baslik": baslik,
             "alt": alt, "zaman": t, "yeni": (simdi - t) <= timedelta(hours=24),
-            "sahip": "", "kaynak": "Startkey ilanı (Revy)", "fiyat": para(v.get("fiyat")), "mahalle": mah,
+            "sahip": "", "kaynak": kaynak_etiketi, "fiyat": para(v.get("fiyat")), "mahalle": mah,
             "ilce": (v.get("ilce") or "").strip(), "ilceler": [(v.get("ilce") or "").strip()],
             "link": v.get("ilan_linki") or "",
             "ham": v,
@@ -483,6 +492,7 @@ def sekme_tanimlari():
     """Gösterim sırası: [(anahtar, ad, kısa, renk)]. Dış kanallar sona eklenir."""
     t = [
         ("startkey", "Startkey ilanı", "Startkey ilanı", "indigo"),
+        ("fsbo", "FSBO ilanı", "FSBO ilanı", "emerald"),
         ("talep", "Alıcı talebi", "alıcı talebi", "violet"),
         ("paylasim", "Paylaşım", "paylaşım", "orange"),
         ("zeta", "Zeta portföyü", "Zeta portföyü", "sky"),
@@ -511,6 +521,9 @@ def havuzu_yukle(gun, ilce_listesi, simdi=None):
     r = dene("Startkey ilanı", lambda: _startkey(kesim, simdi))
     if r is not None:
         havuz["startkey"] = r
+    r = dene("FSBO ilanı", lambda: _fsbo(kesim, simdi))
+    if r is not None:
+        havuz["fsbo"] = r
     r = dene("Alıcı talebi", lambda: _alici_talepleri(kesim, simdi))
     if r is not None:
         havuz["talep"] = r
@@ -560,7 +573,7 @@ def ilce_sayilari(havuz):
 
 def mesaj_onizleme(tur, kayit):
     kisa = {t[0]: t[2] for t in sekme_tanimlari()}.get(tur, "kayıt")
-    parca = kayit["baslik"] + (f" · {kayit['fiyat']}" if kayit.get("fiyat") and tur in ("startkey", "zeta") else "")
+    parca = kayit["baslik"] + (f" · {kayit['fiyat']}" if kayit.get("fiyat") and tur in ("startkey", "fsbo", "zeta") else "")
     on = "Bölgende yeni " + kisa
     return f"{on}: {parca}"
 
@@ -568,7 +581,7 @@ def mesaj_onizleme(tur, kayit):
 def alicilar(tur, kayit, takipciler, ilce):
     """Bu kayıt için bildirim kimlere giderdi — YALNIZCA SİMÜLASYON.
     takipciler: admin sayfasının `_takipci_kayitlari()` çıktısı.
-    Startkey: ilçe + mahalle kapsamındaki Startkey takipçileri + ilçe uzmanları.
+    Startkey / FSBO: ilçe + mahalle kapsamındaki ilgili takipçiler + ilçe uzmanları.
     Diğer türler: ilçe uzmanları (kayıt sahibi hariç). Kayıt sahibine asla gitmez."""
     sahip = tr_kucuk(kayit.get("sahip"))
     mah = (kayit.get("mahalle") or "").strip()
@@ -588,9 +601,10 @@ def alicilar(tur, kayit, takipciler, ilce):
             continue
         if t["tur"] == "uzmanlik":
             ekle(t["ad"], "ilçe uzmanı", t["bildirim"])
-        elif t["tur"] == "startkey" and tur == "startkey":
+        elif t["tur"] in ("startkey", "fsbo") and t["tur"] == tur:
+            ad_ = "Startkey" if tur == "startkey" else "FSBO"
             if not t["mahalleler"]:
-                ekle(t["ad"], "Startkey takibi (tüm ilçe)", t["bildirim"])
+                ekle(t["ad"], f"{ad_} takibi (tüm ilçe)", t["bildirim"])
             elif mah and mah in t["mahalleler"]:
-                ekle(t["ad"], "Startkey takibi (bu mahalle)", t["bildirim"])
+                ekle(t["ad"], f"{ad_} takibi (bu mahalle)", t["bildirim"])
     return sorted(sonuc.values(), key=lambda x: tr_kucuk(x["ad"]))

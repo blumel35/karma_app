@@ -610,6 +610,7 @@ _RENKLER = {
     "orange": ("#ffedd5", "#c2410c"), "sky": ("#e0f2fe", "#0369a1"),
     "teal": ("#ccfbf1", "#0f766e"), "amber": ("#fef3c7", "#92400e"),
     "rose": ("#ffe4e6", "#be123c"), "slate": ("#e2e8f0", "#334155"),
+    "emerald": ("#d1fae5", "#047857"),
 }
 
 
@@ -625,10 +626,11 @@ def _ilce_ozet_tablosu(sayilar, tanimlar, donem):
         satirlar.append({"İlçe": i, **{ad: v.get(k, 0) for k, ad, _kisa, _r in tanimlar}})
     if not satirlar:
         return
-    ad_talep, ad_pay, ad_zeta, ad_sk = "Alıcı talebi", "Paylaşım", "Zeta portföyü", "Startkey ilanı"
+    ad_talep, ad_pay, ad_zeta, ad_sk, ad_fsbo = (
+        "Alıcı talebi", "Paylaşım", "Zeta portföyü", "Startkey ilanı", "FSBO ilanı")
     satirlar.sort(key=lambda r: (-r.get(ad_talep, 0), -r.get(ad_zeta, 0), _tr_anahtar(r["İlçe"])))
-    sirali = ["İlçe", ad_talep, ad_pay, ad_zeta, ad_sk] + [
-        ad for _k, ad, _kisa, _r in tanimlar if ad not in (ad_talep, ad_pay, ad_zeta, ad_sk)
+    sirali = ["İlçe", ad_talep, ad_pay, ad_zeta, ad_sk, ad_fsbo] + [
+        ad for _k, ad, _kisa, _r in tanimlar if ad not in (ad_talep, ad_pay, ad_zeta, ad_sk, ad_fsbo)
     ]
     for r in satirlar:
         for a_ in sirali[1:]:
@@ -646,8 +648,8 @@ def _ilce_ozet_tablosu(sayilar, tanimlar, donem):
         )
         st.caption(
             f"Tüm ilçeler toplam — alıcı talebi {toplam[ad_talep]} · paylaşım {toplam[ad_pay]} · "
-            f"Zeta portföyü {toplam[ad_zeta]} · Startkey ilanı {toplam[ad_sk]}. "
-            f"Alıcı talebi, paylaşım ve Startkey ilanı {donem.lower()} içinde gelenlerdir; "
+            f"Zeta portföyü {toplam[ad_zeta]} · Startkey ilanı {toplam[ad_sk]} · FSBO ilanı {toplam[ad_fsbo]}. "
+            f"Alıcı talebi, paylaşım, Startkey ve FSBO ilanı {donem.lower()} içinde gelenlerdir; "
             "Zeta portföyü ise ofisin aktif stokudur (dönemden bağımsız). Bir kayıt birden çok ilçeyi "
             "kapsıyorsa her birinde sayılır."
         )
@@ -695,12 +697,14 @@ def havuz_gorunumu():
     )
 
     def _ilce_etiketi(i):
-        """Seçicide ilçe adının yanında: Zeta portföyü ve alıcı talebi sayısı."""
+        """Seçicide ilçe adının yanında: Zeta portföyü, alıcı talebi ve (varsa) FSBO ilanı sayısı."""
         if i == "(Tüm ilçeler)":
             return i
         v = sayilar.get(i, {})
-        z, t = v.get("zeta", 0), v.get("talep", 0)
-        return f"{i}  ·  {z} portföy  ·  {t} talep" if (z or t) else f"{i}  ·  —"
+        z, t, f = v.get("zeta", 0), v.get("talep", 0), v.get("fsbo", 0)
+        if not (z or t or f):
+            return f"{i}  ·  —"
+        return f"{i}  ·  {z} portföy  ·  {t} talep" + (f"  ·  {f} FSBO" if f else "")
 
     # İlçe özeti: seçimden ÖNCE çizilir (kapsayıcı yukarıda), hangi ilçenin dolu olduğu görünsün.
     with ozet_kap:
@@ -762,7 +766,7 @@ def _eslesme_verisi():
 
 _ESLESME_YONLERI = {
     "zeta_talep": "Zeta portföyü → uygun alıcı talepleri",
-    "talep_portfoy": "Alıcı talebi → uygun portföyler",
+    "talep_portfoy": "Alıcı talebi → uygun portföyler ve FSBO ilanları",
 }
 
 
@@ -824,7 +828,7 @@ def _eslesme_sekmesi(ilce, ilce_secim, donem):
             )
         st.caption(
             "Kiralık talepler çabuk kapandığı için kısa tutulur. İşlem tipi anlaşılamayan kayıt satılık "
-            "süresine tabidir. Zeta portföyü ve Startkey ilanı aktif stok olduğu için süreye bağlı değildir."
+            "süresine tabidir. Zeta portföyü, Startkey ve FSBO ilanı aktif stok olduğu için süreye bağlı değildir."
         )
 
     sonuc = _eslesme_gruplari(yon, ilce, gun, ust_n, min_skor, kira_gun, satis_gun)
@@ -835,7 +839,7 @@ def _eslesme_sekmesi(ilce, ilce_secim, donem):
                   f"adaylar: son {es.ADAY_PENCERESI_GUN} günün alıcı talepleri")
     else:
         kapsam = (f"{ilce_secim.strip('()') if ilce is None else ilce} · {donem.lower()} gelen alıcı talepleri · "
-                  f"adaylar: Zeta portföyleri, paylaşımlar (son {es.ADAY_PENCERESI_GUN} gün), Startkey ilanları")
+                  f"adaylar: Zeta portföyleri, paylaşımlar (son {es.ADAY_PENCERESI_GUN} gün), Startkey ve FSBO ilanları")
     st.markdown(f"**{_html.escape(kapsam)}**")
     bayat_n = (sonuc.get("bilgi") or {}).get("bayat_zeta", 0)
     if bayat_n:

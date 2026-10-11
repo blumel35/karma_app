@@ -5,7 +5,8 @@ Bölge Havuzu "Eşleşme" sekmesi — SALT OKUNUR, bildirim göndermez (10.10.20
 
 İki yön:
   A) Zeta portföyü  → uygun alıcı talepleri (Zeta GD'leri + mail sistemi)
-  B) Alıcı talebi   → uygun portföyler (Zeta portföyü, paylaşım, Startkey ilanı)
+  B) Alıcı talebi   → uygun portföyler (Zeta portföyü, paylaşım, Startkey ilanı, FSBO ilanı)
+     (FSBO ilanı yalnız aday olur; "FSBO ilanından talebe" yönü yok.)
 
 PUANLAMA core/match_engine.py'deki MEVCUT bileşenlerle yapılır (ilçe 40 /
 bütçe-fiyat 35 / oda-m² 15 / özel kriter 10; işlem ve mülk tipi uyumsuzsa
@@ -18,6 +19,7 @@ Veri penceresi (bilinçli):
   - Alıcı talepleri adayı: son 60 gün (panelin genel penceresiyle aynı).
   - Zeta portföyü: aktif stok (dönem süzgeci yok).
   - Startkey ilanı: aktif stok (en fazla bolge_havuzu.MAX_SATIR kayıt).
+  - FSBO ilanı (mülk sahibinden): aktif stok, Startkey ile aynı kural.
   - Paylaşım (portföyler tablosu, Zeta dışı): son 60 gün.
   Ekrandaki "Dönem" yalnız KAYNAK tarafı olan alıcı talebini süzer.
 """
@@ -37,7 +39,7 @@ MAX_KAYNAK = 200        # bir ekranda hesaplanacak en fazla kaynak kayıt
 # Olay niteliğindeki kayıtların (alıcı talebi, paylaşım) eşleşmede yaşayabileceği süre.
 # Kiralık talepler hızlı kapandığı için kısa; satılık talepler uzun yaşar. Tahmini
 # varsayılanlar — ekrandaki "Eşleşme kuralları"ndan değiştirilebilir. İşlem tipi
-# anlaşılamayan kayıt satılık süresine tabidir. Aktif stok (Zeta portföyü, Startkey) süresizdir.
+# anlaşılamayan kayıt satılık süresine tabidir. Aktif stok (Zeta portföyü, Startkey, FSBO) süresizdir.
 KIRALIK_OMUR_GUN = 14
 SATILIK_OMUR_GUN = 45
 
@@ -104,7 +106,7 @@ def _talep_kaydi(k):
 
 def _portfoy_kaydi(k, etiket):
     ham = k.get("ham") or {}
-    if k["tur"] == "startkey":
+    if k["tur"] in ("startkey", "fsbo"):
         motor = pazar_ilani_normalize(ham)
     else:
         motor = {a: ham.get(a) for a in _PORTFOY_ALANLARI}
@@ -120,11 +122,11 @@ def _portfoy_kaydi(k, etiket):
 
 
 def veri_yukle(simdi=None):
-    """Eşleşme için kayıtlar. Dönüş: ({'talep','zeta','paylasim','startkey'}, hatalar, bilgi).
+    """Eşleşme için kayıtlar. Dönüş: ({'talep','zeta','paylasim','startkey','fsbo'}, hatalar, bilgi).
     Bir kaynak okunamazsa diğerleri yine gelir (hatalar sözlüğünde görünür)."""
     simdi = simdi or datetime.now(timezone.utc)
     kesim = simdi - timedelta(days=ADAY_PENCERESI_GUN)
-    veri = {"talep": [], "zeta": [], "paylasim": [], "startkey": []}
+    veri = {"talep": [], "zeta": [], "paylasim": [], "startkey": [], "fsbo": []}
     hatalar = {}
     bilgi = {"bayat_zeta": 0}
 
@@ -150,6 +152,10 @@ def veri_yukle(simdi=None):
     r = dene("Startkey ilanı", lambda: bh._startkey(simdi - timedelta(days=3650), simdi))
     if r is not None:
         veri["startkey"] = [_portfoy_kaydi(k, "Startkey ilanı") for k in r]
+    # FSBO: aktif stok — Startkey gibi tarih süzgeci yok
+    r = dene("FSBO ilanı", lambda: bh._fsbo(simdi - timedelta(days=3650), simdi))
+    if r is not None:
+        veri["fsbo"] = [_portfoy_kaydi(k, "FSBO ilanı") for k in r]
     return veri, hatalar, bilgi
 
 
@@ -263,7 +269,7 @@ def hesapla(veri, yon, ilce, gun, ust_n=5, min_skor=OLASI_ESIK, simdi=None,
                  if _ilce_uyar(k, ilce) and k["zaman"] and k["zaman"] >= kesim]
     kirpildi = len(kaynaklar) > MAX_KAYNAK
     kaynaklar = kaynaklar[:MAX_KAYNAK]
-    adaylar = veri["zeta"] + paylasimlar + veri["startkey"]
+    adaylar = veri["zeta"] + paylasimlar + veri["startkey"] + veri.get("fsbo", [])
     return talepten_portfoylere(kaynaklar, adaylar, ust_n, min_skor), len(kaynaklar), kirpildi
 
 
@@ -301,7 +307,7 @@ def kart_html(kayit):
     from core import pano_export as pe
     ham = kayit.get("ham") or {}
     try:
-        if kayit["tur"] == "startkey":
+        if kayit["tur"] in ("startkey", "fsbo"):
             return {"css": "pazar", "html": pe._pazar_ilan_kart_html(ham)}
         if kayit["tur"] == "talep":
             return {"css": "talep", "html": pe._kart_html(ham, "talep")}
@@ -319,7 +325,7 @@ def _tarih_metni(kayit):
     """Kartta görünenle aynı biçim: gg.aa.yyyy ss:dd (mail/portföy), Startkey'de ilk görülme günü."""
     from core import pano_export as pe
     ham = kayit.get("ham") or {}
-    if kayit["tur"] == "startkey":
+    if kayit["tur"] in ("startkey", "fsbo"):
         g = str(ham.get("ilk_gorulme_tarihi") or "")[:10]
         if len(g) == 10 and g[4] == "-":
             return f"{g[8:10]}.{g[5:7]}.{g[0:4]}"
