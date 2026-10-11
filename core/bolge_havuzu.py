@@ -252,19 +252,24 @@ def metinden_yas_kat(*metinler):
 
 
 # ── ADAPTÖRLER ──────────────────────────────────────────────────────
-def _startkey(kesim, simdi):
-    return _pazar_ilanlari("startkey", "startkey", "Startkey ilanı", "Startkey ilanı (Revy)", kesim, simdi)
+def _startkey(kesim, simdi, ilceler=None):
+    return _pazar_ilanlari("startkey", "startkey", "Startkey ilanı", "Startkey ilanı (Revy)", kesim, simdi, ilceler)
 
 
-def _fsbo(kesim, simdi):
-    """Mülk sahibinden (FSBO) ilanları — Startkey ile AYNI tablo (izmir_pazar_ilanlar), marka='mulk_sahibi'."""
-    return _pazar_ilanlari("mulk_sahibi", "fsbo", "FSBO ilanı", "FSBO ilanı (mülk sahibi)", kesim, simdi)
+def _fsbo(kesim, simdi, ilceler=None):
+    """Mülk sahibinden (FSBO) ilanları — Startkey ile AYNI tablo (izmir_pazar_ilanlar), marka='mulk_sahibi'.
+    ilceler verilirse (liste) sorgu SUNUCU tarafında o ilçelerle sınırlanır (boş liste = hiç ilan);
+    verilmezse tüm İzmir (en fazla MAX_SATIR kayıt)."""
+    return _pazar_ilanlari("mulk_sahibi", "fsbo", "FSBO ilanı", "FSBO ilanı (mülk sahibi)", kesim, simdi, ilceler)
 
 
-def _pazar_ilanlari(marka, tur, varsayilan_baslik, kaynak_etiketi, kesim, simdi):
+def _pazar_ilanlari(marka, tur, varsayilan_baslik, kaynak_etiketi, kesim, simdi, ilceler=None):
+    if ilceler is not None and not list(ilceler):
+        return []
     satirlar = _sayfalar(
         "izmir_pazar_ilanlar", "*",
         filtreler={"marka": marka, "aktif": True},
+        in_alani=("ilce", list(ilceler)) if ilceler is not None else None,
         tarih_alani="ilk_gorulme_tarihi", kesim_iso=kesim.isoformat(),
     )
     sonuc = []
@@ -437,11 +442,24 @@ def _form_metin_ilceleri(metin, ilce_listesi):
     return [i for i in ilce_listesi if m and tr_kucuk(i) in m]
 
 
-def _musteri_formlari(kesim, simdi, ilce_listesi):
-    """Dış besleme kanalı: musteri_talepleri (talep_tipi ile ayrışır)."""
-    satirlar = _sayfalar(
-        "musteri_talepleri", "*", in_alani=("talep_tipi", MUSTERI_FORM_KANALLARI.keys()),
-    )
+def _musteri_formlari(kesim, simdi, ilce_listesi, danisman_adlari=None):
+    """Dış besleme kanalı: musteri_talepleri (talep_tipi ile ayrışır).
+    danisman_adlari verilirse (kişisel veri!) yalnız o danışmana ait kayıtlar SUNUCU tarafında
+    çekilir; başkalarının kayıtları hiç okunmaz."""
+    if danisman_adlari is None:
+        satirlar = _sayfalar(
+            "musteri_talepleri", "*", in_alani=("talep_tipi", MUSTERI_FORM_KANALLARI.keys()),
+        )
+    else:
+        satirlar, gorulen = [], set()
+        for ad_ in {a.strip() for a in danisman_adlari if a and a.strip()}:
+            for v_ in _sayfalar(
+                "musteri_talepleri", "*", filtreler={"danisman": ad_},
+                in_alani=("talep_tipi", MUSTERI_FORM_KANALLARI.keys()),
+            ):
+                if v_.get("id") not in gorulen:
+                    gorulen.add(v_.get("id"))
+                    satirlar.append(v_)
     sonuc = {k: [] for k in MUSTERI_FORM_KANALLARI}
     for v in satirlar:
         tip = v.get("talep_tipi")
