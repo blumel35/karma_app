@@ -487,6 +487,15 @@ danisman_admin_bolgeler = st.Page(
     icon=":material/pin_drop:",
 )
 
+# ── Radarım (eski adı Bölgem) — YENİ (12.10.2026, DENEME): danışmanın tüm kayıtları + bölgesindeki ekip
+# kayıtları tek panelde. Şimdilik hamburger menüde yalnız "Meltem Bulu" hesabında görünür
+# (core/danisman_ortak.py). navigation() listesine eklenmesi UNUTULURSA "Could not find page" hatası verir.
+danisman_bolgem = st.Page(
+    "pages/Danisman_Bolgem.py",
+    title="Radarım",
+    icon=":material/radar:",
+)
+
 # ── Startkey Ofis Verisi (YÖNETİCİ) — YENİ (07.10.2026, Meltem: "ofis
 # yönetimi için bir Startkey ofisleri analizi... veriyi eksiksiz doğru
 # çekebilmek"). Yalnızca "Meltem Bulu" adlı hesap görür (hamburger menüde
@@ -527,6 +536,7 @@ pg = st.navigation(
             danisman_bildirimlerim,
             yatirim_formu,
             danisman_admin_bolgeler,
+            danisman_bolgem,
             admin_startkey_ofis_veri,
         ],
 
