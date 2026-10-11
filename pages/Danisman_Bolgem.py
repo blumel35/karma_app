@@ -1,10 +1,12 @@
 """
-pages/Danisman_Bolgem.py
+pages/Danisman_Bolgem.py  —  "Radarım" (eski adı Bölgem)
 
-"Bölgem" — danışmanın kendi bölgelerindeki (seçtiği en fazla 5 bölge (Uzmanlık Bölgelerim))
-tüm kayıtların tek panelde toplandığı ekran (11.10.2026, Meltem: "tüm kayıtları bir arada göreceğimiz panel").
-SALT OKUNUR; eşleşme/puanlama bilinçli olarak kapsam dışı. Bölge seçimi ve bildirim ayarları eski
-sayfalarda (Uzmanlık Bölgelerim, FSBO İlanları, Startkey İlanları) aynen duruyor.
+Danışmanın tek bakışta tüm kayıtlarını gördüğü genel panel (12.10.2026, Meltem kararları):
+  - Kendi alıcı talepleri / portföyleri / yatırım talepleri: HER ilçeden, dönem süzgeci olmadan.
+  - Ekip kayıtları (alıcı talebi, paylaşım, Zeta, Startkey, FSBO): Uzmanlık Bölgelerim'deki en fazla 5 ilçe
+    + kendi kayıtlarının bulunduğu ilçeler.
+SALT OKUNUR; eşleşme/puanlama bilinçli olarak kapsam dışı. Bölge seçimi ve bildirim ayarları eski sayfalarda
+(Uzmanlık Bölgelerim, FSBO İlanları, Startkey İlanları) aynen duruyor.
 
 Düzen: üstte ilçe özet tablosu (bir bakışta), altında ilçe seçici, altında sıralı sekmeler:
 Alıcı taleplerim · Portföylerim · Alıcı talebi · Paylaşım · Zeta portföyü · Startkey ilanı · FSBO ilanı ·
@@ -32,7 +34,7 @@ if not oturum_kontrol():
     st.switch_page("pages/Danisman_Giris.py")
 
 hide_sidebar_css()
-render_topbar("Bölgem", ikon="🧭", geri_hedefi="pages/Danisman_Secim.py")
+render_topbar("Radarım", ikon="📡", geri_hedefi="pages/Danisman_Secim.py")
 
 MAX_BOLGE = 5
 BOLGE_TABLOLARI = ("uzmanlik_bolgeleri", "fsbo_bolgeleri", "startkey_ilan_bolgeleri")
@@ -47,7 +49,12 @@ def _ortak(gun):
     return bg.ortak_yukle(gun)
 
 
-@st.cache_data(ttl=300, show_spinner="Bölgendeki ilanlar yükleniyor...")
+@st.cache_data(ttl=60, show_spinner="Kayıtların yükleniyor...")
+def _kendi(adlar):
+    return bg.kendi_yukle(list(adlar))
+
+
+@st.cache_data(ttl=300, show_spinner="İlçelerindeki ilanlar yükleniyor...")
 def _pazar(gun, ilceler):
     return bg.pazar_yukle(gun, list(ilceler))
 
@@ -87,12 +94,12 @@ _KISA = {"taleplerim": "Taleplerim", "portfoylerim": "Portföylerim", "talep": "
          "zeta": "Zeta", "startkey": "Startkey", "fsbo": "FSBO", "yatirim": "Yatırım"}
 
 
-def _ozet_tablosu(sayilar, dis, ilceler, donem):
+def _ozet_tablosu(sayilar, dis, ilceler, donem, ek=()):
     """Bir bakışta özet. Sütunlar sekme sırasıyla; ekip sütunları kişinin kendi kayıtlarını da içerir."""
     satirlar = []
     for i in ilceler:
         v = sayilar[i]
-        satirlar.append({"İlçe": i, **{_KISA[k]: v[k] for k, *_ in bg.TURLER}})
+        satirlar.append({"İlçe": i + (" ◦" if i in ek else ""), **{_KISA[k]: v[k] for k, *_ in bg.TURLER}})
     satirlar.sort(key=lambda r: (-r["Alıcı talebi"], -r["Zeta"], bg.tr_sira(r["İlçe"])))
     if any(dis.values()):
         satirlar.append({"İlçe": bg.BOLGE_DISI, **{_KISA[k]: (dis[k] if k in ("taleplerim", "portfoylerim", "yatirim") else None)
@@ -109,10 +116,11 @@ def _ozet_tablosu(sayilar, dis, ilceler, donem):
         st.dataframe(satirlar, hide_index=True, use_container_width=True, column_config=cfg,
                      height=min(38 + 35 * len(satirlar), 380))
         st.caption(
-            f"Taleplerim ve Portföylerim yalnız sana ait kayıtlardır (bölge dışındakiler dahil; Portföylerim = Zeta "
-            f"portföyün + paylaşımların). Alıcı talebi, Paylaşım, Startkey ve FSBO {donem.lower()} içinde gelenleri sayar "
-            "ve senin kayıtlarını da içerir; Zeta ofisin aktif stokudur (dönemden bağımsız); Yatırım yalnız sana "
-            "atananlardır (dönemden bağımsız). Birden çok ilçeyi kapsayan kayıt her ilçede sayılır."
+            "Taleplerim, Portföylerim ve Yatırım yalnız sana ait kayıtlardır; her ilçeden ve dönemden bağımsız gelir "
+            "(Portföylerim = Zeta portföyün + paylaşımların). Alıcı talebi, Paylaşım, Startkey ve FSBO "
+            f"{donem.lower()} içinde gelenleri sayar ve senin kayıtlarını da içerir; Zeta ofisin aktif stokudur. "
+            "◦ işaretli ilçe Uzmanlık bölgen değil, kendi kaydın olduğu için eklendi. Birden çok ilçeyi kapsayan "
+            "kayıt her ilçede sayılır."
         )
 
 
@@ -165,40 +173,45 @@ def _sekme(tur, ad, kayitlar, secim, donem):
 # ══ AKIŞ ═════════════════════════════════════════════════════════════
 kullanici = su_anki_danisman()
 adlar = tuple(su_anki_danisman_varyantlari() or [kullanici])
-ilceler, bolge_hatalari = _bolgelerim(kullanici)
+bolgeler, bolge_hatalari = _bolgelerim(kullanici)
 for h in bolge_hatalari:
     st.warning(f"Bölge listesi okunamadı: {h}")
 
 c1, c2 = st.columns([5, 1])
 with c1:
-    donem = st.selectbox("Dönem", list(bg.DONEMLER), index=1, key="bg_donem")
+    donem = st.selectbox("Dönem (ekip kayıtları için)", list(bg.DONEMLER), index=1, key="bg_donem",
+                         help="Kendi kayıtların bu seçimden etkilenmez; her zaman hepsi görünür.")
 with c2:
     st.write("")
     if st.button("↻ Yenile", key="bg_yenile"):
         _ortak.clear()
+        _kendi.clear()
         _pazar.clear()
         _yatirim.clear()
         st.rerun()
 
-if not ilceler:
-    st.info("Henüz bölge seçmedin. Uzmanlık Bölgelerim sayfasından "
-            "en fazla 5 ilçe seçince o ilçelerdeki tüm kayıtlar burada toplanır. Aşağıda yalnız kendi kayıtların görünür.")
-    if st.button("📍 Uzmanlık Bölgelerim'e git", key="bg_git_uzmanlik"):
-        st.switch_page("pages/Danisman_UzmanlikBolgeleri.py")
-
 gun = bg.DONEMLER[donem]
 ortak, hata1 = _ortak(gun)
-pazar, hata2 = _pazar(gun, tuple(ilceler))
+kendi, hata2 = _kendi(adlar)
 yatirim, hata3 = _yatirim(adlar)
-for hatalar in (hata1, hata2, hata3):
+kendi_liste = bg.kendi_kayitlar(ortak, kendi, yatirim, adlar)
+ilceler, ek_ilceler = bg.kapsam_ilceleri(bolgeler, kendi_liste)
+pazar, hata4 = _pazar(gun, tuple(ilceler))
+for hatalar in (hata1, hata2, hata3, hata4):
     for kaynak, msj in hatalar.items():
         st.warning(f"{kaynak} okunamadı, ekrana dahil edilmedi: {msj}")
 
-liste, bilgi = bg.kayitlari_kur(ortak, pazar, yatirim, ilceler, adlar)
+if not bolgeler:
+    st.info("Uzmanlık bölgen henüz seçili değil. Uzmanlık Bölgelerim sayfasından en fazla 5 ilçe seçersen o "
+            "ilçelerdeki ekip kayıtları da burada toplanır. Şimdilik kendi kayıtlarının bulunduğu ilçeler görünüyor.")
+    if st.button("📍 Uzmanlık Bölgelerim'e git", key="bg_git_uzmanlik"):
+        st.switch_page("pages/Danisman_UzmanlikBolgeleri.py")
+
+liste, bilgi = bg.kayitlari_kur(ortak, pazar, kendi_liste, ilceler)
 sayilar, dis = bg.ilce_sayilari(liste, ilceler)
 
 if ilceler:
-    _ozet_tablosu(sayilar, dis, ilceler, donem)
+    _ozet_tablosu(sayilar, dis, ilceler, donem, ek_ilceler)
 
 secenekler = [bg.TUM_BOLGELER] + list(ilceler) + ([bg.BOLGE_DISI] if any(dis.values()) else [])
 
@@ -207,9 +220,10 @@ def _etiket(i):
     if i == bg.TUM_BOLGELER:
         return i
     if i == bg.BOLGE_DISI:
-        return f"{i}  ·  {dis['taleplerim']} talebim  ·  {dis['portfoylerim']} portföyüm"
+        return f"{i}  ·  {dis['taleplerim']} talebim  ·  {dis['portfoylerim']} portföyüm  ·  {dis['yatirim']} yatırım"
     v = sayilar.get(i, {})
     t, z, f = v.get("talep", 0), v.get("zeta", 0), v.get("fsbo", 0)
+    i = i + (" ◦" if i in ek_ilceler else "")
     return f"{i}  ·  {z} portföy  ·  {t} talep" + (f"  ·  {f} FSBO" if f else "")
 
 
@@ -224,10 +238,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 if bilgi["bayat_bolgede"]:
-    st.caption(f"Bölgelerindeki {bilgi['bayat_bolgede']} Zeta ilanı, son {bh.BAYAT_ESIK_SAAT // 24} gündür Revy "
+    st.caption(f"İlçelerindeki {bilgi['bayat_bolgede']} Zeta ilanı, son {bh.BAYAT_ESIK_SAAT // 24} gündür Revy "
                "senkronunda görünmediği için (yayından kalkmış olabilir) ekip listesinde gösterilmiyor; "
                "kendi ilanların uyarı işaretiyle görünür.")
-st.caption("Salt-okunur: bu ekran bildirim göndermez, hiçbir şeyi değiştirmez. Bölge seçimini ve bildirim ayarlarını "
+st.caption("Salt-okunur: bu ekran bildirim göndermez, hiçbir şeyi değiştirmez. Uzmanlık bölgelerini ve bildirim ayarlarını "
            "Uzmanlık Bölgelerim, FSBO İlanları ve Startkey İlanları sayfalarından yapabilirsin.")
 
 sekmeler = st.tabs([f"{ad} ({len(gorunen[k])})" for k, ad, _s, _r in bg.TURLER])

@@ -1893,10 +1893,10 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                     or ""
                 ).strip().lower()
                 if _menu_ad == "meltem bulu":
-                    # YENİ (11.10.2026): "Bölgem" — danışmanın kendi bölgelerindeki tüm kayıtlar tek panelde.
+                    # YENİ (11.10.2026): "Radarım" (eski adı Bölgem) — danışmanın tüm kayıtları + bölgesindeki ekip kayıtları tek panelde.
                     # DENEME aşaması: şimdilik yalnız bu blokta (yönetici) görünür; onaylanınca bu iki satır
                     # bloğun dışına (herkese açık menüye) taşınır.
-                    if st.button("🧭 Bölgem (deneme)", use_container_width=True, key="dp_menu_bolgem"):
+                    if st.button("📡 Radarım (deneme)", use_container_width=True, key="dp_menu_bolgem"):
                         st.switch_page("pages/Danisman_Bolgem.py")
                     if st.button("🗂️ Danışman Bölgeleri", use_container_width=True, key="dp_menu_admin_bolgeler"):
                         st.switch_page("pages/Danisman_AdminBolgeler.py")

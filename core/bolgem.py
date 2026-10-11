@@ -1,21 +1,21 @@
 """
 core/bolgem.py
 
-"Bölgem" ekranı (danışmanın kendi bölgelerindeki tüm kayıtlar tek panelde) — veri katmanı.
+"Radarım" ekranı (eski adı Bölgem; danışmanın kendi kayıtları + bölgelerindeki tüm kayıtlar tek panelde) — veri katmanı.
 SALT OKUNUR. Bölge Havuzu (core/bolge_havuzu.py) okuyucularını yeniden kullanır;
 yeni puan/eşleşme mantığı YOK (eşleşme bilinçli olarak kapsam dışı, 11.10.2026).
 
 Sıra (Meltem'in istediği): Alıcı taleplerim · Portföylerim · Alıcı talebi · Paylaşım ·
 Zeta portföyü · Startkey ilanı · FSBO ilanı · Yatırım talebim.
 
-Veri kapsamı:
-  - Alıcı talebi / Paylaşım / Zeta portföyü: ekibin kayıtları, danışmanın bölgelerine (ilçelerine) göre
-    süzülür. Tüm danışmanlar için ORTAK önbellekten gelir (kişiye özel bir şey içermez).
-  - Startkey / FSBO ilanı: yalnız danışmanın ilçeleri için SUNUCU tarafında okunur (üst sınıra takılmaz).
-  - Alıcı taleplerim / Portföylerim: danışmanın kendi kayıtları (ad varyantlarıyla); bölge dışı olanlar dahil.
-    Portföylerim = kendi Zeta portföyü (Revy ilanları) + kendi portföy paylaşımları.
-  - Yatırım talebim: musteri_talepleri'nden YALNIZ o danışmana ait kayıtlar (sunucu tarafında süzülür;
-    başkasının kişisel verisi hiç okunmaz).
+Veri kapsamı (12.10.2026 kararları):
+  - Alıcı taleplerim / Portföylerim / Yatırım talebim: danışmanın KENDİ kayıtları, TÜM ilçelerden ve DÖNEMDEN
+    BAĞIMSIZ (ad varyantlarıyla sunucu tarafında süzülür). Portföylerim = kendi paylaşımları + kendi Zeta portföyü.
+  - Ekip kayıtları (Alıcı talebi / Paylaşım / Zeta / Startkey / FSBO): ilçe kapsamı = Uzmanlık Bölgelerim (en fazla 5)
+    + kendi kayıtlarının bulunduğu ilçeler. Alıcı talebi/Paylaşım/Startkey/FSBO dönemle süzülür, Zeta aktif stoktur.
+    Startkey/FSBO yalnız kapsamdaki ilçeler için SUNUCU tarafında okunur (üst sınıra takılmaz).
+  - Yatırım talebi: YALNIZ atanan danışmana görünür (musteri_talepleri sunucu tarafında kişiye süzülür; başkasının
+    kişisel verisi hiç okunmaz).
 """
 from datetime import datetime, timedelta, timezone
 
@@ -33,8 +33,8 @@ TURLER = [
     ("yatirim", "Yatırım talebim", "yatırım talebim", "teal"),
 ]
 DONEMLER = {"Son 24 saat": 1, "Son 7 gün": 7, "Son 30 gün": 30, "Son 90 gün": 90}
-BOLGE_DISI = "(Bölgelerim dışı)"
-TUM_BOLGELER = "(Tüm bölgelerim)"
+BOLGE_DISI = "(İlçesi belli değil)"
+TUM_BOLGELER = "(Tümü)"
 
 _TR_SIRA = "abcçdefgğhıijklmnoöprsştuüvyz"
 
@@ -81,6 +81,26 @@ def pazar_yukle(gun, ilceler, simdi=None):
     return veri, hatalar
 
 
+def kendi_yukle(danisman_adlari, simdi=None):
+    """Danışmanın KENDİ alıcı talepleri ve portföy paylaşımları — tüm zamanlar, tüm ilçeler.
+    (Kendi Zeta portföyü ekip stokundan, ortak_yukle'den gelir.)  Dönüş: ({'talep','paylasim'}, hatalar)"""
+    simdi = simdi or _utc_simdi()
+    eski = simdi - timedelta(days=3650)
+    adlar = [a for a in danisman_adlari if a and str(a).strip()]
+    hatalar, veri = {}, {"talep": [], "paylasim": []}
+    if not adlar:
+        return veri, hatalar
+    try:
+        veri["talep"] = bh._alici_talepleri(eski, simdi, danisman_adlari=adlar)
+    except Exception as e:      # noqa: BLE001
+        hatalar["Alıcı taleplerim"] = str(e)
+    try:
+        veri["paylasim"] = bh._paylasimlar_kisi(adlar, eski, simdi)
+    except Exception as e:      # noqa: BLE001
+        hatalar["Portföy paylaşımlarım"] = str(e)
+    return veri, hatalar
+
+
 def yatirim_yukle(danisman_adlari, ilce_listesi, simdi=None):
     """Danışmanın KENDİ yatırım talepleri (dönemden bağımsız; hepsi). Sunucu tarafında kişiye süzülür."""
     simdi = simdi or _utc_simdi()
@@ -110,26 +130,55 @@ def bolgede_mi(kayit, ilce_kumesi):
     return any(bh.tr_kucuk(i) in ilce_kumesi for i in kayit.get("ilceler") or [] if i)
 
 
-def kayitlari_kur(ortak, pazar, yatirim, ilceler, adlar):
+def kendi_kayitlar(ortak, kendi, yatirim, adlar):
+    """Kişinin kendi üç listesi (ilçe/dönem süzgeci yok). Kendi Zeta ilanları (bayat dahil, işaretli) ekip
+    stokundan alınır."""
+    zeta_kendi = [k for k in ortak["zeta"] if benim_mi(k, adlar)]
+    return {
+        "taleplerim": _sirala(kendi["talep"]),
+        "portfoylerim": _sirala(kendi["paylasim"] + zeta_kendi),
+        "yatirim": _sirala(list(yatirim)),
+    }
+
+
+def kapsam_ilceleri(bolgeler, kendi_listeler, ilce_listesi=None, ust_sinir=12):
+    """Ekip kayıtlarının gösterileceği ilçeler: Uzmanlık bölgeleri (sıra korunur) + kendi kayıtlarının
+    bulunduğu ilçeler (kayıt sayısı çoksa önce). Dönüş: (ilçeler, ek_ilceler)"""
+    gorulen = {bh.tr_kucuk(i): i for i in bolgeler if i}
+    sayim = {}
+    for liste in kendi_listeler.values():
+        for k in liste:
+            for i in {i for i in k.get("ilceler") or [] if i}:
+                sayim[i] = sayim.get(i, 0) + 1
+    ek = []
+    for i, _n in sorted(sayim.items(), key=lambda x: (-x[1], tr_sira(x[0]))):
+        if bh.tr_kucuk(i) not in gorulen and len(gorulen) < ust_sinir:
+            gorulen[bh.tr_kucuk(i)] = i
+            ek.append(i)
+    return list(gorulen.values()), ek
+
+
+def _sirala(liste):
+    return sorted(liste, key=lambda x: x["zaman"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+
+
+def kayitlari_kur(ortak, pazar, kendi_liste, ilceler):
     """Ekranın listeleri. Dönüş: ({tür: [kayıt]}, bilgi)
-    Ekip listeleri (talep/paylasim/zeta) bölgelerle sınırlı; kendi listeleri (taleplerim/portfoylerim)
-    bölge dışı olanlar dahil TÜM kendi kayıtlarıdır. Bayat (yayından kalkmış olabilecek) Zeta ilanları
-    ekip listesinde yok; kişinin kendi ilanlarında uyarı işaretiyle görünür."""
+    Ekip listeleri (talep/paylasim/zeta) kapsamdaki ilçelerle sınırlı; kendi listeleri (kendi_kayitlar çıktısı)
+    ilçe/dönem fark etmeksizin tam. Bayat (yayından kalkmış olabilecek) Zeta ilanları ekip listesinde yok."""
     kume = _ilce_kumesi(ilceler)
     zeta_hepsi = ortak["zeta"]
     zeta_taze = [k for k in zeta_hepsi if not k.get("bayat")]
     bayat_bolgede = [k for k in zeta_hepsi if k.get("bayat") and bolgede_mi(k, kume)]
-    sirala = lambda l: sorted(l, key=lambda x: x["zaman"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)  # noqa: E731
     liste = {
-        "taleplerim": sirala([k for k in ortak["talep"] if benim_mi(k, adlar)]),
-        "portfoylerim": sirala([k for k in ortak["paylasim"] + zeta_hepsi if benim_mi(k, adlar)]),
-        "talep": sirala([k for k in ortak["talep"] if bolgede_mi(k, kume)]),
-        "paylasim": sirala([k for k in ortak["paylasim"] if bolgede_mi(k, kume)]),
-        "zeta": sirala([k for k in zeta_taze if bolgede_mi(k, kume)]),
-        "startkey": sirala(pazar["startkey"]),
-        "fsbo": sirala(pazar["fsbo"]),
-        "yatirim": sirala(list(yatirim)),
+        "talep": _sirala([k for k in ortak["talep"] if bolgede_mi(k, kume)]),
+        "paylasim": _sirala([k for k in ortak["paylasim"] if bolgede_mi(k, kume)]),
+        "zeta": _sirala([k for k in zeta_taze if bolgede_mi(k, kume)]),
+        "startkey": _sirala(pazar["startkey"]),
+        "fsbo": _sirala(pazar["fsbo"]),
+        **kendi_liste,
     }
+    liste = {k: liste[k] for k, *_ in TURLER}
     return liste, {"bayat_bolgede": len(bayat_bolgede)}
 
 

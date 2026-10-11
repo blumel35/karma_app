@@ -303,11 +303,28 @@ def _pazar_ilanlari(marka, tur, varsayilan_baslik, kaynak_etiketi, kesim, simdi,
     return sonuc
 
 
-def _alici_talepleri(kesim, simdi):
-    satirlar = _sayfalar(
-        "alici_talepleri", "*",
-        filtreler={"kategori": "alici_talebi", "parse_status": "parsed"},
-    )
+def _ada_gore(tablo, alan, adlar, ek_filtre=None):
+    """Kişiye ait kayıtlar SUNUCU tarafında ad varyantlarıyla çekilir (id'ye göre tekilleştirilir)."""
+    satirlar, gorulen = [], set()
+    for ad_ in {a.strip() for a in adlar if a and str(a).strip()}:
+        for v_ in _sayfalar(tablo, "*", filtreler={**(ek_filtre or {}), alan: ad_}):
+            if v_.get("id") not in gorulen:
+                gorulen.add(v_.get("id"))
+                satirlar.append(v_)
+    return satirlar
+
+
+def _alici_talepleri(kesim, simdi, danisman_adlari=None):
+    """danisman_adlari verilirse yalnız o kişinin talepleri okunur (kesim yine uygulanır; kişisel ekran
+    çok eski bir kesim verir)."""
+    if danisman_adlari is None:
+        satirlar = _sayfalar(
+            "alici_talepleri", "*",
+            filtreler={"kategori": "alici_talebi", "parse_status": "parsed"},
+        )
+    else:
+        satirlar = _ada_gore("alici_talepleri", "talep_eden_danisan", danisman_adlari,
+                             {"kategori": "alici_talebi", "parse_status": "parsed"})
     sonuc = []
     for v in satirlar:
         # 09.10.2026 (Meltem): alıcı talebi / paylaşım bölge havuzunda MAİL
@@ -407,6 +424,19 @@ def _bayat_isaretle(zeta):
             k["baslik"] = "⚠ " + k["baslik"]
             k["alanlar"] = [("Durum", "Son 2+ gündür Revy export'unda görünmüyor — yayından kalkmış olabilir")] + list(k["alanlar"])
     return zeta
+
+
+def _paylasimlar_kisi(adlar, kesim, simdi):
+    """Kişinin kendi portföy PAYLAŞIMLARI (Zeta stok satırları hariç), dönem süzgeci kesim ile."""
+    sonuc = []
+    for v in _ada_gore("portfoyler", "talep_eden_danisan", adlar):
+        if tr_kucuk(v.get("kaynak")) in ZETA_PORTFOY_KAYNAKLARI:
+            continue
+        t = _zaman(v.get("kayit_tarihi"), v.get("created_at"))
+        if not t or t < kesim:
+            continue
+        sonuc.append(_portfoy_kaydi(v, "paylasim", t, simdi))
+    return sonuc
 
 
 def _portfoyler(kesim, simdi):
