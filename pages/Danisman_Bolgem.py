@@ -89,7 +89,7 @@ _OZET_GRUPLAR = (
 
 
 def _ozet_tablosu(sayilar, dis, ilceler, donem, ek=()):
-    """Bir bakışta özet: tek tablo, çubuklu sayılar. 👤 = benim kayıtlarım, 👥 = ekip.
+    """Bir bakışta özet: tek tablo; ekip talep/paylaşım/Zeta çubuklu, diğerleri düz sayı. 👤 = benim kayıtlarım, 👥 = ekip.
     "Benim kayıtlarım" sütunları Excel'deki gibi gizlenebilir."""
     satirlar = [(i, sayilar[i]) for i in ilceler]
     satirlar.sort(key=lambda x: (-x[1]["talep"], -x[1]["zeta"], bg.tr_sira(x[0])))
@@ -108,9 +108,15 @@ def _ozet_tablosu(sayilar, dis, ilceler, donem, ek=()):
                          **{ad: int(dis.get(k, 0) or 0) for k, ad in ben_kol},
                          **{ad: 0 for _k, ad in ekip_kol}})
         cfg = {}
+        # Yönetici "Danışman bölgeleri" ekranındaki dille aynı: ekip talep/paylaşım/Zeta çubuklu,
+        # Startkey/FSBO (yüzlerce) ve benim kayıtlarım (çoğu 0-1) düz sayı.
+        cubuklu = {"talep", "paylasim", "zeta"}
         for k, ad in ben_kol + ekip_kol:
-            tavan = max([r[ad] for r in veri] + [1])
-            cfg[ad] = st.column_config.ProgressColumn(ad, format="%d", min_value=0, max_value=tavan, width="small")
+            if ad.startswith("👥") and k in cubuklu:
+                tavan = max([r[ad] for r in veri] + [1])
+                cfg[ad] = st.column_config.ProgressColumn(ad, format="%d", min_value=0, max_value=tavan, width="small")
+            else:
+                cfg[ad] = st.column_config.NumberColumn(ad, format="%d", width="small")
         try:
             cfg["İlçe"] = st.column_config.TextColumn("İlçe", pinned=True, width="small")
         except TypeError:
