@@ -89,50 +89,37 @@ _OZET_GRUPLAR = (
 
 
 def _ozet_tablosu(sayilar, dis, ilceler, donem, ek=()):
-    """Bir bakışta özet: iki bölüm (Benim kayıtlarım / Ekip), her biri çubuklu liste; bölümler seçilebilir."""
+    """Bir bakışta özet: tek tablo, çubuklu sayılar. 👤 = benim kayıtlarım, 👥 = ekip.
+    "Benim kayıtlarım" sütunları Excel'deki gibi gizlenebilir."""
     satirlar = [(i, sayilar[i]) for i in ilceler]
     satirlar.sort(key=lambda x: (-x[1]["talep"], -x[1]["zeta"], bg.tr_sira(x[0])))
+    ben_kol = [(k, f"👤 {a_}") for k, a_ in _OZET_GRUPLAR[0][2]]
+    ekip_kol = [(k, f"👥 {a_}") for k, a_ in _OZET_GRUPLAR[1][2]]
 
-    def _ad(i):
-        return f"{i} ◦" if i in ek else i
-
-    def _liste(baslik, kolonlar, kayit_satirlari):
+    with st.expander(f"İlçe özeti · {donem.lower()} · {len(ilceler)} ilçe", expanded=True):
+        ben_goster = st.toggle("👤 Benim kayıtlarım", value=True, key="bg_ozet_ben")
+        kolonlar = (ben_kol if ben_goster else []) + ekip_kol
+        veri = []
+        for i, v in satirlar:
+            veri.append({"İlçe": f"{i} ◦" if i in ek else i,
+                         **{ad: int(v.get(k, 0) or 0) for k, ad in ben_kol + ekip_kol}})
+        if any(dis.values()):
+            veri.append({"İlçe": bg.BOLGE_DISI,
+                         **{ad: int(dis.get(k, 0) or 0) for k, ad in ben_kol},
+                         **{ad: 0 for _k, ad in ekip_kol}})
         cfg = {}
-        for k, a_ in kolonlar:
-            tavan = max([v.get(k, 0) for _i, v in kayit_satirlari] + [1])
-            cfg[a_] = st.column_config.ProgressColumn(a_, format="%d", min_value=0, max_value=tavan, width="small")
+        for k, ad in ben_kol + ekip_kol:
+            tavan = max([r[ad] for r in veri] + [1])
+            cfg[ad] = st.column_config.ProgressColumn(ad, format="%d", min_value=0, max_value=tavan, width="small")
         try:
             cfg["İlçe"] = st.column_config.TextColumn("İlçe", pinned=True, width="small")
         except TypeError:
             pass
-        veri = [{"İlçe": ad, **{a_: int(v.get(k, 0) or 0) for k, a_ in kolonlar}} for ad, v in kayit_satirlari]
-        st.markdown(f"**{baslik}**")
         st.dataframe(veri, hide_index=True, use_container_width=True, column_config=cfg,
+                     column_order=["İlçe"] + [ad for _k, ad in kolonlar],
                      height=min(38 + 35 * len(veri), 420))
-
-    with st.expander(f"İlçe özeti · {donem.lower()} · {len(ilceler)} ilçe", expanded=True):
-        try:
-            secim = st.pills("Bölümler", ["Benim kayıtlarım", "Ekip (ilçelerimdeki)"], selection_mode="multi",
-                             default=["Benim kayıtlarım", "Ekip (ilçelerimdeki)"], key="bg_ozet_bolum",
-                             label_visibility="collapsed")
-        except Exception:
-            secim = ["Benim kayıtlarım", "Ekip (ilçelerimdeki)"]
-        if not secim:
-            st.caption("Görmek istediğin bölümü seç.")
-        if "Benim kayıtlarım" in secim:
-            kol = _OZET_GRUPLAR[0][2]
-            benim = [(_ad(i), v) for i, v in satirlar if any(v[k] for k, _a in kol)]
-            benim.sort(key=lambda x: (-sum(x[1][k] for k, _a in kol), bg.tr_sira(x[0])))
-            if any(dis.values()):
-                benim.append((bg.BOLGE_DISI, dis))
-            if benim:
-                _liste("Benim kayıtlarım", kol, benim)
-            else:
-                st.caption("Benim kayıtlarım: henüz kayıt yok.")
-        if "Ekip (ilçelerimdeki)" in secim:
-            _liste("Ekip (ilçelerimdeki)", _OZET_GRUPLAR[1][2], [(_ad(i), v) for i, v in satirlar])
-        if ek:
-            st.caption("◦ Uzmanlık bölgen değil; kendi kaydın olduğu için eklendi.")
+        st.caption("👤 benim kayıtlarım (her ilçeden, dönemden bağımsız) · 👥 ekip kayıtları (ilçelerimdeki, seçili dönem)."
+                   + (" ◦ Uzmanlık bölgen değil; kendi kaydın olduğu için eklendi." if ek else ""))
 
 
 def _sekme(tur, ad, kayitlar, secim, donem):
