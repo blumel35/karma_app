@@ -81,30 +81,6 @@ def _bolgelerim(kullanici):
 _KISA_SEKME = {"taleplerim": "Taleplerim", "portfoylerim": "Portföylerim", "talep": "Ekip talebi", "paylasim": "Paylaşım",
                "zeta": "Zeta", "startkey": "Startkey", "fsbo": "FSBO", "yatirim": "Yatırım"}
 
-_OZET_CSS = """
-<style>
-.bgo{width:100%;border-collapse:separate;border-spacing:0;font-size:14px;table-layout:auto}
-.bgo th,.bgo td{padding:6px 4px;text-align:center;border-bottom:1px solid #e5e7eb}
-.bgo th{font-size:11.5px;font-weight:700;color:#475569;line-height:1.15;vertical-align:bottom}
-.bgo th.g{font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;border-bottom:0;padding-bottom:0}
-.bgo th.g1{color:#6d28d9}.bgo th.g2{color:#0369a1}
-.bgo td.i,.bgo th.i{text-align:left;padding-left:2px;font-weight:600;color:#1c2b47;white-space:normal;min-width:64px}
-.bgo td.z{color:#cbd5e1}
-.bgo td.b1{border-left:2px solid #ede9fe}.bgo td.b2{border-left:2px solid #e0f2fe}
-.bgow{overflow-x:auto}
-.bgm{display:none}
-.bgm .ilc{border-bottom:1px solid #e5e7eb;padding:8px 0}
-.bgm .ad{font-weight:700;color:#1c2b47;font-size:14px}
-.bgm .sr{margin-top:3px;font-size:12.5px;color:#334155;line-height:1.5}
-.bgm .sr b{display:inline-block;min-width:34px;font-size:10.5px;letter-spacing:.5px;text-transform:uppercase}
-.bgm .sr b.g1{color:#6d28d9}.bgm .sr b.g2{color:#0369a1}
-.bgm .sr span.n{white-space:nowrap;margin-right:8px}
-.bgm .sr span.n i{font-style:normal;font-weight:700}
-.bgm .sr span.n.z{color:#94a3b8}
-@media (max-width:600px){.bgow{display:none}.bgm{display:block}}
-</style>
-"""
-
 _OZET_GRUPLAR = (
     ("Benim kayıtlarım", "g1", (("taleplerim", "Talep"), ("portfoylerim", "Portföy"), ("yatirim", "Yatırım"))),
     ("Ekip (ilçelerimdeki)", "g2", (("talep", "Talep"), ("paylasim", "Paylaşım"), ("zeta", "Zeta"),
@@ -113,61 +89,48 @@ _OZET_GRUPLAR = (
 
 
 def _ozet_tablosu(sayilar, dis, ilceler, donem, ek=()):
-    """Bir bakışta özet (HTML tablo: dar ekrana sığar, yatay kaydırma gerektirmez)."""
+    """Bir bakışta özet: iki bölüm (Benim kayıtlarım / Ekip), her biri çubuklu liste; bölümler seçilebilir."""
     satirlar = [(i, sayilar[i]) for i in ilceler]
     satirlar.sort(key=lambda x: (-x[1]["talep"], -x[1]["zeta"], bg.tr_sira(x[0])))
-    tavan = {k: max([v[k] for _i, v in satirlar] + [1]) for g in _OZET_GRUPLAR for k, _a in g[2]}
-    h = [_OZET_CSS, "<div class='bgow'><table class='bgo'><thead><tr><th class='g'></th>"]
-    for baslik, sinif, kolonlar in _OZET_GRUPLAR:
-        h.append(f"<th class='g {sinif}' colspan='{len(kolonlar)}'>{_html.escape(baslik)}</th>")
-    h.append("</tr><tr><th class='i'>İlçe</th>")
-    for _b, _s, kolonlar in _OZET_GRUPLAR:
-        for k, ad in kolonlar:
-            h.append(f"<th>{_html.escape(ad)}</th>")
-    h.append("</tr></thead><tbody>")
 
-    def _hucre(k, n, ilk, tinta=True):
-        sinif = ("b1 " if ilk == 1 else "b2 " if ilk == 2 else "") + ("z" if not n else "")
-        stil = ""
-        if n and tinta:
-            stil = f" style='background:rgba(28,43,71,{0.04 + 0.13 * n / tavan[k]:.2f})'"
-        return f"<td class='{sinif.strip()}'{stil}>{n if n else '·'}</td>"
+    def _ad(i):
+        return f"{i} ◦" if i in ek else i
 
-    for i, v in satirlar:
-        h.append(f"<tr><td class='i'>{_html.escape(i)}{' ◦' if i in ek else ''}</td>")
-        for gi, (_b, _s, kolonlar) in enumerate(_OZET_GRUPLAR, 1):
-            for ci, (k, _a) in enumerate(kolonlar):
-                h.append(_hucre(k, v[k], gi if ci == 0 else 0))
-        h.append("</tr>")
-    if any(dis.values()):
-        h.append(f"<tr><td class='i'>{_html.escape(bg.BOLGE_DISI)}</td>")
-        for gi, (_b, _s, kolonlar) in enumerate(_OZET_GRUPLAR, 1):
-            for ci, (k, _a) in enumerate(kolonlar):
-                if gi == 1:
-                    h.append(_hucre(k, dis[k], 1 if ci == 0 else 0, tinta=False))
-                else:
-                    h.append("<td class='z'></td>")
-        h.append("</tr>")
-    h.append("</tbody></table></div>")
+    def _liste(baslik, kolonlar, kayit_satirlari):
+        cfg = {}
+        for k, a_ in kolonlar:
+            tavan = max([v.get(k, 0) for _i, v in kayit_satirlari] + [1])
+            cfg[a_] = st.column_config.ProgressColumn(a_, format="%d", min_value=0, max_value=tavan, width="small")
+        try:
+            cfg["İlçe"] = st.column_config.TextColumn("İlçe", pinned=True, width="small")
+        except TypeError:
+            pass
+        veri = [{"İlçe": ad, **{a_: int(v.get(k, 0) or 0) for k, a_ in kolonlar}} for ad, v in kayit_satirlari]
+        st.markdown(f"**{baslik}**")
+        st.dataframe(veri, hide_index=True, use_container_width=True, column_config=cfg,
+                     height=min(38 + 35 * len(veri), 420))
 
-    # Dar ekran (telefon): tablo yerine ilçe başına iki satırlı özet
-    def _sira(ad_, v_, kolonlar, sinif):
-        parcalar = "".join(
-            f"<span class='n{'' if v_[k] else ' z'}'>{_html.escape(a)} <i>{v_[k]}</i></span>" for k, a in kolonlar
-        )
-        return f"<div class='sr'><b class='{sinif}'>{ad_}</b>{parcalar}</div>"
-
-    m = ["<div class='bgm'>"]
-    for i, v in satirlar:
-        m.append(f"<div class='ilc'><div class='ad'>{_html.escape(i)}{' ◦' if i in ek else ''}</div>"
-                 + _sira("Ben", v, _OZET_GRUPLAR[0][2], "g1") + _sira("Ekip", v, _OZET_GRUPLAR[1][2], "g2") + "</div>")
-    if any(dis.values()):
-        m.append(f"<div class='ilc'><div class='ad'>{_html.escape(bg.BOLGE_DISI)}</div>"
-                 + _sira("Ben", dis, _OZET_GRUPLAR[0][2], "g1") + "</div>")
-    m.append("</div>")
-    h.append("".join(m))
     with st.expander(f"İlçe özeti · {donem.lower()} · {len(ilceler)} ilçe", expanded=True):
-        st.markdown("".join(h), unsafe_allow_html=True)
+        try:
+            secim = st.pills("Bölümler", ["Benim kayıtlarım", "Ekip (ilçelerimdeki)"], selection_mode="multi",
+                             default=["Benim kayıtlarım", "Ekip (ilçelerimdeki)"], key="bg_ozet_bolum",
+                             label_visibility="collapsed")
+        except Exception:
+            secim = ["Benim kayıtlarım", "Ekip (ilçelerimdeki)"]
+        if not secim:
+            st.caption("Görmek istediğin bölümü seç.")
+        if "Benim kayıtlarım" in secim:
+            kol = _OZET_GRUPLAR[0][2]
+            benim = [(_ad(i), v) for i, v in satirlar if any(v[k] for k, _a in kol)]
+            benim.sort(key=lambda x: (-sum(x[1][k] for k, _a in kol), bg.tr_sira(x[0])))
+            if any(dis.values()):
+                benim.append((bg.BOLGE_DISI, dis))
+            if benim:
+                _liste("Benim kayıtlarım", kol, benim)
+            else:
+                st.caption("Benim kayıtlarım: henüz kayıt yok.")
+        if "Ekip (ilçelerimdeki)" in secim:
+            _liste("Ekip (ilçelerimdeki)", _OZET_GRUPLAR[1][2], [(_ad(i), v) for i, v in satirlar])
         if ek:
             st.caption("◦ Uzmanlık bölgen değil; kendi kaydın olduğu için eklendi.")
 
