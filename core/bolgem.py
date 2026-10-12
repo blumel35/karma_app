@@ -148,7 +148,7 @@ def kapsam_ilceleri(bolgeler, kendi_listeler, ilce_listesi=None, ust_sinir=12):
     sayim = {}
     for liste in kendi_listeler.values():
         for k in liste:
-            for i in {i for i in k.get("ilceler") or [] if i}:
+            for i in {i for i in k.get("ilceler") or [] if i and bh.tr_kucuk(i) in bh._ILCE_ANAHTAR}:
                 sayim[i] = sayim.get(i, 0) + 1
     ek = []
     for i, _n in sorted(sayim.items(), key=lambda x: (-x[1], tr_sira(x[0]))):
@@ -217,3 +217,31 @@ def ilce_sayilari(liste, ilceler):
     for tur in ("taleplerim", "portfoylerim", "yatirim"):
         dis[tur] = sum(1 for k in liste[tur] if not bolgede_mi(k, set(anahtar)))
     return sayi, dis
+
+
+# ── GÖSTERİM YARDIMCILARI ────────────────────────────────────────────────
+def bayat_sayisi(ortak, ilce_listesi):
+    """Verilen ilçelerde, Revy senkronunda görünmediği için ekip listesinden çıkarılan Zeta ilanı sayısı."""
+    kume = _ilce_kumesi(ilce_listesi)
+    return sum(1 for k in ortak["zeta"] if k.get("bayat") and bolgede_mi(k, kume))
+
+
+def kaynak_metni(k):
+    """Takip için 'ne + ne zaman': 'Startkey maili · 09.10.2026'. Tarihin anlamı kaynağa göre değişir:
+    mail/paylaşım = kayıt tarihi, Zeta portföyü = kayıt tarihi, Startkey/FSBO ilanı = sisteme ilk girdiği tarih."""
+    tur = k.get("tur")
+    tarih = bh.tarih_metni(k.get("zaman"))
+    if tur in ("startkey", "fsbo"):
+        etiket = "Startkey ilanı" if tur == "startkey" else "FSBO ilanı"
+        return f"{etiket} · ilk görüldü {tarih}" if tarih else etiket
+    if tur == "zeta":
+        etiket = "Zeta portföyü"
+    elif tur == "yatirim_alici":
+        etiket = "Müşteri formu"
+    else:
+        etiket = k.get("kaynak") or "—"
+        if etiket == "Mail sistemi":
+            etiket = "Startkey maili" if bh.tr_kucuk((k.get("ham") or {}).get("kaynak")) == "startkey" else "Mail"
+        elif etiket.startswith("Zeta paylaşımı"):
+            etiket = "Zeta paylaşımı"
+    return f"{etiket} · {tarih}" if tarih else etiket

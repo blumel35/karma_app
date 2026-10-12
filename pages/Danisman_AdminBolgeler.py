@@ -40,6 +40,7 @@ from core.danisman_ortak import (
 from core.personel_manager import load_personel_listesi
 from core.bolge_secici import ilcenin_mahalleleri
 from core import bolge_havuzu as bh
+from core import bolgem as _bolgem  # kaynak_metni: "Startkey maili · 09.10.2026"
 from core.havuz_tablo_bilesen import havuz_tablosu
 from core.eslesme_kart_bilesen import eslesme_kartlari
 from core import eslesme_havuzu as es
@@ -771,6 +772,11 @@ _ESLESME_YONLERI = {
 
 
 GRUP_TAVAN = 60      # bir ekranda hesaplanıp önbelleğe alınacak en fazla grup (en yüksek skorlular)
+ADAY_TAVAN = 1000    # bir ekranda toplam aday kartı üst sınırı (sayfa yükünü sınırlar): grup sayısı = min(GRUP_TAVAN, ADAY_TAVAN // ust_n)
+
+
+def _grup_tavani(ust_n):
+    return max(20, min(GRUP_TAVAN, ADAY_TAVAN // max(int(ust_n), 1)))
 GRUP_SAYFA = 15      # bir seferde gösterilen grup
 
 
@@ -789,7 +795,7 @@ def _eslesme_gruplari(yon, ilce, gun, ust_n, min_skor, kira_gun, satis_gun):
     toplam_grup = len(gruplar)
     guclu = sum(1 for c in ciftler if c["guclu"])
     return {
-        "gruplar": gruplar[:GRUP_TAVAN], "toplam_grup": toplam_grup, "kaynak_sayisi": kaynak_sayisi,
+        "gruplar": gruplar[:_grup_tavani(ust_n)], "toplam_grup": toplam_grup, "kaynak_sayisi": kaynak_sayisi,
         "guclu": guclu, "kirpildi": kirpildi, "hatalar": hatalar, "bilgi": bilgi,
         "omur_elenen": omur_elenen,
     }
@@ -811,7 +817,10 @@ def _eslesme_sekmesi(ilce, ilce_secim, donem):
     with c2:
         duzey = st.radio("Gösterilecek", ["Güçlü + olası (%40+)", "Sadece güçlü (%70+)"], key="bh_es_duzey")
     with c3:
-        ust_n = st.selectbox("Her kayıt için en fazla", [3, 5, 10], index=1, key="bh_es_ustn")
+        ust_n = st.selectbox(
+            "Her kayıt için en fazla", [3, 5, 10, 20, 50], index=1, key="bh_es_ustn",
+            help="Eşit puanda yeni olan ilan önce gelir. Büyük sayı seçince ekranda gösterilen kayıt sayısı azalır (sayfa ağırlaşmasın diye).",
+        )
     min_skor = es.GUCLU_ESIK if duzey.startswith("Sadece") else es.OLASI_ESIK
     gun = bh.DONEMLER[donem]
     with st.expander("Eşleşme kuralları — talep ve paylaşım ömrü", expanded=False):
@@ -888,8 +897,9 @@ def _eslesme_sekmesi(ilce, ilce_secim, donem):
         es.kart_css(), imza, key=f"bh_es_k_{yon}_{ilce}",
     )
     alt = f"{len(secilen)} / {len(gorunen)} kayıt gösteriliyor"
-    if sonuc["toplam_grup"] > GRUP_TAVAN:
-        alt += f" (en yüksek skorlu {GRUP_TAVAN} kayıt hesaplandı — daraltmak için ilçe seç)"
+    if sonuc["toplam_grup"] > _grup_tavani(ust_n):
+        alt += (f" (en yüksek skorlu {_grup_tavani(ust_n)} kayıt hesaplandı — daraltmak için ilçe seç"
+                " ya da \"Her kayıt için en fazla\" değerini düşür)")
     st.caption(alt)
     if len(gorunen) > n and st.button(f"Daha fazla göster (+{GRUP_SAYFA})", key="bh_es_daha"):
         st.session_state[sayfa_anahtar] = n + GRUP_SAYFA
@@ -945,7 +955,7 @@ def _havuz_sekmesi(tur, ad, renk, kayit_listesi, ilce, takipci_kayitlari, donem)
         {"k": "İşlem", "label": "İşlem", "w": 90},
         {"k": "Yaş / Kat", "label": "Yaş / Kat", "w": 140},
         {"k": "Ayrıntı", "label": "Ayrıntı", "w": 210},
-        {"k": "Kaynak", "label": "Kaynak", "w": 140},
+        {"k": "Kaynak", "label": "Kaynak · tarih", "w": 210},
         {"k": "Sahibi", "label": "Sahibi", "w": 120},
         {"k": "İlçe", "label": "İlçe", "w": 100},
         {"k": "Zaman", "label": "Zaman", "w": 100, "sk": True},
@@ -957,7 +967,7 @@ def _havuz_sekmesi(tur, ad, renk, kayit_listesi, ilce, takipci_kayitlari, donem)
             "h": {
                 "Kayıt": k["baslik"], "İşlem": k.get("islem") or "—",
                 "Yaş / Kat": k.get("yas_kat") or "—", "Ayrıntı": k["alt"],
-                "Kaynak": k.get("kaynak") or "—", "Sahibi": k["sahip"] or "—",
+                "Kaynak": _bolgem.kaynak_metni(k), "Sahibi": k["sahip"] or "—",
                 "İlçe": _ilce_metni(k), "Zaman": bh.zaman_etiketi(k["zaman"], simdi),
             },
         }

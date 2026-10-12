@@ -152,11 +152,50 @@ def _kaynak_etiketi(v):
     return "Mail sistemi"
 
 
+IZMIR_ILCELERI_AYIKLA = [
+    "Aliağa", "Balçova", "Bayındır", "Bayraklı", "Bergama", "Beydağ", "Bornova", "Buca", "Çeşme", "Çiğli",
+    "Dikili", "Foça", "Gaziemir", "Güzelbahçe", "Karabağlar", "Karaburun", "Karşıyaka", "Kemalpaşa", "Kınık",
+    "Kiraz", "Konak", "Menderes", "Menemen", "Narlıdere", "Ödemiş", "Seferihisar", "Selçuk", "Tire", "Torbalı", "Urla",
+]
+_ILCE_ANAHTAR = {tr_kucuk(i): i for i in IZMIR_ILCELERI_AYIKLA}
+_ILCE_EKLERI = {"da", "de", "ta", "te", "dan", "den", "ya", "ye", "nin", "nın", "un", "ün", "in", "ın", "daki", "deki"}
+
+
+def ilceleri_ayikla(ham):
+    """Parser bazen birden çok ilçeyi tek metin yazıyor ('Balçova buca'). Metindeki GERÇEK İzmir ilçelerini
+    ayrı ayrı döndürür (sıra korunur). Hiç tanınmazsa ham metin tek eleman olarak kalır (veri kaybolmaz)."""
+    ham = str(ham or "").strip()
+    if not ham:
+        return []
+    if tr_kucuk(ham) in _ILCE_ANAHTAR:
+        return [_ILCE_ANAHTAR[tr_kucuk(ham)]]
+    bulunan = []
+    for parca in re.split(r"[^\w]+", tr_kucuk(ham)):
+        for anahtar, ad in _ILCE_ANAHTAR.items():
+            if parca == anahtar or (parca.startswith(anahtar) and parca[len(anahtar):] in _ILCE_EKLERI):
+                if ad not in bulunan:
+                    bulunan.append(ad)
+    return bulunan or [ham]
+
+
 def _ilceler_of(v):
-    liste = [i for i in (v.get("ilceler") or []) if i]
-    if v.get("ilce") and v["ilce"] not in liste:
-        liste.insert(0, v["ilce"])
-    return liste
+    sonuc = []
+    for ham in [v.get("ilce")] + list(v.get("ilceler") or []):
+        for i in ilceleri_ayikla(ham):
+            if i not in sonuc:
+                sonuc.append(i)
+    return sonuc
+
+
+def tarih_metni(t):
+    """dd.mm.yyyy — İstanbul saatine göre (gece geç saatli kayıtlar gün kaymasın)."""
+    if not t:
+        return ""
+    try:
+        from zoneinfo import ZoneInfo
+        return t.astimezone(ZoneInfo("Europe/Istanbul")).strftime("%d.%m.%Y")
+    except Exception:       # noqa: BLE001
+        return t.strftime("%d.%m.%Y")
 
 
 # ── İŞLEM TİPİ / BİNA YAŞI / KAT ────────────────────────────────────

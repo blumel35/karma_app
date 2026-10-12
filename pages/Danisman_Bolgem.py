@@ -38,12 +38,6 @@ render_topbar("Radarım", ikon="📡", geri_hedefi="pages/Danisman_Secim.py")
 
 MAX_BOLGE = 5
 BOLGE_TABLOLARI = ("uzmanlik_bolgeleri", "fsbo_bolgeleri", "startkey_ilan_bolgeleri")
-_RENK = {
-    "indigo": ("#e0e7ff", "#4338ca"), "violet": ("#ede9fe", "#6d28d9"), "orange": ("#ffedd5", "#c2410c"),
-    "sky": ("#e0f2fe", "#0369a1"), "teal": ("#ccfbf1", "#0f766e"), "emerald": ("#d1fae5", "#047857"),
-}
-
-
 @st.cache_data(ttl=120, show_spinner="Ekip verisi yükleniyor...")
 def _ortak(gun):
     return bg.ortak_yukle(gun)
@@ -84,44 +78,98 @@ def _bolgelerim(kullanici):
     return [], hatalar
 
 
-def _chip(metin, renk):
-    bg_, fg = _RENK.get(renk, ("#e2e8f0", "#334155"))
-    return (f"<span style='display:inline-block;margin:6px 6px 0 0;padding:3px 10px;border-radius:6px;"
-            f"font-size:12px;font-weight:600;background:{bg_};color:{fg};'>{_html.escape(metin)}</span>")
+_KISA_SEKME = {"taleplerim": "Taleplerim", "portfoylerim": "Portföylerim", "talep": "Ekip talebi", "paylasim": "Paylaşım",
+               "zeta": "Zeta", "startkey": "Startkey", "fsbo": "FSBO", "yatirim": "Yatırım"}
 
+_OZET_CSS = """
+<style>
+.bgo{width:100%;border-collapse:separate;border-spacing:0;font-size:14px;table-layout:auto}
+.bgo th,.bgo td{padding:6px 4px;text-align:center;border-bottom:1px solid #e5e7eb}
+.bgo th{font-size:11.5px;font-weight:700;color:#475569;line-height:1.15;vertical-align:bottom}
+.bgo th.g{font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;border-bottom:0;padding-bottom:0}
+.bgo th.g1{color:#6d28d9}.bgo th.g2{color:#0369a1}
+.bgo td.i,.bgo th.i{text-align:left;padding-left:2px;font-weight:600;color:#1c2b47;white-space:normal;min-width:64px}
+.bgo td.z{color:#cbd5e1}
+.bgo td.b1{border-left:2px solid #ede9fe}.bgo td.b2{border-left:2px solid #e0f2fe}
+.bgow{overflow-x:auto}
+.bgm{display:none}
+.bgm .ilc{border-bottom:1px solid #e5e7eb;padding:8px 0}
+.bgm .ad{font-weight:700;color:#1c2b47;font-size:14px}
+.bgm .sr{margin-top:3px;font-size:12.5px;color:#334155;line-height:1.5}
+.bgm .sr b{display:inline-block;min-width:34px;font-size:10.5px;letter-spacing:.5px;text-transform:uppercase}
+.bgm .sr b.g1{color:#6d28d9}.bgm .sr b.g2{color:#0369a1}
+.bgm .sr span.n{white-space:nowrap;margin-right:8px}
+.bgm .sr span.n i{font-style:normal;font-weight:700}
+.bgm .sr span.n.z{color:#94a3b8}
+@media (max-width:600px){.bgow{display:none}.bgm{display:block}}
+</style>
+"""
 
-_KISA = {"taleplerim": "Taleplerim", "portfoylerim": "Portföylerim", "talep": "Alıcı talebi", "paylasim": "Paylaşım",
-         "zeta": "Zeta", "startkey": "Startkey", "fsbo": "FSBO", "yatirim": "Yatırım"}
+_OZET_GRUPLAR = (
+    ("Benim kayıtlarım", "g1", (("taleplerim", "Talep"), ("portfoylerim", "Portföy"), ("yatirim", "Yatırım"))),
+    ("Ekip (ilçelerimdeki)", "g2", (("talep", "Talep"), ("paylasim", "Paylaşım"), ("zeta", "Zeta"),
+                                    ("startkey", "Startkey"), ("fsbo", "FSBO"))),
+)
 
 
 def _ozet_tablosu(sayilar, dis, ilceler, donem, ek=()):
-    """Bir bakışta özet. Sütunlar sekme sırasıyla; ekip sütunları kişinin kendi kayıtlarını da içerir."""
-    satirlar = []
-    for i in ilceler:
-        v = sayilar[i]
-        satirlar.append({"İlçe": i + (" ◦" if i in ek else ""), **{_KISA[k]: v[k] for k, *_ in bg.TURLER}})
-    satirlar.sort(key=lambda r: (-r["Alıcı talebi"], -r["Zeta"], bg.tr_sira(r["İlçe"])))
+    """Bir bakışta özet (HTML tablo: dar ekrana sığar, yatay kaydırma gerektirmez)."""
+    satirlar = [(i, sayilar[i]) for i in ilceler]
+    satirlar.sort(key=lambda x: (-x[1]["talep"], -x[1]["zeta"], bg.tr_sira(x[0])))
+    tavan = {k: max([v[k] for _i, v in satirlar] + [1]) for g in _OZET_GRUPLAR for k, _a in g[2]}
+    h = [_OZET_CSS, "<div class='bgow'><table class='bgo'><thead><tr><th class='g'></th>"]
+    for baslik, sinif, kolonlar in _OZET_GRUPLAR:
+        h.append(f"<th class='g {sinif}' colspan='{len(kolonlar)}'>{_html.escape(baslik)}</th>")
+    h.append("</tr><tr><th class='i'>İlçe</th>")
+    for _b, _s, kolonlar in _OZET_GRUPLAR:
+        for k, ad in kolonlar:
+            h.append(f"<th>{_html.escape(ad)}</th>")
+    h.append("</tr></thead><tbody>")
+
+    def _hucre(k, n, ilk, tinta=True):
+        sinif = ("b1 " if ilk == 1 else "b2 " if ilk == 2 else "") + ("z" if not n else "")
+        stil = ""
+        if n and tinta:
+            stil = f" style='background:rgba(28,43,71,{0.04 + 0.13 * n / tavan[k]:.2f})'"
+        return f"<td class='{sinif.strip()}'{stil}>{n if n else '·'}</td>"
+
+    for i, v in satirlar:
+        h.append(f"<tr><td class='i'>{_html.escape(i)}{' ◦' if i in ek else ''}</td>")
+        for gi, (_b, _s, kolonlar) in enumerate(_OZET_GRUPLAR, 1):
+            for ci, (k, _a) in enumerate(kolonlar):
+                h.append(_hucre(k, v[k], gi if ci == 0 else 0))
+        h.append("</tr>")
     if any(dis.values()):
-        satirlar.append({"İlçe": bg.BOLGE_DISI, **{_KISA[k]: (dis[k] if k in ("taleplerim", "portfoylerim", "yatirim") else None)
-                                                  for k, *_ in bg.TURLER}})
-    cfg = {"İlçe": st.column_config.TextColumn("İlçe", width="small")}
-    for k, *_ in bg.TURLER:
-        ad = _KISA[k]
-        if k in ("talep", "paylasim", "zeta", "startkey", "fsbo"):
-            tavan = max([(r.get(ad) or 0) for r in satirlar] + [1])
-            cfg[ad] = st.column_config.ProgressColumn(ad, format="%d", min_value=0, max_value=tavan, width="small")
-        else:
-            cfg[ad] = st.column_config.NumberColumn(ad, format="%d", width="small")
-    with st.expander(f"İlçe özeti — {donem.lower()} ({len(ilceler)} ilçe)", expanded=True):
-        st.dataframe(satirlar, hide_index=True, use_container_width=True, column_config=cfg,
-                     height=min(38 + 35 * len(satirlar), 380))
-        st.caption(
-            "Taleplerim, Portföylerim ve Yatırım yalnız sana ait kayıtlardır; her ilçeden ve dönemden bağımsız gelir "
-            "(Portföylerim = Zeta portföyün + paylaşımların). Alıcı talebi, Paylaşım, Startkey ve FSBO "
-            f"{donem.lower()} içinde gelenleri sayar ve senin kayıtlarını da içerir; Zeta ofisin aktif stokudur. "
-            "◦ işaretli ilçe Uzmanlık bölgen değil, kendi kaydın olduğu için eklendi. Birden çok ilçeyi kapsayan "
-            "kayıt her ilçede sayılır."
+        h.append(f"<tr><td class='i'>{_html.escape(bg.BOLGE_DISI)}</td>")
+        for gi, (_b, _s, kolonlar) in enumerate(_OZET_GRUPLAR, 1):
+            for ci, (k, _a) in enumerate(kolonlar):
+                if gi == 1:
+                    h.append(_hucre(k, dis[k], 1 if ci == 0 else 0, tinta=False))
+                else:
+                    h.append("<td class='z'></td>")
+        h.append("</tr>")
+    h.append("</tbody></table></div>")
+
+    # Dar ekran (telefon): tablo yerine ilçe başına iki satırlı özet
+    def _sira(ad_, v_, kolonlar, sinif):
+        parcalar = "".join(
+            f"<span class='n{'' if v_[k] else ' z'}'>{_html.escape(a)} <i>{v_[k]}</i></span>" for k, a in kolonlar
         )
+        return f"<div class='sr'><b class='{sinif}'>{ad_}</b>{parcalar}</div>"
+
+    m = ["<div class='bgm'>"]
+    for i, v in satirlar:
+        m.append(f"<div class='ilc'><div class='ad'>{_html.escape(i)}{' ◦' if i in ek else ''}</div>"
+                 + _sira("Ben", v, _OZET_GRUPLAR[0][2], "g1") + _sira("Ekip", v, _OZET_GRUPLAR[1][2], "g2") + "</div>")
+    if any(dis.values()):
+        m.append(f"<div class='ilc'><div class='ad'>{_html.escape(bg.BOLGE_DISI)}</div>"
+                 + _sira("Ben", dis, _OZET_GRUPLAR[0][2], "g1") + "</div>")
+    m.append("</div>")
+    h.append("".join(m))
+    with st.expander(f"İlçe özeti · {donem.lower()} · {len(ilceler)} ilçe", expanded=True):
+        st.markdown("".join(h), unsafe_allow_html=True)
+        if ek:
+            st.caption("◦ Uzmanlık bölgen değil; kendi kaydın olduğu için eklendi.")
 
 
 def _sekme(tur, ad, kayitlar, secim, donem):
@@ -135,7 +183,7 @@ def _sekme(tur, ad, kayitlar, secim, donem):
         {"k": "İşlem", "label": "İşlem", "w": 90},
         {"k": "Yaş / Kat", "label": "Yaş / Kat", "w": 130},
         {"k": "Ayrıntı", "label": "Ayrıntı", "w": 210},
-        {"k": "Kaynak", "label": "Kaynak", "w": 140},
+        {"k": "Kaynak", "label": "Kaynak · tarih", "w": 210},
         {"k": "Sahibi", "label": "Sahibi", "w": 120},
         {"k": "İlçe", "label": "İlçe", "w": 100},
         {"k": "Zaman", "label": "Zaman", "w": 100, "sk": True},
@@ -145,26 +193,39 @@ def _sekme(tur, ad, kayitlar, secim, donem):
         "t": k["zaman"].timestamp() if k.get("zaman") else 0,
         "h": {
             "Kayıt": k["baslik"], "İşlem": k.get("islem") or "—", "Yaş / Kat": k.get("yas_kat") or "—",
-            "Ayrıntı": k.get("alt") or "", "Kaynak": k.get("kaynak") or "—", "Sahibi": k.get("sahip") or "—",
+            "Ayrıntı": k.get("alt") or "", "Kaynak": bg.kaynak_metni(k), "Sahibi": k.get("sahip") or "—",
             "İlçe": ", ".join(i for i in k.get("ilceler") or [] if i) or "—",
             "Zaman": bh.zaman_etiketi(k.get("zaman"), simdi),
         },
     } for k in kayitlar]
-    sonuc = havuz_tablosu(kolonlar, satirlar, key=f"bg_tbl_{tur}_{secim}_{donem}", secimsiz=True) or {}
+    sonuc = havuz_tablosu(
+        kolonlar, satirlar, key=f"bg_tbl_{tur}_{secim}_{donem}", secimsiz=True,
+        kart={"baslik": "Kayıt", "meta": ["Kaynak"], "alt": ["İlçe", "İşlem", "Ayrıntı", "Sahibi"]},
+    ) or {}
     k = {x["id"]: x for x in kayitlar}.get(sonuc.get("aktif"))
     if tur == "zeta":
-        st.caption("Zeta portföyü = portallarda yayındaki aktif ilanlar; dönem süzgeci uygulanmaz.")
+        st.caption("Zeta = portallarda yayındaki aktif ilanlar; dönem süzgeci uygulanmaz.")
     if not k:
-        st.caption("Bir satıra tıklarsan ayrıntısı açılır.")
+        st.caption("Bir kayda dokunursan ayrıntısı altta açılır.")
         return
+    ilce_etiket = "Aranan ilçeler" if k.get("tur") in ("talep", "yatirim_alici") else "İlçe"
+    zaman = k.get("zaman")
+    ek_alanlar = []
+    if zaman:
+        try:
+            from zoneinfo import ZoneInfo
+            ek_alanlar.append(("Tarih", zaman.astimezone(ZoneInfo("Europe/Istanbul")).strftime("%d.%m.%Y %H:%M")))
+        except Exception:       # noqa: BLE001
+            ek_alanlar.append(("Tarih", bh.tarih_metni(zaman)))
+    ek_alanlar.append((ilce_etiket, ", ".join(i for i in k.get("ilceler") or [] if i)))
     with st.container(border=True):
         st.markdown(f"**{_html.escape(k['baslik'])}**", unsafe_allow_html=True)
         hucre = "".join(
             f"<div><div style='color:#64748b;font-size:11px;letter-spacing:.3px'>{_html.escape(str(e))}</div>"
             f"<div style='font-size:14px;margin-top:1px'>{_html.escape(str(d))}</div></div>"
-            for e, d in (k.get("alanlar") or []) if d
+            for e, d in ek_alanlar + list(k.get("alanlar") or []) if d
         )
-        st.markdown(f"<div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));"
+        st.markdown(f"<div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));"
                     f"gap:10px 18px;margin:6px 0 10px'>{hucre}</div>", unsafe_allow_html=True)
         if bh.guvenli_url(k.get("link")):
             st.link_button("İlana git ↗", bh.guvenli_url(k.get("link")))
@@ -224,27 +285,42 @@ def _etiket(i):
     v = sayilar.get(i, {})
     t, z, f = v.get("talep", 0), v.get("zeta", 0), v.get("fsbo", 0)
     i = i + (" ◦" if i in ek_ilceler else "")
-    return f"{i}  ·  {z} portföy  ·  {t} talep" + (f"  ·  {f} FSBO" if f else "")
+    return f"{i}  ·  {z} Zeta  ·  {t} talep" + (f"  ·  {f} FSBO" if f else "")
 
 
 secim = st.selectbox("İlçe", secenekler, key="bg_ilce", format_func=_etiket)
 gorunen = bg.ilceye_gore(liste, secim, ilceler)
 
+baslik_metin = secim.strip("()") if secim in (bg.TUM_BOLGELER, bg.BOLGE_DISI) else secim
 st.markdown(
-    "<div style='background:#1C2B47;color:#fff;border-radius:14px;padding:16px 18px;margin:8px 0'>"
-    f"<div style='font-size:20px;font-weight:700'>{_html.escape(secim.strip('()') if secim in (bg.TUM_BOLGELER, bg.BOLGE_DISI) else secim)}"
-    f"<span style='font-size:12px;font-weight:500;opacity:.7;margin-left:10px'>{_html.escape(donem.lower())}</span></div>"
-    f"<div>{''.join(_chip(f'{ad} {len(gorunen[k])}', renk) for k, ad, _s, renk in bg.TURLER)}</div></div>",
+    f"<div style='margin:6px 0 2px;font-size:19px;font-weight:700;color:#1c2b47'>{_html.escape(baslik_metin)}"
+    f"<span style='font-size:12px;font-weight:500;color:#64748b;margin-left:8px'>ekip kayıtları: {_html.escape(donem.lower())}</span></div>",
     unsafe_allow_html=True,
 )
-if bilgi["bayat_bolgede"]:
-    st.caption(f"İlçelerindeki {bilgi['bayat_bolgede']} Zeta ilanı, son {bh.BAYAT_ESIK_SAAT // 24} gündür Revy "
-               "senkronunda görünmediği için (yayından kalkmış olabilir) ekip listesinde gösterilmiyor; "
-               "kendi ilanların uyarı işaretiyle görünür.")
-st.caption("Salt-okunur: bu ekran bildirim göndermez, hiçbir şeyi değiştirmez. Uzmanlık bölgelerini ve bildirim ayarlarını "
-           "Uzmanlık Bölgelerim, FSBO İlanları ve Startkey İlanları sayfalarından yapabilirsin.")
+if secim == bg.TUM_BOLGELER:
+    bayat_n, bayat_yer = bg.bayat_sayisi(ortak, ilceler), "İlçelerindeki"
+elif secim == bg.BOLGE_DISI:
+    bayat_n, bayat_yer = 0, ""
+else:
+    bayat_n, bayat_yer = bg.bayat_sayisi(ortak, [secim]), f"{secim} ilçesindeki"
+if bayat_n:
+    st.caption(f"⚠ {bayat_yer} {bayat_n} Zeta ilanı son {bh.BAYAT_ESIK_SAAT // 24} gündür Revy senkronunda "
+               "görünmüyor (yayından kalkmış olabilir); ekip listesinde gösterilmiyor, kendi ilanların uyarıyla görünür.")
+with st.expander("ℹ️ Nasıl okunur?"):
+    st.markdown(
+        "- **Benim kayıtlarım** (Taleplerim, Portföylerim, Yatırım): yalnız sana ait, her ilçeden ve dönemden bağımsız. "
+        "Portföylerim = Zeta portföyün + paylaşımların. Yatırım talepleri yalnız sana görünür.\n"
+        f"- **Ekip**: Uzmanlık bölgelerin ve kendi kayıtlarının ilçeleri. Talep, Paylaşım, Startkey ve FSBO "
+        f"**{donem.lower()}** içinde gelenleri gösterir; Zeta ofisin aktif stokudur (dönemden bağımsız). "
+        "Senin kayıtların da ekip sayılarına dahildir.\n"
+        "- Birden çok ilçeyi kapsayan kayıt her ilçede ayrı sayılır.\n"
+        "- Kaynak sütunundaki tarih: mail/paylaşım/Zeta için kayıt tarihi; Startkey ve FSBO ilanı için sisteme "
+        "ilk girdiği tarih.\n"
+        "- Ekran salt-okunur: bildirim göndermez, hiçbir şeyi değiştirmez. Uzmanlık bölgelerini Uzmanlık Bölgelerim, "
+        "bildirim ayarlarını FSBO İlanları ve Startkey İlanları sayfalarından yapabilirsin."
+    )
 
-sekmeler = st.tabs([f"{ad} ({len(gorunen[k])})" for k, ad, _s, _r in bg.TURLER])
+sekmeler = st.tabs([f"{_KISA_SEKME[k]} ({len(gorunen[k])})" for k, *_ in bg.TURLER])
 for sekme, (k, ad, _s, _r) in zip(sekmeler, bg.TURLER):
     with sekme:
         _sekme(k, ad, gorunen[k], secim, donem)
