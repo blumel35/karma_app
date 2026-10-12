@@ -82,8 +82,8 @@ _KISA_SEKME = {"taleplerim": "Taleplerim", "portfoylerim": "Portföylerim", "tal
                "zeta": "Zeta", "startkey": "Startkey", "fsbo": "FSBO", "yatirim": "Yatırım"}
 
 _OZET_GRUPLAR = (
-    ("Benim kayıtlarım", "g1", (("taleplerim", "Talep"), ("portfoylerim", "Portföy"), ("yatirim", "Yatırım"))),
-    ("Ekip (ilçelerimdeki)", "g2", (("talep", "Talep"), ("paylasim", "Paylaşım"), ("zeta", "Zeta"),
+    ("Benim kayıtlarım", "g1", (("portfoylerim", "Portföylerim"), ("taleplerim", "Taleplerim"), ("yatirim", "Yatırım"))),
+    ("Ekip (ilçelerimdeki)", "g2", (("talep", "Talepler"), ("paylasim", "Paylaşımlar"), ("zeta", "Zeta"),
                                     ("startkey", "Startkey"), ("fsbo", "FSBO"))),
 )
 
