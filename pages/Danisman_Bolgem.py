@@ -189,6 +189,25 @@ def _sekme(tur, ad, kayitlar, secim, donem):
 # ══ AKIŞ ═════════════════════════════════════════════════════════════
 kullanici = su_anki_danisman()
 adlar = tuple(su_anki_danisman_varyantlari() or [kullanici])
+
+# Yönetici: başka bir danışmanın Radarım'ını (salt okunur) görüntüleyebilir.
+_oturum_adi = str(st.session_state.get("user_name") or "").strip().lower()
+if _oturum_adi in {"meltem bulu"}:
+    try:
+        from core.personel_manager import load_personel_listesi
+        _df = load_personel_listesi()
+        _kisiler = sorted({str(a).strip() for a in _df["ad_soyad"].dropna() if str(a).strip()}, key=bg.tr_sira)
+    except Exception:       # noqa: BLE001
+        _kisiler = []
+    if _kisiler:
+        _secenek = ["Kendim"] + _kisiler
+        _gorunen = st.selectbox("Danışman (yönetici görünümü)", _secenek, key="bg_danisman",
+                                help="Seçtiğin danışmanın Radarım'ı olduğu gibi gösterilir (salt okunur). "
+                                     "Yatırım talepleri dahil, yalnız yönetici görür.")
+        if _gorunen != "Kendim":
+            kullanici = _gorunen
+            adlar = (_gorunen,)
+            st.info(f"👁 {_gorunen} adına görüntülüyorsun. Sayfadaki 'benim' kayıtlar bu danışmana aittir.")
 bolgeler, bolge_hatalari = _bolgelerim(kullanici)
 for h in bolge_hatalari:
     st.warning(f"Bölge listesi okunamadı: {h}")
