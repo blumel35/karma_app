@@ -97,7 +97,9 @@ def _ozet_tablosu(sayilar, dis, ilceler, donem, ek=()):
     ekip_kol = [(k, f"👥 {a_}") for k, a_ in _OZET_GRUPLAR[1][2]]
 
     with st.expander(f"İlçe özeti · {donem.lower()} · {len(ilceler)} ilçe", expanded=True):
-        ben_goster = st.toggle("👤 Benim kayıtlarım", value=True, key="bg_ozet_ben")
+        ben_goster = st.toggle("👤 Benim kayıtlarım", value=True, key="bg_ozet_ben",
+                           help="👤 sütunlar yalnız sana ait kayıtlardır (her ilçeden, dönemden bağımsız). "
+                                "👥 sütunlar ilçelerindeki ekip kayıtlarıdır (seçili dönem; Zeta ofisin aktif stokudur).")
         kolonlar = (ben_kol if ben_goster else []) + ekip_kol
         veri = []
         for i, v in satirlar:
@@ -124,8 +126,8 @@ def _ozet_tablosu(sayilar, dis, ilceler, donem, ek=()):
         st.dataframe(veri, hide_index=True, use_container_width=True, column_config=cfg,
                      column_order=["İlçe"] + [ad for _k, ad in kolonlar],
                      height=min(38 + 35 * len(veri), 420))
-        st.caption("👤 benim kayıtlarım (her ilçeden, dönemden bağımsız) · 👥 ekip kayıtları (ilçelerimdeki, seçili dönem)."
-                   + (" ◦ Uzmanlık bölgen değil; kendi kaydın olduğu için eklendi." if ek else ""))
+        if ek:
+            st.caption("◦ Uzmanlık bölgen değil; kendi kaydın olduğu için eklendi.")
 
 
 def _sekme(tur, ad, kayitlar, secim, donem):
@@ -159,10 +161,7 @@ def _sekme(tur, ad, kayitlar, secim, donem):
         kart={"baslik": "Kayıt", "meta": ["Kaynak"], "alt": ["İlçe", "İşlem", "Ayrıntı", "Sahibi"]},
     ) or {}
     k = {x["id"]: x for x in kayitlar}.get(sonuc.get("aktif"))
-    if tur == "zeta":
-        st.caption("Zeta = portallarda yayındaki aktif ilanlar; dönem süzgeci uygulanmaz.")
     if not k:
-        st.caption("Bir kayda dokunursan ayrıntısı altta açılır.")
         return
     ilce_etiket = "Aranan ilçeler" if k.get("tur") in ("talep", "yatirim_alici") else "İlçe"
     zaman = k.get("zaman")
@@ -248,33 +247,41 @@ secim = st.selectbox("İlçe", secenekler, key="bg_ilce", format_func=_etiket)
 gorunen = bg.ilceye_gore(liste, secim, ilceler)
 
 baslik_metin = secim.strip("()") if secim in (bg.TUM_BOLGELER, bg.BOLGE_DISI) else secim
+if secim == bg.TUM_BOLGELER:
+    bayat_n = bg.bayat_sayisi(ortak, ilceler)
+    alt_metin = f"{len(ilceler)} ilçe"
+elif secim == bg.BOLGE_DISI:
+    bayat_n = 0
+    alt_metin = "İlçesi belirlenemeyen kendi kayıtların"
+else:
+    bayat_n = bg.bayat_sayisi(ortak, [secim])
+    alt_metin = "Uzmanlık bölgen" if secim in (bolgeler or []) else "Kendi kaydın olduğu için eklendi"
+
+_RENK = {"violet": ("#ede9fe", "#6d28d9"), "sky": ("#e0f2fe", "#0369a1"), "orange": ("#ffedd5", "#c2410c"),
+         "indigo": ("#e0e7ff", "#4338ca"), "emerald": ("#d1fae5", "#047857"), "teal": ("#ccfbf1", "#0f766e")}
+
+
+def _chip(metin, bg_, fg_, ipucu=""):
+    return (f"<span title='{_html.escape(ipucu)}' style='display:inline-block;margin:6px 6px 0 0;padding:3px 10px;"
+            f"border-radius:6px;font-size:12px;font-weight:600;background:{bg_};color:{fg_};'>{_html.escape(metin)}</span>")
+
+
+_chipler = "".join(
+    _chip(f"{_KISA_SEKME[k]} {len(gorunen[k])}", *_RENK.get(r, ("#e2e8f0", "#334155")))
+    for k, _a, _s, r in bg.TURLER
+)
+if bayat_n:
+    _chipler += _chip(f"⚠ {bayat_n} Zeta ilanı bayat olabilir", "#fef3c7", "#92400e",
+                      f"Son {bh.BAYAT_ESIK_SAAT // 24} gündür Revy senkronunda görünmüyor; ekip listesinde gösterilmiyor, "
+                      "kendi ilanların uyarıyla görünür.")
 st.markdown(
-    f"<div style='margin:6px 0 2px;font-size:19px;font-weight:700;color:#1c2b47'>{_html.escape(baslik_metin)}"
-    f"<span style='font-size:12px;font-weight:500;color:#64748b;margin-left:8px'>ekip kayıtları: {_html.escape(donem.lower())}</span></div>",
+    f"<div style='background:#1C2B47;color:#fff;border-radius:14px;padding:16px 18px;margin:8px 0'>"
+    f"<div style='font-size:20px;font-weight:700'>{_html.escape(baslik_metin)}"
+    f"<span style='font-size:12px;font-weight:500;opacity:.7;margin-left:10px'>{_html.escape(donem.lower())}</span></div>"
+    f"<div style='font-size:12px;opacity:.75;margin-top:4px'>{_html.escape(alt_metin)}</div>"
+    f"<div>{_chipler}</div></div>",
     unsafe_allow_html=True,
 )
-if secim == bg.TUM_BOLGELER:
-    bayat_n, bayat_yer = bg.bayat_sayisi(ortak, ilceler), "İlçelerindeki"
-elif secim == bg.BOLGE_DISI:
-    bayat_n, bayat_yer = 0, ""
-else:
-    bayat_n, bayat_yer = bg.bayat_sayisi(ortak, [secim]), f"{secim} ilçesindeki"
-if bayat_n:
-    st.caption(f"⚠ {bayat_yer} {bayat_n} Zeta ilanı son {bh.BAYAT_ESIK_SAAT // 24} gündür Revy senkronunda "
-               "görünmüyor (yayından kalkmış olabilir); ekip listesinde gösterilmiyor, kendi ilanların uyarıyla görünür.")
-with st.expander("ℹ️ Nasıl okunur?"):
-    st.markdown(
-        "- **Benim kayıtlarım** (Taleplerim, Portföylerim, Yatırım): yalnız sana ait, her ilçeden ve dönemden bağımsız. "
-        "Portföylerim = Zeta portföyün + paylaşımların. Yatırım talepleri yalnız sana görünür.\n"
-        f"- **Ekip**: Uzmanlık bölgelerin ve kendi kayıtlarının ilçeleri. Talep, Paylaşım, Startkey ve FSBO "
-        f"**{donem.lower()}** içinde gelenleri gösterir; Zeta ofisin aktif stokudur (dönemden bağımsız). "
-        "Senin kayıtların da ekip sayılarına dahildir.\n"
-        "- Birden çok ilçeyi kapsayan kayıt her ilçede ayrı sayılır.\n"
-        "- Kaynak sütunundaki tarih: mail/paylaşım/Zeta için kayıt tarihi; Startkey ve FSBO ilanı için sisteme "
-        "ilk girdiği tarih.\n"
-        "- Ekran salt-okunur: bildirim göndermez, hiçbir şeyi değiştirmez. Uzmanlık bölgelerini Uzmanlık Bölgelerim, "
-        "bildirim ayarlarını FSBO İlanları ve Startkey İlanları sayfalarından yapabilirsin."
-    )
 
 sekmeler = st.tabs([f"{_KISA_SEKME[k]} ({len(gorunen[k])})" for k, *_ in bg.TURLER])
 for sekme, (k, ad, _s, _r) in zip(sekmeler, bg.TURLER):
