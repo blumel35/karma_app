@@ -157,7 +157,7 @@ def _sekme(tur, ad, kayitlar, secim, donem):
         },
     } for k in kayitlar]
     sonuc = havuz_tablosu(
-        kolonlar, satirlar, key=f"bg_tbl_{tur}_{secim}_{donem}", secimsiz=True,
+        kolonlar, satirlar, key=f"bg_tbl_{kullanici}_{tur}_{secim}_{donem}", secimsiz=True,
         kart={"baslik": "Kayıt", "meta": ["Kaynak"], "alt": ["İlçe", "İşlem", "Ayrıntı", "Sahibi"]},
     ) or {}
     k = {x["id"]: x for x in kayitlar}.get(sonuc.get("aktif"))
@@ -262,7 +262,7 @@ def _etiket(i):
     return f"{i}  ·  {z} Zeta  ·  {t} talep" + (f"  ·  {f} FSBO" if f else "")
 
 
-secim = st.selectbox("İlçe", secenekler, key="bg_ilce", format_func=_etiket)
+secim = st.selectbox("İlçe", secenekler, key=f"bg_ilce_{kullanici}", format_func=_etiket)
 gorunen = bg.ilceye_gore(liste, secim, ilceler)
 
 baslik_metin = secim.strip("()") if secim in (bg.TUM_BOLGELER, bg.BOLGE_DISI) else secim
