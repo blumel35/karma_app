@@ -27,7 +27,6 @@ import html as _html
 from datetime import datetime, timezone
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from core import bolge_havuzu as bh
 from core import bolgem as bg
@@ -184,8 +183,12 @@ div[class*="st-key-yr_detay"] { border-top:4px solid #b08a2e; }
 
 
 def _sec(k):
-    st.session_state["yr_sec"] = k
-    st.session_state["yr_kaydir"] = "detay"
+    """Kutuya basınca listesi kutunun altında açılır; aynı kutuya tekrar basınca kapanır (tek liste açık)."""
+    st.session_state["yr_sec"] = None if st.session_state.get("yr_sec") == k else k
+
+
+def _kapat():
+    st.session_state["yr_sec"] = None
 
 
 def _kutu(anahtar, simge, baslik, sayi, dagilim, ilk=False):
@@ -195,15 +198,10 @@ def _kutu(anahtar, simge, baslik, sayi, dagilim, ilk=False):
         with c1:
             st.markdown(_kutu_html(simge, baslik, sayi, dagilim, ilk), unsafe_allow_html=True)
         with c2:
-            st.button("→", key=f"yr_ok_{anahtar}", on_click=_sec, args=(anahtar,), help=f"{baslik} listesini aç")
-
-
-def _kaydir(hedef):
-    components.html(
-        "<script>setTimeout(function(){var d=window.parent.document.getElementById('" + hedef + "');"
-        "if(d){d.scrollIntoView({behavior:'smooth',block:'start'});}},350);</script>",
-        height=0,
-    )
+            st.button(
+                "▴" if secili else "▾", key=f"yr_ok_{anahtar}", on_click=_sec, args=(anahtar,),
+                help=f"{baslik} listesini {'kapat' if secili else 'aç'}",
+            )
 
 
 def _tablo(kayitlar, anahtar):
@@ -271,10 +269,27 @@ def _benzer_tablo(benz):
     return kayitlar
 
 
+def _detay(sec, baslik, h, secim_ad, kullanici):
+    with st.container(border=True, key="yr_detay_kutu"):
+        t1, t2 = st.columns([6, 2])
+        with t1:
+            st.markdown(f"**{_html.escape(baslik)} · {_html.escape(secim_ad)}**")
+        with t2:
+            st.button("✕ Kapat", key="yr_kapat", on_click=_kapat)
+        anahtar = f"{kullanici}_{sec}_{secim_ad}"
+        if sec == "port":
+            _tablo(h["port"], anahtar)
+        elif sec == "bolge":
+            _tablo(h["bolge"], anahtar)
+        elif sec == "benz":
+            _tablo(_benzer_tablo(h["benz"]), anahtar)
+        else:
+            _eslesme_detay(h["ciftler"], anahtar)
+
+
 # ── GİRİŞ NOKTASI ───────────────────────────────────────────────────────
 def render_yeni_radarim():
     st.markdown(_CSS, unsafe_allow_html=True)
-    st.markdown("<div id='yr-ust'></div>", unsafe_allow_html=True)
     kullanici = su_anki_danisman()
     adlar = tuple(su_anki_danisman_varyantlari() or [kullanici])
 
@@ -323,41 +338,30 @@ def render_yeni_radarim():
     benz_kayit = [s for s, _ in h["benz"]]
     kume = None if secim is None else {bh.tr_kucuk(secim)}
 
-    # ── Akış A ──
+    # ── Akış A ── (liste, basılan kutunun hemen altında açılır)
+    sec = st.session_state.get("yr_sec")
+    adlar_ = {"port": "Portföylerim", "bolge": "Alıcı talepleri", "benz": "Benzer Startkey portföyleri", "es": "Eşleşmeler"}
+    if sec not in adlar_:
+        sec = None
+
+    def _altinda(anahtar):
+        if sec == anahtar:
+            _detay(anahtar, adlar_[anahtar], h, secim_ad, kullanici)
+
     with st.container(border=True, key="yr_akis_a"):
-        _kutu("port", "🏠 ", "Portföylerim", len(h["port"]), _dagilim(h["port"], kume), ilk=True)
+        _kutu("port", "🏠 ", adlar_["port"], len(h["port"]), _dagilim(h["port"], kume), ilk=True)
+        _altinda("port")
         st.markdown("<div class='yr-ok-asagi'>↓</div>", unsafe_allow_html=True)
-        _kutu("bolge", "", "Alıcı talepleri", len(h["bolge"]), _dagilim(h["bolge"], kume))
-        _kutu("benz", "", "Benzer Startkey portföyleri", len(benz_kayit), _dagilim(benz_kayit, kume))
+        _kutu("bolge", "", adlar_["bolge"], len(h["bolge"]), _dagilim(h["bolge"], kume))
+        _altinda("bolge")
+        _kutu("benz", "", adlar_["benz"], len(benz_kayit), _dagilim(benz_kayit, kume))
+        _altinda("benz")
         st.markdown("<div class='yr-ok-asagi'>↓</div>", unsafe_allow_html=True)
-        _kutu("es", "", "Eşleşmeler", len(guclu), _dagilim([c["kaynak"] for c in guclu], kume))
+        _kutu("es", "", adlar_["es"], len(guclu), _dagilim([c["kaynak"] for c in guclu], kume))
+        _altinda("es")
+    if sec is None:
+        st.caption("Kutulardaki ▾ düğmesine basınca ilgili liste kutunun altında açılır.")
     if h["bayat"]:
         st.caption(f"⚠ {h['bayat']} Zeta ilanı son günlerde Revy'de görünmediği için (yayından kalkmış olabilir) "
                    "eşleştirmeye alınmadı.")
     st.caption("Taleplerim akışı (Zeta · Startkey · Paylaşımlar → Eşleşmeler) bir sonraki adımda eklenecek.")
-
-    # ── Detay ──
-    st.markdown("<div id='yr-detay'></div>", unsafe_allow_html=True)
-    sec = st.session_state.get("yr_sec")
-    adlar_ = {"port": "Portföylerim", "bolge": "Alıcı talepleri", "benz": "Benzer Startkey portföyleri", "es": "Eşleşmeler"}
-    if sec in adlar_:
-        with st.container(border=True, key="yr_detay_kutu"):
-            st.markdown(f"**{adlar_[sec]} · {_html.escape(secim_ad)}**")
-            anahtar = f"{kullanici}_{sec}_{secim_ad}"
-            if sec == "port":
-                _tablo(h["port"], anahtar)
-            elif sec == "bolge":
-                _tablo(h["bolge"], anahtar)
-            elif sec == "benz":
-                _tablo(_benzer_tablo(h["benz"]), anahtar)
-            else:
-                _eslesme_detay(h["ciftler"], anahtar)
-            if st.button("↑ Özete dön", key="yr_ust_btn"):
-                st.session_state["yr_kaydir"] = "ust"
-        _hedef = st.session_state.pop("yr_kaydir", None)
-        if _hedef == "detay":
-            _kaydir("yr-detay")
-        elif _hedef == "ust":
-            _kaydir("yr-ust")
-    else:
-        st.caption("Bir kutudaki → düğmesine basınca ilgili liste burada açılır.")
