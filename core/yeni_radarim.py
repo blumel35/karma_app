@@ -8,7 +8,9 @@ Yalnızca yeni ana sayfanın (core/yeni_ana_sayfa.py) "Radarım" sayfasında,
 core/bolgem.py) ve danışmanların ekranı DEĞİŞMEDİ. SALT OKUNUR, bildirim yok.
 
 Akış A:  Portföylerim  →  [ Alıcı talepleri | Benzer Startkey portföyleri ]  →  Eşleşmeler
-(Akış B — Taleplerim — sonraki fazda.)
+Akış B:  Taleplerim  →  [ Zeta portföyleri | Startkey portföyleri | Portföy paylaşımları ]  →  Eşleşmeler
+  (B'deki portföy kutuları, taleplerimden en az biriyle OLASI eşiğini (%40) geçen portföyleri sayar;
+   Eşleşmeler = güçlü (%70+) talep→portföy çiftleri. Bir talep birden çok ilçe istediyse her birinde sayılır.)
 
 Yeni puan/eşleşme kuralı YOK:
   - Veri: core.eslesme_havuzu.veri_yukle() (Bölge Havuzu "Eşleşme" sekmesiyle aynı).
@@ -123,8 +125,25 @@ def _hesapla(adlar, bolgeler, secim):
             benz.append((s, esl))
 
     ciftler = es.portfoyden_taleplere(port, bolge, ust_n=5, min_skor=es.OLASI_ESIK)
+
+    # ── Akış B: Taleplerim → uygun portföyler (kaynağa göre) → Eşleşmeler ──
+    tal = [k for k in benim_t if bg.bolgede_mi(k, kume)]
+    kaynaklar_b = {"zp": veri["zeta"], "sk": veri["startkey"], "pay": paylasim}
+    uygun, ciftler_b = {}, []
+    for ad, adaylar in kaynaklar_b.items():
+        cf = es.talepten_portfoylere(tal, adaylar, ust_n=5, min_skor=es.OLASI_ESIK) if tal else []
+        ciftler_b.extend(cf)
+        gor, sira = {}, []
+        for c in cf:
+            kid = c["aday"]["kid"]
+            if kid not in gor:
+                gor[kid] = (c["aday"], [])
+                sira.append(kid)
+            gor[kid][1].append((c["kaynak"], c["skor"]))
+        uygun[ad] = [(gor[k][0], sorted(gor[k][1], key=lambda x: -x[1])) for k in sira]
     return {
         "ilceler": ilceler, "ek": ek, "port": port, "bolge": bolge, "benz": benz, "ciftler": ciftler,
+        "tal": tal, "uygun": uygun, "ciftler_b": ciftler_b,
         "hatalar": hatalar, "bayat": (bilgi or {}).get("bayat_zeta", 0),
     }
 
@@ -159,6 +178,7 @@ _CSS = """
 <style>
 div[class*="st-key-yr_akis_"] > div[data-testid="stVerticalBlockBorderWrapper"] { border-radius: 14px; }
 div[class*="st-key-yr_akis_a"] { border-top: 5px solid #1b2742; }
+div[class*="st-key-yr_akis_b"] { border-top: 5px solid #2e7d6f; }
 .yr-kutu { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
 .yr-sol { min-width:0; }
 .yr-bas { font-size:12.5px; font-weight:700; color:#1b2742; line-height:1.25; }
@@ -248,8 +268,8 @@ def _tablo(kayitlar, anahtar):
     )
 
 
-def _eslesme_detay(ciftler, anahtar):
-    duzey = st.radio("Göster", ["Sadece güçlü (%70+)", "Güçlü + olası (%40+)"], key="yr_duzey", horizontal=True)
+def _eslesme_detay(ciftler, anahtar, sec):
+    duzey = st.radio("Göster", ["Sadece güçlü (%70+)", "Güçlü + olası (%40+)"], key=f"yr_duzey_{sec}", horizontal=True)
     gorunen = [c for c in ciftler if c["guclu"]] if duzey.startswith("Sadece") else ciftler
     if not gorunen:
         st.info("Bu filtrelerde eşleşme yok.")
@@ -263,7 +283,7 @@ def _eslesme_detay(ciftler, anahtar):
         es.kart_css(), imza, key=f"yr_esk_{anahtar}",
     )
     st.caption(f"{len(secilen)} / {len(gruplar)} portföy gösteriliyor")
-    if len(gruplar) > n and st.button(f"Daha fazla göster (+{GRUP_SAYFA})", key="yr_daha"):
+    if len(gruplar) > n and st.button(f"Daha fazla göster (+{GRUP_SAYFA})", key=f"yr_daha_{sec}"):
         st.session_state[f"yr_n_{anahtar}"] = n + GRUP_SAYFA
         st.rerun()
 
@@ -275,6 +295,17 @@ def _benzer_tablo(benz):
         k = dict(s)
         k["alt"] = ("Benzediği portföyün: " + " · ".join(p["baslik"][:40] for p in esl[:2])
                     + (f" (+{len(esl) - 2})" if len(esl) > 2 else ""))
+        kayitlar.append(k)
+    return kayitlar
+
+
+def _uygun_tablo(uygun):
+    """Taleplerime uyan portföyler; hangi talebime kaç puanla uyduğu ayrıntıda."""
+    kayitlar = []
+    for p, eslesenler in uygun:
+        k = dict(p)
+        k["alt"] = ("Uyduğu talebin: " + " · ".join(f"{t['baslik'][:36]} (%{sk})" for t, sk in eslesenler[:2])
+                    + (f" (+{len(eslesenler) - 2})" if len(eslesenler) > 2 else ""))
         kayitlar.append(k)
     return kayitlar
 
@@ -293,8 +324,14 @@ def _detay(sec, baslik, h, secim_ad, kullanici):
             _tablo(h["bolge"], anahtar)
         elif sec == "benz":
             _tablo(_benzer_tablo(h["benz"]), anahtar)
+        elif sec == "es":
+            _eslesme_detay(h["ciftler"], anahtar, sec)
+        elif sec == "tal":
+            _tablo(h["tal"], anahtar)
+        elif sec in ("zp", "sk", "pay"):
+            _tablo(_uygun_tablo(h["uygun"][sec]), anahtar)
         else:
-            _eslesme_detay(h["ciftler"], anahtar)
+            _eslesme_detay(h["ciftler_b"], anahtar, sec)
 
 
 # ── GİRİŞ NOKTASI ───────────────────────────────────────────────────────
@@ -349,7 +386,9 @@ def render_yeni_radarim():
     kume = None if secim is None else {bh.tr_kucuk(secim)}
 
     # ── Akış A ── (liste, basılan kutunun hemen altında açılır)
-    adlar_ = {"port": "Portföylerim", "bolge": "Alıcı talepleri", "benz": "Benzer Startkey portföyleri", "es": "Eşleşmeler"}
+    adlar_ = {"port": "Portföylerim", "bolge": "Alıcı talepleri", "benz": "Benzer Startkey portföyleri", "es": "Eşleşmeler",
+              "tal": "Taleplerim", "zp": "Zeta portföyleri", "sk": "Startkey portföyleri",
+              "pay": "Portföy paylaşımları", "es_b": "Eşleşmeler (taleplerim)"}
     acik = [k for k in _acik() if k in adlar_]
 
     def _altinda(anahtar):
@@ -367,9 +406,24 @@ def render_yeni_radarim():
         st.markdown("<div class='yr-ok-asagi'>↓</div>", unsafe_allow_html=True)
         _kutu("es", "", adlar_["es"], len(guclu), _dagilim([c["kaynak"] for c in guclu], kume))
         _altinda("es")
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+    guclu_b = [c for c in h["ciftler_b"] if c["guclu"]]
+    with st.container(border=True, key="yr_akis_b"):
+        _kutu("tal", "📋 ", adlar_["tal"], len(h["tal"]), _dagilim(h["tal"], kume), ilk=True)
+        _altinda("tal")
+        st.markdown("<div class='yr-ok-asagi'>↓</div>", unsafe_allow_html=True)
+        for ad in ("zp", "sk", "pay"):
+            uyg = [p for p, _ in h["uygun"][ad]]
+            _kutu(ad, "", adlar_[ad], len(uyg), _dagilim(uyg, kume))
+            _altinda(ad)
+        st.markdown("<div class='yr-ok-asagi'>↓</div>", unsafe_allow_html=True)
+        _kutu("es_b", "", "Eşleşmeler", len(guclu_b), _dagilim([c["kaynak"] for c in guclu_b], kume))
+        _altinda("es_b")
+    st.caption("Taleplerim akışında portföy kutuları, taleplerinden en az biriyle %40+ uyuşan portföyleri sayar; "
+               "Eşleşmeler yalnızca güçlü (%70+) çiftlerdir.")
     if not acik:
         st.caption("Kutulardaki ▾ düğmesine basınca ilgili liste kutunun altında açılır; istediğin kadarını aynı anda açık tutabilirsin.")
     if h["bayat"]:
         st.caption(f"⚠ {h['bayat']} Zeta ilanı son günlerde Revy'de görünmediği için (yayından kalkmış olabilir) "
                    "eşleştirmeye alınmadı.")
-    st.caption("Taleplerim akışı (Zeta · Startkey · Paylaşımlar → Eşleşmeler) bir sonraki adımda eklenecek.")
