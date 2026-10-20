@@ -182,17 +182,27 @@ div[class*="st-key-yr_detay"] { border-top:4px solid #b08a2e; }
 """
 
 
+def _acik():
+    return list(st.session_state.get("yr_acik") or [])
+
+
 def _sec(k):
-    """Kutuya basınca listesi kutunun altında açılır; aynı kutuya tekrar basınca kapanır (tek liste açık)."""
-    st.session_state["yr_sec"] = None if st.session_state.get("yr_sec") == k else k
+    """Kutuya basınca listesi kutunun altında açılır; aynı kutuya tekrar basınca kapanır.
+    Kutular birbirinden bağımsızdır: birini açmak diğerlerini kapatmaz."""
+    acik = _acik()
+    if k in acik:
+        acik.remove(k)
+    else:
+        acik.append(k)
+    st.session_state["yr_acik"] = acik
 
 
-def _kapat():
-    st.session_state["yr_sec"] = None
+def _kapat(k):
+    st.session_state["yr_acik"] = [x for x in _acik() if x != k]
 
 
 def _kutu(anahtar, simge, baslik, sayi, dagilim, ilk=False):
-    secili = st.session_state.get("yr_sec") == anahtar
+    secili = anahtar in _acik()
     with st.container(border=True, key=f"yr_box_{anahtar}_{'secili' if secili else 'degil'}"):
         c1, c2 = st.columns([7, 1])
         with c1:
@@ -270,12 +280,12 @@ def _benzer_tablo(benz):
 
 
 def _detay(sec, baslik, h, secim_ad, kullanici):
-    with st.container(border=True, key="yr_detay_kutu"):
+    with st.container(border=True, key=f"yr_detay_{sec}"):
         t1, t2 = st.columns([6, 2])
         with t1:
             st.markdown(f"**{_html.escape(baslik)} · {_html.escape(secim_ad)}**")
         with t2:
-            st.button("✕ Kapat", key="yr_kapat", on_click=_kapat)
+            st.button("✕ Kapat", key=f"yr_kapat_{sec}", on_click=_kapat, args=(sec,))
         anahtar = f"{kullanici}_{sec}_{secim_ad}"
         if sec == "port":
             _tablo(h["port"], anahtar)
@@ -339,13 +349,11 @@ def render_yeni_radarim():
     kume = None if secim is None else {bh.tr_kucuk(secim)}
 
     # ── Akış A ── (liste, basılan kutunun hemen altında açılır)
-    sec = st.session_state.get("yr_sec")
     adlar_ = {"port": "Portföylerim", "bolge": "Alıcı talepleri", "benz": "Benzer Startkey portföyleri", "es": "Eşleşmeler"}
-    if sec not in adlar_:
-        sec = None
+    acik = [k for k in _acik() if k in adlar_]
 
     def _altinda(anahtar):
-        if sec == anahtar:
+        if anahtar in acik:
             _detay(anahtar, adlar_[anahtar], h, secim_ad, kullanici)
 
     with st.container(border=True, key="yr_akis_a"):
@@ -359,8 +367,8 @@ def render_yeni_radarim():
         st.markdown("<div class='yr-ok-asagi'>↓</div>", unsafe_allow_html=True)
         _kutu("es", "", adlar_["es"], len(guclu), _dagilim([c["kaynak"] for c in guclu], kume))
         _altinda("es")
-    if sec is None:
-        st.caption("Kutulardaki ▾ düğmesine basınca ilgili liste kutunun altında açılır.")
+    if not acik:
+        st.caption("Kutulardaki ▾ düğmesine basınca ilgili liste kutunun altında açılır; istediğin kadarını aynı anda açık tutabilirsin.")
     if h["bayat"]:
         st.caption(f"⚠ {h['bayat']} Zeta ilanı son günlerde Revy'de görünmediği için (yayından kalkmış olabilir) "
                    "eşleştirmeye alınmadı.")
