@@ -7,8 +7,8 @@ Yalnızca yeni ana sayfanın (core/yeni_ana_sayfa.py) "Radarım" sayfasında,
 özellik anahtarı arkasında çalışır. Mevcut Radarım (pages/Danisman_Bolgem.py,
 core/bolgem.py) ve danışmanların ekranı DEĞİŞMEDİ. SALT OKUNUR, bildirim yok.
 
-Akış A:  Portföylerim  →  [ Alıcı talepleri | Benzer Startkey portföyleri ]  →  Eşleşmeler
-Akış B:  Taleplerim  →  [ Zeta portföyleri | Startkey portföyleri | Portföy paylaşımları ]  →  Eşleşmeler
+Akış A:  Portföylerim  →  [ Alıcı talepleri | Benzer Startkey portföyleri | Benzer FSBO ilanları ]  →  Eşleşmeler
+Akış B:  Taleplerim  →  [ Zeta portföyleri | Startkey portföyleri | FSBO ilanları | Portföy paylaşımları ]  →  Eşleşmeler
   (B'deki portföy kutuları, taleplerimden en az biriyle OLASI eşiğini (%40) geçen portföyleri sayar;
    Eşleşmeler = güçlü (%70+) talep→portföy çiftleri. Bir talep birden çok ilçe istediyse her birinde sayılır.)
 
@@ -115,20 +115,25 @@ def _hesapla(adlar, bolgeler, secim):
     idx = {}
     for p in port:
         idx.setdefault((p["motor"].get("ilce") or "").strip().lower(), []).append(p)
-    benz = []
-    for s in veri["startkey"]:
-        adaylar = idx.get((s["motor"].get("ilce") or "").strip().lower())
-        if not adaylar:
-            continue
-        esl = [p for p in adaylar if _benzer_mi(p["motor"], s["motor"])]
-        if esl:
-            benz.append((s, esl))
+    def _benzerleri(pazar):
+        sonuc = []
+        for s in pazar:
+            adaylar = idx.get((s["motor"].get("ilce") or "").strip().lower())
+            if not adaylar:
+                continue
+            esl = [p for p in adaylar if _benzer_mi(p["motor"], s["motor"])]
+            if esl:
+                sonuc.append((s, esl))
+        return sonuc
+
+    benz = _benzerleri(veri["startkey"])
+    benz_f = _benzerleri(veri.get("fsbo", []))
 
     ciftler = es.portfoyden_taleplere(port, bolge, ust_n=5, min_skor=es.OLASI_ESIK)
 
     # ── Akış B: Taleplerim → uygun portföyler (kaynağa göre) → Eşleşmeler ──
     tal = [k for k in benim_t if bg.bolgede_mi(k, kume)]
-    kaynaklar_b = {"zp": veri["zeta"], "sk": veri["startkey"], "pay": paylasim}
+    kaynaklar_b = {"zp": veri["zeta"], "sk": veri["startkey"], "fs": veri.get("fsbo", []), "pay": paylasim}
     uygun, ciftler_b = {}, []
     for ad, adaylar in kaynaklar_b.items():
         cf = es.talepten_portfoylere(tal, adaylar, ust_n=5, min_skor=es.OLASI_ESIK) if tal else []
@@ -142,7 +147,7 @@ def _hesapla(adlar, bolgeler, secim):
             gor[kid][1].append((c["kaynak"], c["skor"]))
         uygun[ad] = [(gor[k][0], sorted(gor[k][1], key=lambda x: -x[1])) for k in sira]
     return {
-        "ilceler": ilceler, "ek": ek, "port": port, "bolge": bolge, "benz": benz, "ciftler": ciftler,
+        "ilceler": ilceler, "ek": ek, "port": port, "bolge": bolge, "benz": benz, "benz_f": benz_f, "ciftler": ciftler,
         "tal": tal, "uygun": uygun, "ciftler_b": ciftler_b,
         "hatalar": hatalar, "bayat": (bilgi or {}).get("bayat_zeta", 0),
     }
@@ -324,11 +329,13 @@ def _detay(sec, baslik, h, secim_ad, kullanici):
             _tablo(h["bolge"], anahtar)
         elif sec == "benz":
             _tablo(_benzer_tablo(h["benz"]), anahtar)
+        elif sec == "benzf":
+            _tablo(_benzer_tablo(h["benz_f"]), anahtar)
         elif sec == "es":
             _eslesme_detay(h["ciftler"], anahtar, sec)
         elif sec == "tal":
             _tablo(h["tal"], anahtar)
-        elif sec in ("zp", "sk", "pay"):
+        elif sec in ("zp", "sk", "fs", "pay"):
             _tablo(_uygun_tablo(h["uygun"][sec]), anahtar)
         else:
             _eslesme_detay(h["ciftler_b"], anahtar, sec)
@@ -383,12 +390,13 @@ def render_yeni_radarim():
     h = _hesapla(adlar, bolgeler, secim)
     guclu = [c for c in h["ciftler"] if c["guclu"]]
     benz_kayit = [s for s, _ in h["benz"]]
+    benz_f_kayit = [s for s, _ in h["benz_f"]]
     kume = None if secim is None else {bh.tr_kucuk(secim)}
 
     # ── Akış A ── (liste, basılan kutunun hemen altında açılır)
-    adlar_ = {"port": "Portföylerim", "bolge": "Alıcı talepleri", "benz": "Benzer Startkey portföyleri", "es": "Eşleşmeler",
+    adlar_ = {"port": "Portföylerim", "bolge": "Alıcı talepleri", "benz": "Benzer Startkey portföyleri", "benzf": "Benzer FSBO ilanları", "es": "Eşleşmeler",
               "tal": "Taleplerim", "zp": "Zeta portföyleri", "sk": "Startkey portföyleri",
-              "pay": "Portföy paylaşımları", "es_b": "Eşleşmeler (taleplerim)"}
+              "fs": "FSBO ilanları", "pay": "Portföy paylaşımları", "es_b": "Eşleşmeler (taleplerim)"}
     acik = [k for k in _acik() if k in adlar_]
 
     def _altinda(anahtar):
@@ -403,6 +411,8 @@ def render_yeni_radarim():
         _altinda("bolge")
         _kutu("benz", "", adlar_["benz"], len(benz_kayit), _dagilim(benz_kayit, kume))
         _altinda("benz")
+        _kutu("benzf", "", adlar_["benzf"], len(benz_f_kayit), _dagilim(benz_f_kayit, kume))
+        _altinda("benzf")
         st.markdown("<div class='yr-ok-asagi'>↓</div>", unsafe_allow_html=True)
         _kutu("es", "", adlar_["es"], len(guclu), _dagilim([c["kaynak"] for c in guclu], kume))
         _altinda("es")
@@ -413,7 +423,7 @@ def render_yeni_radarim():
         _kutu("tal", "📋 ", adlar_["tal"], len(h["tal"]), _dagilim(h["tal"], kume), ilk=True)
         _altinda("tal")
         st.markdown("<div class='yr-ok-asagi'>↓</div>", unsafe_allow_html=True)
-        for ad in ("zp", "sk", "pay"):
+        for ad in ("zp", "sk", "fs", "pay"):
             uyg = [p for p, _ in h["uygun"][ad]]
             _kutu(ad, "", adlar_[ad], len(uyg), _dagilim(uyg, kume))
             _altinda(ad)

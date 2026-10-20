@@ -1877,6 +1877,17 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                     st.switch_page("pages/Danisman_Rehberim.py")
                 if st.button("📢 Zeta Portföyleri", use_container_width=True, key="dp_menu_zeta_ilan"):
                     st.switch_page("pages/Danisman_ZetaPortfoyleri.py")
+                # YENİ (20.10.2026): Startkey İlanları kısayolu. Yeni ana sayfada (özellik anahtarı
+                # "yeni_ana_sayfa" açık kullanıcılar) Startkey İlanları düğmesi kalktığı için menüden
+                # ulaşılır; anahtar kapalıyken (eski ekran) bu satır görünmez, menü eskisi gibi kalır.
+                try:
+                    from core.ozellik_erisim import ozellik_acik_mi as _ozellik_acik_mi
+                    _yeni_menu = _ozellik_acik_mi("yeni_ana_sayfa")
+                except Exception:
+                    _yeni_menu = False
+                if _yeni_menu:
+                    if st.button("🏘️ Startkey İlanları", use_container_width=True, key="dp_menu_startkey_ilan"):
+                        st.switch_page("pages/Danisman_StartkeyIlanlari.py")
                 if st.button("👥 Zeta Paylaşımları", use_container_width=True, key="dp_menu_paylasimlar"):
                     st.switch_page("pages/Danisman_Paylasimlar.py")
                 if st.button("🧮 Senaryo Hesaplayıcı", use_container_width=True, key="dp_menu_senaryo"):
