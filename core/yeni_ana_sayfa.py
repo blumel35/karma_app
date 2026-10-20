@@ -640,6 +640,10 @@ def render_yeni_ana_sayfa():
         if sayfa == "Ana sayfa":
             _ana_sayfa_govde()
         else:
-            st.info("Yeni Radarım (Portföylerim / Taleplerim akışları) sonraki adımda buraya gelecek.")
+            try:
+                from core.yeni_radarim import render_yeni_radarim
+                render_yeni_radarim()
+            except Exception as e:      # noqa: BLE001 — yeni Radarım hata verirse sayfa çökmesin
+                st.error(f"Yeni Radarım yüklenemedi: {e}")
             if st.button("Mevcut Radarım sayfasını aç →", key="ya_eski_radarim"):
                 st.switch_page("pages/Danisman_Bolgem.py")
