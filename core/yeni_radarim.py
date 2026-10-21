@@ -27,6 +27,7 @@ ilan "benzer" sayılmaz (iddiayı sağlam tutmak için).
 """
 import html as _html
 import re
+from functools import lru_cache
 from datetime import datetime, timedelta, timezone
 
 import streamlit as st
@@ -124,8 +125,9 @@ def _veri():
 
 
 def _veri_temizle():
-    for f in (_veri_temel, _pazar_stok, _pazar_hafif, _hesapla, _piyasa, _ekip_sayilari):
+    for f in (_veri_temel, _pazar_stok, _pazar_hafif, _hesapla, _piyasa, _ekip_sayilari, _sahip_adlari):
         f.clear()
+    _ayni_kisi_personel.cache_clear()
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -167,6 +169,60 @@ def _zeta_kimlikleri():
     return adlar, epostalar
 
 
+def _ad_ayni_kisi(a, b):
+    """İki ad aynı kişiye mi ait: aynı belirteç sayısı, son ad aynı, diğer belirteçler ya aynı ya da biri
+    yalnız baş harf ('A. Esat Öztürk' = 'Ahmet Esat Öztürk'). Farklı kişileri (aynı son ad, farklı ad) eşlemez."""
+    ta = [t for t in re.split(r"[\s.]+", bh.tr_kucuk(a)) if t]
+    tb = [t for t in re.split(r"[\s.]+", bh.tr_kucuk(b)) if t]
+    if len(ta) < 2 or len(ta) != len(tb) or ta[-1] != tb[-1]:
+        return False
+    for x, y in zip(ta[:-1], tb[:-1]):
+        if x != y and not ((len(x) == 1 and y.startswith(x)) or (len(y) == 1 and x.startswith(y))):
+            return False
+    return True
+
+
+@lru_cache(maxsize=4096)
+def _ayni_kisi_personel(ad_anahtari):
+    """Sahip adı personel listesinde birebir yoksa, baş harfli yazımla eşleşen personel adı ('' = yok)."""
+    adlar, _ = _zeta_kimlikleri()
+    for ad in adlar.values():
+        if _ad_ayni_kisi(ad, ad_anahtari):
+            return ad
+    return ""
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _sahip_adlari():
+    """Verideki (Zeta portföyü, paylaşım, talep) tüm ayrı sahip adları."""
+    veri, _, _ = _veri_temel()
+    adlar = {}
+    for k in veri["zeta"] + veri["paylasim"] + veri["talep"]:
+        ad = _sahip_ayir(k.get("sahip"))[0]
+        if ad:
+            adlar.setdefault(bh.tr_kucuk(ad), ad)
+    return list(adlar.values())
+
+
+def _esdeger_adlar(adlar):
+    """Kişinin ad varyantlarına, verideki baş harfli/uzun yazım eşdeğerlerini ekler
+    (personel listesinde 'A. Esat Öztürk', Revy'de 'Ahmet Esat Öztürk')."""
+    sonuc = list(adlar)
+    gorulen = {bh.tr_kucuk(a) for a in sonuc}
+    try:
+        adaylar = _sahip_adlari()
+    except Exception:      # noqa: BLE001
+        adaylar = []
+    for a in list(sonuc):
+        if "@" in a:
+            continue
+        for c in adaylar:
+            if bh.tr_kucuk(c) not in gorulen and _ad_ayni_kisi(a, c):
+                gorulen.add(bh.tr_kucuk(c))
+                sonuc.append(c)
+    return tuple(sonuc)
+
+
 def _sahip_ayir(sahip):
     """'Ad Soyad <eposta>' → (ad, eposta); yalnız e-posta ya da yalnız ad da olabilir."""
     s = str(sahip or "").strip()
@@ -184,7 +240,7 @@ def _zeta_kisisi(sahip):
         return epostalar[e]
     if ad and bh.tr_kucuk(ad) in adlar:
         return adlar[bh.tr_kucuk(ad)]
-    return ""
+    return _ayni_kisi_personel(bh.tr_kucuk(ad)) if ad else ""
 
 
 def _zeta_talebi_mi(k):
@@ -1011,7 +1067,7 @@ def _ekip_bolumu(h, kisiler):
 def render_yeni_radarim():
     st.markdown(_CSS, unsafe_allow_html=True)
     kullanici = su_anki_danisman()
-    adlar = tuple(su_anki_danisman_varyantlari() or [kullanici])
+    adlar = _esdeger_adlar(su_anki_danisman_varyantlari() or [kullanici])
 
     # Yönetici: başka bir danışmanın ya da TÜM EKİBİN Radarım'ını görüntüleyebilir.
     # Danışmanlar yalnız kendi verisini görür (yatırım talepleri de yalnız atanan danışmana + yöneticiye).
@@ -1043,7 +1099,7 @@ def render_yeni_radarim():
             ekip, kullanici, adlar = True, "__ekip__", None
             st.info("👥 Tüm ekibin verisini görüntülüyorsun (yönetici görünümü).")
         elif secilen_kisi != "Kendim":
-            kullanici, adlar = secilen_kisi, (secilen_kisi,)
+            kullanici, adlar = secilen_kisi, _esdeger_adlar((secilen_kisi,))
             st.info(f"👁 {secilen_kisi} adına görüntülüyorsun.")
 
     bolgeler = () if ekip else tuple(_bolgeler(kullanici))
