@@ -197,19 +197,27 @@ def _hesapla(adlar, bolgeler, secim):
         ilceler, ek = bg.kapsam_ilceleri(list(bolgeler), {"p": benim_p, "t": benim_t})
         kume = bg._ilce_kumesi(ilceler if secim is None else [secim])
 
-    port = [k for k in benim_p if _bolgede(k, kume)]
-    bolge = [k for k in talepler + yat if _bolgede(k, kume)]
-    tal = [k for k in benim_t if _bolgede(k, kume)]
-    belirsiz = 0 if ekip else sum(1 for k in benim_t if not k.get("ilceler"))
+    # Kendi kayıtların "tümü"nde ilçe süzgeciyle ELENMEZ (ilçesi belirsiz olsa da listede görünür — mevcut
+    # Radarım'daki "kendi kayıtlar tüm ilçelerden" kuralı). Bir ilçe seçilince o ilçeye göre süzülür.
+    kendi_hepsi = (not ekip) and secim is None
+    port = list(benim_p) if kendi_hepsi else [k for k in benim_p if _bolgede(k, kume)]
+    bolge = [k for k in talepler if _bolgede(k, kume)] + (list(yat) if kendi_hepsi else [k for k in yat if _bolgede(k, kume)])
+    tal = list(benim_t) if kendi_hepsi else [k for k in benim_t if _bolgede(k, kume)]
+    # İlçesi belirsiz kendi kayıtları listelerde görünür ama eşleşmeye girmez (ilçesiz kayıt her ilçeyle
+    # "uyuşur", sahte eşleşme üretir).
+    belirsiz = 0 if ekip else sum(1 for k in port if not (k["motor"].get("ilce") or "").strip()) \
+        + sum(1 for k in tal if not k.get("ilceler"))
 
     # Ekip görünümünde hesap yükünü sınırla: en yeni kayıtlar
     kirpildi = {}
-    port_h, tal_h = port, tal
+    port_h = [k for k in port if (k["motor"].get("ilce") or "").strip()]
+    tal_h = [k for k in tal if k.get("ilceler")]
+    bolge_h = [k for k in bolge if k.get("ilceler") or not k.get("yatirim")]
     if ekip:
-        if len(port) > EKIP_PORT_SINIR:
-            port_h, kirpildi["port"] = _yeni_sirali(port)[:EKIP_PORT_SINIR], len(port)
-        if len(tal) > EKIP_TALEP_SINIR:
-            tal_h, kirpildi["tal"] = _yeni_sirali(tal)[:EKIP_TALEP_SINIR], len(tal)
+        if len(port_h) > EKIP_PORT_SINIR:
+            port_h, kirpildi["port"] = _yeni_sirali(port_h)[:EKIP_PORT_SINIR], len(port)
+        if len(tal_h) > EKIP_TALEP_SINIR:
+            tal_h, kirpildi["tal"] = _yeni_sirali(tal_h)[:EKIP_TALEP_SINIR], len(tal)
 
     # Benzer Startkey / FSBO: portföyleri ilçeye göre indeksle
     idx = {}
@@ -230,7 +238,7 @@ def _hesapla(adlar, bolgeler, secim):
     benz = _benzerleri(veri["startkey"])
     benz_f = _benzerleri(veri.get("fsbo", []))
 
-    ciftler = es.portfoyden_taleplere(port_h, bolge, ust_n=5, min_skor=es.OLASI_ESIK)
+    ciftler = es.portfoyden_taleplere(port_h, bolge_h, ust_n=5, min_skor=es.OLASI_ESIK)
 
     # ── Akış B: Taleplerim → uygun portföyler (kaynağa göre) → Eşleşmeler ──
     kaynaklar_b = {"zp": veri["zeta"], "sk": veri["startkey"], "fs": veri.get("fsbo", []), "pay": paylasim}
@@ -591,7 +599,8 @@ def render_yeni_radarim():
     st.caption("💼 Yatırım talepleri Alıcı talepleri / Taleplerim içinde gösterilir; her danışman yalnız kendisine "
                "atananı görür, yönetici hepsini.")
     if h["belirsiz"]:
-        st.caption(f"ℹ {h['belirsiz']} talebinin ilçesi belirsiz olduğu için bölge sayılarına girmiyor.")
+        st.caption(f"ℹ {h['belirsiz']} kaydının ilçesi belirsiz: sayılarda ve listelerde görünür (yalnız 'tümü' seçiliyken), "
+                   "ilçe bilgisi olmadığı için eşleşmeye girmez.")
     if h["kirpildi"]:
         st.caption("⏱ Ekip görünümünde eşleşmeler en yeni "
                    + (f"{EKIP_PORT_SINIR} portföy (toplam {h['kirpildi']['port']})" if "port" in h["kirpildi"] else "")
