@@ -41,6 +41,9 @@ from core.match_engine import (
     _mulk_normalize, _islem_normalize, _belirsiz_mi, _sayi_ayikla, _oda_secenekleri_cikar,
 )
 
+# "Portföy paylaşımı" = ofis içinde ELLE girilen (kapalı) portföyler — Zeta Paylaşımları sayfasıyla aynı kural
+# (kaynak: zeta / ofis). Mail sistemi, Startkey vb. kaynaklı kayıtlar paylaşım SAYILMAZ.
+PAYLASIM_KAYNAKLARI = {"zeta", "ofis"}
 MAX_BOLGE = 5
 BOLGE_TABLOLARI = ("uzmanlik_bolgeleri", "fsbo_bolgeleri", "startkey_ilan_bolgeleri")
 TUM = "Tüm uzmanlık bölgelerim"
@@ -73,6 +76,10 @@ def _bolgeler(kullanici):
     return []
 
 
+def _paylasim_mi(k):
+    return str((k.get("ham") or {}).get("kaynak") or "").strip().lower() in PAYLASIM_KAYNAKLARI
+
+
 def _fiyat(motor):
     return _sayi_ayikla(motor.get("fiyat"))
 
@@ -102,7 +109,7 @@ def _hesapla(adlar, bolgeler, secim):
     veri, hatalar, bilgi = _veri()
     simdi = datetime.now(timezone.utc)
     talepler = es.omre_gore(veri["talep"], simdi)
-    paylasim = es.omre_gore(veri["paylasim"], simdi)
+    paylasim = [k for k in es.omre_gore(veri["paylasim"], simdi) if _paylasim_mi(k)]
     benim_p = [k for k in veri["zeta"] + paylasim if bg.benim_mi(k, adlar)]
     benim_t = [k for k in talepler if bg.benim_mi(k, adlar)]
     ilceler, ek = bg.kapsam_ilceleri(list(bolgeler), {"p": benim_p, "t": benim_t})
