@@ -124,7 +124,7 @@ def _veri():
 
 
 def _veri_temizle():
-    for f in (_veri_temel, _pazar_stok, _pazar_hafif, _hesapla, _piyasa):
+    for f in (_veri_temel, _pazar_stok, _pazar_hafif, _hesapla, _piyasa, _ekip_sayilari):
         f.clear()
 
 
@@ -384,6 +384,31 @@ def _hesapla(adlar, bolgeler, secim):
         "kirpildi": kirpildi, "belirsiz": belirsiz,
         "hatalar": hatalar, "bayat": (bilgi or {}).get("bayat_zeta", 0), "sinir": (bilgi or {}).get("sinir", []),
     }
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _ekip_sayilari():
+    """Yönetici danışman listesi için hafif sayım (eşleşme hesabı YOK): {ad_anahtarı: [portföy, talep]}.
+    'Tüm ekip' tablosundaki Portföy / Talep sütunlarıyla aynı kural: portföy = Zeta portföyleri + Zeta paylaşımları,
+    talep = Zeta danışmanlarının talepleri + yatırım talepleri; sahibe göre sayılır."""
+    veri, _, _ = _veri()
+    simdi = datetime.now(timezone.utc)
+    talepler = es.omre_gore(veri["talep"], simdi)
+    paylasim = [k for k in es.omre_gore(veri["paylasim"], simdi) if _paylasim_mi(k)]
+    yat, _ = _yatirim(None, hepsi=True)
+    sayi = {}
+
+    def _artir(sahip, i):
+        ad = _zeta_kisisi(sahip) or _sahip_ayir(sahip)[0] or str(sahip or "").strip()
+        a = bh.tr_kucuk(ad)
+        if a:
+            sayi.setdefault(a, [0, 0])[i] += 1
+
+    for k in veri["zeta"] + paylasim:
+        _artir(k.get("sahip"), 0)
+    for k in [k for k in talepler if _zeta_talebi_mi(k)] + yat:
+        _artir(k.get("sahip"), 1)
+    return sayi
 
 
 def _ekip_tablosu(h, kisiler):
@@ -998,7 +1023,19 @@ def render_yeni_radarim():
             kisiler = sorted({str(a).strip() for a in _df["ad_soyad"].dropna() if str(a).strip()}, key=bg.tr_sira)
         except Exception:      # noqa: BLE001
             kisiler = []
-        secilen_kisi = st.selectbox("Görünüm (yönetici)", ["Kendim", EKIP, PIYASA] + kisiler, key="yr_kisi")
+        try:
+            sayilar = _ekip_sayilari()
+        except Exception:      # noqa: BLE001
+            sayilar = {}
+
+        def _kisi_etiket(ad):
+            if ad in (EKIP, PIYASA):
+                return ad
+            n = sayilar.get(bh.tr_kucuk(kullanici if ad == "Kendim" else ad))
+            n = n or [0, 0]
+            return f"{ad} · {n[0]} portföy · {n[1]} talep"
+
+        secilen_kisi = st.selectbox("Görünüm (yönetici)", ["Kendim", EKIP, PIYASA] + kisiler, key="yr_kisi", format_func=_kisi_etiket)
         if secilen_kisi == PIYASA:
             _piyasa_ozeti()
             return
