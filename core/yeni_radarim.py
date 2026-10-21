@@ -682,7 +682,10 @@ def _piyasa():
     'Startkey' = Startkey mail sistemindeki diğer paylaşımlar. Alıcı talebi: 'Zeta' = Zeta danışmanlarının talepleri
     + yatırım talepleri, 'Startkey' = ağın diğer talepleri.
     Toplam: aktif stok (talep/paylaşım kiralık 14, satılık 45 gün); Son 30/7 gün: o sürede gelen yeni kayıtlar.
-    Dönüş: ({dönem: (satırlar, toplamlar)}, hatalar, tarih_metni)."""
+    İlçe sırası: Toplam dönemindeki FSBO ilanı adedi (pazar büyüklüğü), çoktan aza; tüm dönemlerde aynı sıra.
+    Toplam dönemde Zeta portföyü (Zeta portföyleri ya da Zeta kapalı portföyü) olan ilçeler ayrı satırda; Zeta portföyü olmayanlar
+    tek 'Diğer ilçeler' satırında toplanır (ayrıntısı açılır); ilçesi belirsiz kayıtlar en altta.
+    Satır: {'ilce', 'grup': 'ana'|'diger'|'belirsiz', kolonlar...}. Dönüş: ({dönem: (satırlar, toplamlar)}, hatalar, tarih_metni)."""
     veri, hatalar, _ = _veri_temel()
     hatalar = dict(hatalar)
     simdi = datetime.now(timezone.utc)
@@ -718,29 +721,53 @@ def _piyasa():
             for a, (ad, _) in d.items():
                 ad_of.setdefault(a, ad)
                 anahtarlar.add(a)
-        satirlar = []
+        ham = {}
         for a in anahtarlar:
-            r = {"ilce": ad_of[a], "_belirsiz": a == ""}
+            r = {"ilce": ad_of[a], "_a": a}
             for kol, *_ in PIYASA_KOLONLAR:
                 r[kol] = dags[kol][a][1] if a in dags[kol] else 0
-            satirlar.append(r)
-        satirlar.sort(key=lambda r: (r["_belirsiz"], -(r["zp"] + r["kp_z"] + r["at_z"]), -r["sk"], bg.tr_sira(r["ilce"])))
-        sonuc[anahtar] = (satirlar, {kol: len(o) for kol, o in kaynaklar.items()})
+            ham[a] = r
+        sonuc[anahtar] = (ham, {kol: len(o) for kol, o in kaynaklar.items()})
+    # sıra ve 'diğer' kümesi Toplam dönemine göre bir kez belirlenir, her dönemde aynı uygulanır
+    toplam_ham = sonuc[PIYASA_DONEMLER[0][0]][0]
+    sirali = sorted((a for a in toplam_ham if a != ""), key=lambda a: (-toplam_ham[a]["fsbo"], -toplam_ham[a]["sk"], bg.tr_sira(toplam_ham[a]["ilce"])))
+    zetali = lambda a: toplam_ham[a]["zp"] + toplam_ham[a]["kp_z"] > 0
+    ana = [a for a in sirali if zetali(a)]
+    diger = [a for a in sirali if not zetali(a)]
+    for anahtar in list(sonuc):
+        ham, toplam = sonuc[anahtar]
+        bos = lambda ad, a: {"ilce": ad, "_a": a, **{kol: 0 for kol, *_ in PIYASA_KOLONLAR}}
+        satirlar = [dict(ham.get(a) or bos(toplam_ham[a]["ilce"], a), grup="ana") for a in ana]
+        if diger:
+            alt = [dict(ham.get(a) or bos(toplam_ham[a]["ilce"], a), grup="detay") for a in diger]
+            ozet = {"ilce": f"Diğer ilçeler ({len(diger)})", "grup": "diger", "n": len(diger),
+                    **{kol: sum(r[kol] for r in alt) for kol, *_ in PIYASA_KOLONLAR}}
+            satirlar += [ozet] + alt
+        if "" in ham:
+            satirlar.append(dict(ham[""], grup="belirsiz"))
+        sonuc[anahtar] = (satirlar, toplam)
     return sonuc, hatalar, bh.tarih_metni(simdi)
 
 
 _PIYASA_CSS = """
-.yr-pz-kap { overflow:auto; max-height:640px; border:1px solid #e6dfd0; border-radius:12px; background:#fff; }
+.yr-pz-kap { overflow:auto; max-height:640px; border:1px solid #dcdfe4; border-radius:12px; background:#fff; }
 table.yr-pz { border-collapse:separate; border-spacing:0; width:100%; font-size:13.5px; }
-table.yr-pz th, table.yr-pz td { padding:7px 10px; text-align:right; border-bottom:1px solid #f0ebdf; white-space:nowrap; }
-table.yr-pz th { background:#fbf4e1; color:#1b2742; font-weight:700; position:sticky; top:0; z-index:2; text-align:center; }
-table.yr-pz thead tr:nth-child(2) th { top:34px; font-weight:600; font-size:12.5px; background:#fdf8ea; }
-table.yr-pz th.yr-g { border-left:1px solid #e6dfd0; }
+table.yr-pz th, table.yr-pz td { padding:7px 10px; text-align:right; border-bottom:1px solid #eceef1; white-space:nowrap; }
+table.yr-pz th { background:#e9ecef; color:#2b3340; font-weight:700; position:sticky; top:0; z-index:2; text-align:center; }
+table.yr-pz thead tr:nth-child(2) th { top:34px; font-weight:600; font-size:12.5px; background:#f1f3f5; }
+table.yr-pz th.yr-g { border-left:1px solid #dcdfe4; }
 table.yr-pz td:first-child, table.yr-pz th:first-child { text-align:left; position:sticky; left:0; background:#fff; z-index:1; }
-table.yr-pz th:first-child { background:#fbf4e1; z-index:3; }
-table.yr-pz td.yr-g { border-left:1px solid #f0ebdf; }
-table.yr-pz td.yr-0 { color:#c3beb2; }
-table.yr-pz tr.yr-top td { font-weight:800; background:#fbf4e1; }
+table.yr-pz th:first-child { background:#e9ecef; z-index:3; }
+table.yr-pz td.yr-g { border-left:1px solid #eceef1; }
+table.yr-pz td.yr-0 { color:#b9bec7; }
+table.yr-pz tr.yr-top td { font-weight:800; background:#e9ecef; }
+table.yr-pz tr.yr-diger td { background:#f6f7f9; font-weight:700; }
+table.yr-pz tr.yr-diger td:first-child { background:#f6f7f9; }
+table.yr-pz tr.yr-diger.yr-tikla td { cursor:pointer; }
+table.yr-pz tr.yr-det { display:none; }
+table.yr-pz.ac tr.yr-det { display:table-row; }
+table.yr-pz tr.yr-det td:first-child { padding-left:26px; color:#4b5563; }
+table.yr-pz tr.yr-bel td { color:#6b7280; font-style:italic; }
 """
 
 
@@ -762,7 +789,8 @@ def _baslik_yapisi():
     return ust, alt
 
 
-def _piyasa_html(satirlar, toplam):
+def _piyasa_html(satirlar, toplam, acik=False, tikla=False):
+    """acik: 'Diğer ilçeler' ayrıntı satırları görünür; tikla: satıra tıklayınca açılır (yalnız indirilen HTML'de, JS gerekir)."""
     ust, alt = _baslik_yapisi()
     h1 = "<th rowspan='2'>İlçe</th>" + "".join(
         f"<th colspan='{n}' class='yr-g'>{_html.escape(u)}</th>" if r == 1 else f"<th rowspan='2' class='yr-g'>{_html.escape(u)}</th>"
@@ -770,19 +798,33 @@ def _piyasa_html(satirlar, toplam):
     h2 = "".join(f"<th class='yr-g'>{_html.escape(a)}</th>" for a in alt)
     govde = ""
     for r in satirlar:
-        govde += "<tr><td>" + _html.escape(r["ilce"]) + "</td>" + "".join(
+        grup = r.get("grup", "ana")
+        sinif, ad = {"diger": ("yr-diger", ""), "detay": ("yr-det", ""), "belirsiz": ("yr-bel", "")}.get(grup, ("", ""))
+        etiket = _html.escape(r["ilce"])
+        ek = ""
+        if grup == "diger":
+            etiket = "▸ " + etiket
+            if tikla:
+                sinif += " yr-tikla"
+                ek = " onclick=\"this.closest('table').classList.toggle('ac')\" title='Ayrıntı için tıkla'"
+        govde += f"<tr class='{sinif}'{ek}><td>{etiket}</td>" + "".join(
             f"<td class='yr-g{' yr-0' if not r[k] else ''}'>{r[k]}</td>" for k, *_ in PIYASA_KOLONLAR) + "</tr>"
     govde += "<tr class='yr-top'><td>TOPLAM (kayıt)</td>" + "".join(
         f"<td class='yr-g'>{toplam[k]}</td>" for k, *_ in PIYASA_KOLONLAR) + "</tr>"
-    return f"<div class='yr-pz-kap'><table class='yr-pz'><thead><tr>{h1}</tr><tr>{h2}</tr></thead><tbody>{govde}</tbody></table></div>"
+    return (f"<div class='yr-pz-kap'><table class='yr-pz{' ac' if acik else ''}'><thead><tr>{h1}</tr><tr>{h2}</tr></thead>"
+            f"<tbody>{govde}</tbody></table></div>")
 
 
-_PIYASA_NOT = (
+_PIYASA_NOT_METNI = (
     "FSBO / Startkey ilanı: aktif ilanlar · Zeta portföyleri: Revy'de görünen ofis stoku · Kapalı portföyler: ofis içi paylaşımlar "
     "(Zeta: Radar'dan elle girilen; Startkey: mail sistemindeki diğerleri) · Alıcı talepleri (Zeta: Zeta danışmanlarının talepleri ve "
     "formdan gelen yatırım talepleri; Startkey: ağın diğer talepleri). Toplam: aktif stok (talep ve paylaşımlar kiralıkta 14, satılıkta 45 gün); "
-    "Son 30 / 7 gün: o sürede gelen yeni kayıtlar. Birden çok ilçe isteyen kayıt her ilçede sayılır; son satır kayıt sayısıdır."
+    "Son 30 / 7 gün: o sürede gelen yeni kayıtlar. Zeta portföyü olan ilçeler Toplam dönemindeki FSBO ilanı adedine göre (pazar büyüklüğü) sıralıdır; Zeta portföyü olmayan ilçeler \"Diğer ilçeler\" satırında toplanır. Birden çok ilçe isteyen kayıt her ilçede sayılır; son satır kayıt sayısıdır."
 )
+
+
+def _piyasa_not():
+    return _PIYASA_NOT_METNI
 
 
 def _piyasa_excel(sonuc, tarih):
@@ -792,15 +834,17 @@ def _piyasa_excel(sonuc, tarih):
     from openpyxl.utils import get_column_letter
     wb, ilk = Workbook(), True
     ust, alt = _baslik_yapisi()
-    krem, koyu = PatternFill("solid", fgColor="FBF4E1"), Font(bold=True, color="1B2742")
-    ince = Side(style="thin", color="E6DFD0")
+    krem, koyu = PatternFill("solid", fgColor="E9ECEF"), Font(bold=True, color="2B3340")
+    acik_gri = PatternFill("solid", fgColor="F6F7F9")
+    ince = Side(style="thin", color="DCDFE4")
     for anahtar, ad, _ in PIYASA_DONEMLER:
         satirlar, toplam = sonuc[anahtar]
         ws = wb.active if ilk else wb.create_sheet()
         ilk = False
         ws.title = ad.split(" (")[0]
         ws["A1"] = f"Tüm Startkey — ilçe bazında piyasa özeti · {ad} · {tarih}"
-        ws["A1"].font = Font(bold=True, size=13, color="1B2742")
+        ws["A1"].font = Font(bold=True, size=13, color="2B3340")
+        ws.sheet_properties.outlinePr.summaryBelow = False
         ws.cell(row=3, column=1, value="İlçe")
         ws.merge_cells(start_row=3, start_column=1, end_row=4, end_column=1)
         c, alt_i = 2, 0
@@ -822,24 +866,37 @@ def _piyasa_excel(sonuc, tarih):
                 h.alignment = Alignment(horizontal="center", vertical="center")
                 h.border = Border(bottom=ince)
         for i, r in enumerate(satirlar):
-            ws.cell(row=5 + i, column=1, value=r["ilce"])
+            sr = 5 + i
+            grup = r.get("grup", "ana")
+            ws.cell(row=sr, column=1, value=("    " if grup == "detay" else "") + r["ilce"])
             for j, (k, *_) in enumerate(PIYASA_KOLONLAR):
-                ws.cell(row=5 + i, column=2 + j, value=r[k])
+                ws.cell(row=sr, column=2 + j, value=r[k])
+            if grup == "diger":
+                for cc in range(1, 2 + len(PIYASA_KOLONLAR)):
+                    ws.cell(row=sr, column=cc).font = Font(bold=True)
+                    ws.cell(row=sr, column=cc).fill = acik_gri
+            elif grup == "detay":      # Excel'de + işaretiyle açılıp kapanan gruplama (varsayılan kapalı)
+                ws.row_dimensions[sr].outline_level = 1
+                ws.row_dimensions[sr].hidden = True
+                ws.cell(row=sr, column=1).font = Font(color="4B5563")
+            elif grup == "belirsiz":
+                for cc in range(1, 2 + len(PIYASA_KOLONLAR)):
+                    ws.cell(row=sr, column=cc).font = Font(italic=True, color="6B7280")
         son = 5 + len(satirlar)
         ws.cell(row=son, column=1, value="TOPLAM (kayıt)")
         for j, (k, *_) in enumerate(PIYASA_KOLONLAR):
             ws.cell(row=son, column=2 + j, value=toplam[k])
         for cc in range(1, 2 + len(PIYASA_KOLONLAR)):
-            ws.cell(row=son, column=cc).font = Font(bold=True, color="1B2742")
+            ws.cell(row=son, column=cc).font = Font(bold=True, color="2B3340")
             ws.cell(row=son, column=cc).fill = krem
         ws.column_dimensions["A"].width = 22
         for cc in range(2, 2 + len(PIYASA_KOLONLAR)):
             ws.column_dimensions[get_column_letter(cc)].width = 16
         ws.freeze_panes = "B5"
-        ws.cell(row=son + 2, column=1, value=_PIYASA_NOT)
+        ws.cell(row=son + 2, column=1, value=_piyasa_not())
         ws.cell(row=son + 2, column=1).alignment = Alignment(wrap_text=True, vertical="top")
         ws.merge_cells(start_row=son + 2, start_column=1, end_row=son + 2, end_column=1 + len(PIYASA_KOLONLAR))
-        ws.row_dimensions[son + 2].height = 75
+        ws.row_dimensions[son + 2].height = 90
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
@@ -851,19 +908,19 @@ def _piyasa_dosya_html(sonuc, tarih):
         f"<button class='sk{' on' if i == 0 else ''}' onclick=\"goster('{a}',this)\">{_html.escape(ad)}</button>"
         for i, (a, ad, _) in enumerate(PIYASA_DONEMLER))
     bolumler = "".join(
-        f"<section id='{a}' style='display:{'block' if i == 0 else 'none'}'>{_piyasa_html(*sonuc[a])}</section>"
+        f"<section id='{a}' style='display:{'block' if i == 0 else 'none'}'>{_piyasa_html(*sonuc[a], tikla=True)}</section>"
         for i, (a, ad, _) in enumerate(PIYASA_DONEMLER))
     return (
         "<!doctype html><html lang='tr'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<title>Tüm Startkey — piyasa özeti</title><style>"
-        "body{font-family:Segoe UI,Arial,sans-serif;background:#f6f4ef;color:#1b2742;margin:0;padding:16px}"
+        "body{font-family:Segoe UI,Arial,sans-serif;background:#f4f5f7;color:#2b3340;margin:0;padding:16px}"
         "h1{font-size:18px;margin:0 0 4px}.alt{color:#6b7385;font-size:13px;margin-bottom:12px}"
-        ".sk{border:1px solid #e6dfd0;background:#fff;border-radius:999px;padding:7px 14px;margin:0 6px 10px 0;font-size:13px;cursor:pointer}"
-        ".sk.on{background:#1b2742;color:#fff;border-color:#1b2742}.not{color:#6b7385;font-size:12px;line-height:1.5;margin-top:12px}"
+        ".sk{border:1px solid #dcdfe4;background:#fff;border-radius:999px;padding:7px 14px;margin:0 6px 10px 0;font-size:13px;cursor:pointer}"
+        ".sk.on{background:#2b3340;color:#fff;border-color:#2b3340}.not{color:#6b7385;font-size:12px;line-height:1.5;margin-top:12px}"
         + _PIYASA_CSS +
         "</style></head><body><h1>Tüm Startkey — ilçe bazında piyasa özeti</h1>"
         f"<div class='alt'>Startkey Zeta · {tarih}</div><div>{sekmeler}</div>{bolumler}"
-        f"<div class='not'>{_html.escape(_PIYASA_NOT)}</div>"
+        f"<div class='not'>{_html.escape(_piyasa_not())}</div>"
         "<script>function goster(id,b){document.querySelectorAll('section').forEach(function(s){s.style.display='none'});"
         "document.getElementById(id).style.display='block';document.querySelectorAll('.sk').forEach(function(x){x.classList.remove('on')});"
         "b.classList.add('on')}</script></body></html>"
@@ -878,6 +935,7 @@ def _piyasa_ozeti():
         if st.button("↻ Yenile", key="yr_piyasa_yenile"):
             _veri_temizle()
             st.rerun()
+    acik = st.toggle("Diğer ilçeleri aç (Zeta portföyü olmayanlar)", key="yr_piyasa_diger")
     sonuc, hatalar, tarih = _piyasa()
     for kaynak, msj in hatalar.items():
         st.warning(f"{kaynak} okunamadı, dahil edilmedi: {msj}")
@@ -887,8 +945,8 @@ def _piyasa_ozeti():
     if not satirlar:
         st.info("Bu dönemde kayıt yok.")
     else:
-        st.markdown(f"<style>{_PIYASA_CSS}</style>" + _piyasa_html(satirlar, toplam), unsafe_allow_html=True)
-    st.caption(_PIYASA_NOT)
+        st.markdown(f"<style>{_PIYASA_CSS}</style>" + _piyasa_html(satirlar, toplam, acik=acik), unsafe_allow_html=True)
+    st.caption(_piyasa_not())
     d1, d2, _ = st.columns([2, 2, 3])
     gun = tarih.replace(".", "")
     with d1:
