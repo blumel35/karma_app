@@ -1939,7 +1939,10 @@ def render_topbar(baslik, ikon="📊", geri_hedefi=None, eyebrow=None):
                 # sayfa emojisi olsun"): önceki "← Panoya Dön" + ayrı 🏠
                 # dairesel butonu TEK butonda birleştirildi. Masaüstünde
                 # "← Ana Sayfa", dar ekranda yalnızca "← 🏠" (CSS ile).
-                if st.button("← Ana Sayfa", key="dp_geri_btn", help="Ana Sayfa"):
+                # DEĞİŞTİ (21.10.2026): help="Ana Sayfa" kaldırıldı — masaüstünde buton zaten "← Ana Sayfa"
+                # yazıyor; fare üstündeyken çıkan ikinci "Ana Sayfa" balonu butonun üstüne biniyor, "iki
+                # buton var gibi" görünüyor ve tıklamayı yakalayıp birkaç basış gerektirebiliyordu.
+                if st.button("← Ana Sayfa", key="dp_geri_btn"):
                     st.switch_page(geri_hedefi)
 
         # 2. GRID SÜTUNU — başlık. HER ZAMAN render edilir (boşsa bile
