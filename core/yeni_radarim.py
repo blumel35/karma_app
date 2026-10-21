@@ -26,6 +26,7 @@ aynı işlem ve mülk tipi, fiyat ±%30 içinde, oda sayısı en fazla 1 fark. F
 ilan "benzer" sayılmaz (iddiayı sağlam tutmak için).
 """
 import html as _html
+import re
 from datetime import datetime, timedelta, timezone
 
 import streamlit as st
@@ -79,6 +80,64 @@ def _bolgeler(kullanici):
         if sonuc:
             return sonuc[:MAX_BOLGE]
     return []
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _zeta_kimlikleri():
+    """Zeta personelinin kimlikleri: ({ad_anahtarı: ad}, {e-posta: ad}) — personel listesinden."""
+    adlar, epostalar = {}, {}
+    try:
+        from core.personel_manager import load_personel_listesi
+        df = load_personel_listesi()
+        for _, r in df.iterrows():
+            ad = str(r.get("ad_soyad") or "").strip()
+            if not ad:
+                continue
+            adlar[bh.tr_kucuk(ad)] = ad
+            e = str(r.get("email") or "").strip().lower()
+            if e and e != "nan":
+                epostalar[e] = ad
+    except Exception:      # noqa: BLE001
+        pass
+    return adlar, epostalar
+
+
+def _sahip_ayir(sahip):
+    """'Ad Soyad <eposta>' → (ad, eposta); yalnız e-posta ya da yalnız ad da olabilir."""
+    s = str(sahip or "").strip()
+    m = re.match(r"^(.*?)\s*<([^>]+)>\s*$", s)
+    if m:
+        return m.group(1).strip(), m.group(2).strip().lower()
+    return ("", s.lower()) if "@" in s else (s, "")
+
+
+def _zeta_kisisi(sahip):
+    """Sahip alanı bir Zeta danışmanına aitse onun adı, değilse ''."""
+    adlar, epostalar = _zeta_kimlikleri()
+    ad, e = _sahip_ayir(sahip)
+    if e and e in epostalar:
+        return epostalar[e]
+    if ad and bh.tr_kucuk(ad) in adlar:
+        return adlar[bh.tr_kucuk(ad)]
+    return ""
+
+
+def _zeta_talebi_mi(k):
+    """Radar'da (uygulamadan, kaynak zeta/ofis) girilen ya da Startkey mail sisteminde bir Zeta danışmanı
+    tarafından paylaşılan talep. Diğer Startkey ofislerinin mailleri DEĞİL."""
+    if str((k.get("ham") or {}).get("kaynak") or "").strip().lower() in PAYLASIM_KAYNAKLARI:
+        return True
+    return bool(_zeta_kisisi(k.get("sahip")))
+
+
+def _benim_talebim(k, adlar):
+    """bg.benim_mi + mail biçimi: 'Ad Soyad <eposta>' sahibi, e-posta ya da ad varyantlarımla eşleşiyorsa."""
+    if bg.benim_mi(k, adlar):
+        return True
+    ad, e = _sahip_ayir(k.get("sahip"))
+    varyant = {bh.tr_kucuk(a) for a in adlar if a}
+    vk = {a.lower() for a in adlar if a}
+    return bool((ad and bh.tr_kucuk(ad) in varyant) or (e and (e in vk or e.split("@")[0] in vk)))
 
 
 def _yonetici():
@@ -183,7 +242,7 @@ def _hesapla(adlar, bolgeler, secim):
 
     if ekip:
         benim_p = veri["zeta"] + paylasim
-        benim_t = talepler + yat
+        benim_t = [k for k in talepler if _zeta_talebi_mi(k)] + yat   # Taleplerim: yalnız Zeta danışmanlarının talepleri
         gorulen = {}
         for k in benim_p + benim_t:
             for i in k.get("ilceler") or []:
@@ -193,7 +252,7 @@ def _hesapla(adlar, bolgeler, secim):
         kume = None if secim is None else bg._ilce_kumesi([secim])
     else:
         benim_p = [k for k in veri["zeta"] + paylasim if bg.benim_mi(k, adlar)]
-        benim_t = [k for k in talepler if bg.benim_mi(k, adlar)] + yat   # yatırım talepleri sunucuda kişiye süzülü
+        benim_t = [k for k in talepler if _benim_talebim(k, adlar)] + yat   # yatırım talepleri sunucuda kişiye süzülü
         ilceler, ek = bg.kapsam_ilceleri(list(bolgeler), {"p": benim_p, "t": benim_t})
         kume = bg._ilce_kumesi(ilceler if secim is None else [secim])
 
@@ -201,7 +260,7 @@ def _hesapla(adlar, bolgeler, secim):
     # Radarım'daki "kendi kayıtlar tüm ilçelerden" kuralı). Bir ilçe seçilince o ilçeye göre süzülür.
     kendi_hepsi = (not ekip) and secim is None
     port = list(benim_p) if kendi_hepsi else [k for k in benim_p if _bolgede(k, kume)]
-    bolge = [k for k in talepler if _bolgede(k, kume)] + (list(yat) if kendi_hepsi else [k for k in yat if _bolgede(k, kume)])
+    bolge = [k for k in talepler if _bolgede(k, kume)] + (list(yat) if kendi_hepsi else [k for k in yat if _bolgede(k, kume)])   # ağın tüm talepleri
     tal = list(benim_t) if kendi_hepsi else [k for k in benim_t if _bolgede(k, kume)]
     # İlçesi belirsiz kendi kayıtları listelerde görünür ama eşleşmeye girmez (ilçesiz kayıt her ilçeyle
     # "uyuşur", sahte eşleşme üretir).
@@ -268,8 +327,9 @@ def _ekip_tablosu(h, kisiler):
     sat = {}
 
     def _s(sahip):
-        a = bh.tr_kucuk(sahip) or "—"
-        ad = ad_of.get(a) or (str(sahip).strip() or "(sahipsiz)")
+        ad = _zeta_kisisi(sahip) or (_sahip_ayir(sahip)[0] or str(sahip).strip() or "(sahipsiz)")
+        a = bh.tr_kucuk(ad) or "—"
+        ad = ad_of.get(a) or ad
         return sat.setdefault(a, {"Danışman": ad, "Portföy": 0, "Talep": 0, "Güçlü (portföy→talep)": 0, "Güçlü (talep→portföy)": 0})
 
     for k in h["port"]:
@@ -287,19 +347,39 @@ def _ekip_tablosu(h, kisiler):
 
 # ── GÖSTERİM YARDIMCILARI ───────────────────────────────────────────────
 def _dagilim(kayitlar, kume_ilce=None):
-    """{ilçe: adet} — bir kayıt birden çok ilçedeyse her birinde sayılır."""
+    """{ilçe_anahtarı: [ilçe_adı, adet]} — bir kayıt birden çok ilçedeyse her birinde sayılır."""
     d = {}
     for k in kayitlar:
-        for i in {i for i in k.get("ilceler") or [] if i}:
-            if kume_ilce is None or bh.tr_kucuk(i) in kume_ilce:
-                d[i] = d.get(i, 0) + 1
+        for a, i in {bh.tr_kucuk(i): i for i in k.get("ilceler") or [] if i}.items():
+            if kume_ilce is None or a in kume_ilce:
+                e = d.setdefault(a, [i, 0])
+                e[1] += 1
     return d
 
 
-def _kutu_html(simge, baslik, sayi, dagilim, ilk=False):
-    sirali = sorted(dagilim.items(), key=lambda x: (-x[1], bg.tr_sira(x[0])))
-    gor, kalan = sirali[:4], len(sirali) - 4
-    satirlar = "".join(f"<div><b>{n}</b> {_html.escape(i)}</div>" for i, n in gor)
+def _ortak_sira(dags, ref="port"):
+    """Tüm kutularda AYNI ilçe sırası: önce Portföylerim'in yoğunluk sırası, sonra (portföyü olmayan ilçeler)
+    tüm kutulardaki toplam yoğunluğa göre. Dönüş: (sıralı ilçe anahtarları, {anahtar: ad})."""
+    toplam, ad_of = {}, {}
+    for d in dags.values():
+        for a, (ad, n) in d.items():
+            toplam[a] = toplam.get(a, 0) + n
+            ad_of.setdefault(a, ad)
+    p = dags.get(ref, {})
+    sira = sorted(toplam, key=lambda a: (-(p[a][1] if a in p else 0), -toplam[a], bg.tr_sira(ad_of[a])))
+    return sira, ad_of
+
+
+def _kutu_html(simge, baslik, sayi, dagilim, ilk=False, sira=None, ad_of=None, satir=4):
+    sira = sira if sira is not None else sorted(dagilim, key=lambda a: (-dagilim[a][1], bg.tr_sira(dagilim[a][0])))
+    ad_of = ad_of or {a: v[0] for a, v in dagilim.items()}
+    gor = sira[:satir]
+    satirlar = ""
+    for a in gor:
+        n = dagilim[a][1] if a in dagilim else 0
+        satirlar += (f"<div class='yr-sifir'><b>0</b> {_html.escape(ad_of[a])}</div>" if n == 0
+                     else f"<div><b>{n}</b> {_html.escape(ad_of[a])}</div>")
+    kalan = sum(1 for a, v in dagilim.items() if a not in gor and v[1] > 0)
     if kalan > 0:
         satirlar += f"<div class='yr-ek'>+{kalan} ilçe</div>"
     if not satirlar:
@@ -322,7 +402,7 @@ div[class*="st-key-yr_akis_b"] { border-top: 5px solid #2e7d6f; }
 .yr-sayi { font-size:24px; font-weight:800; color:#1b2742; line-height:1.15; margin-top:2px; }
 .yr-ilk .yr-bas { font-size:15px; } .yr-ilk .yr-sayi { font-size:34px; }
 .yr-sag { font-size:11.5px; color:#5b6478; text-align:left; line-height:1.45; border-left:1px solid #e6dfd0; padding-left:10px; min-width:84px; }
-.yr-sag b { color:#1b2742; } .yr-ek, .yr-bos { color:#9a9488; }
+.yr-sag b { color:#1b2742; } .yr-ek, .yr-bos { color:#9a9488; } .yr-sifir, .yr-sifir b { color:#b9b4a8 !important; }
 div[class*="st-key-yr_box_"] div[data-testid="stVerticalBlockBorderWrapper"] { border:1px solid #e6dfd0 !important; border-radius:12px; padding:10px 12px !important; background:#fff; }
 div[class*="st-key-yr_box_es_"] div[data-testid="stVerticalBlockBorderWrapper"] { background:#fbf4e1; }
 div[class*="st-key-yr_box_"][class*="_secili"] div[data-testid="stVerticalBlockBorderWrapper"] { border:2px solid #b08a2e !important; }
@@ -358,12 +438,12 @@ def _kapat(k):
     st.session_state["yr_acik"] = [x for x in _acik() if x != k]
 
 
-def _kutu(anahtar, simge, baslik, sayi, dagilim, ilk=False):
+def _kutu(anahtar, simge, baslik, sayi, dagilim, ilk=False, sira=None, ad_of=None):
     secili = anahtar in _acik()
     with st.container(border=True, key=f"yr_box_{anahtar}_{'secili' if secili else 'degil'}"):
         c1, c2 = st.columns([7, 1])
         with c1:
-            st.markdown(_kutu_html(simge, baslik, sayi, dagilim, ilk), unsafe_allow_html=True)
+            st.markdown(_kutu_html(simge, baslik, sayi, dagilim, ilk, sira, ad_of), unsafe_allow_html=True)
         with c2:
             st.button(
                 "▴" if secili else "▾", key=f"yr_ok_{anahtar}", on_click=_sec, args=(anahtar,),
@@ -565,32 +645,43 @@ def render_yeni_radarim():
         if anahtar in acik:
             _detay(anahtar, adlar_[anahtar], h, secim_ad, kullanici)
 
+    guclu_b = [c for c in h["ciftler_b"] if c["guclu"]]
+    uygun_k = {ad: [p for p, _ in h["uygun"][ad]] for ad in ("zp", "sk", "fs", "pay")}
+    # Tüm kutularda aynı ilçe sırası (Portföylerim'in yoğunluk sırası) — ilçe bazında kuşbakışı karşılaştırma.
+    dags = {
+        "port": _dagilim(h["port"], kume), "bolge": _dagilim(h["bolge"], kume),
+        "benz": _dagilim(benz_kayit, kume), "benzf": _dagilim(benz_f_kayit, kume),
+        "es": _dagilim([c["kaynak"] for c in guclu], kume),
+        "tal": _dagilim(h["tal"], kume),
+        **{ad: _dagilim(v, kume) for ad, v in uygun_k.items()},
+        "es_b": _dagilim([c["kaynak"] for c in guclu_b], kume),
+    }
+    sira, ad_of = _ortak_sira(dags)
+
     with st.container(border=True, key="yr_akis_a"):
-        _kutu("port", "🏠 ", adlar_["port"], len(h["port"]), _dagilim(h["port"], kume), ilk=True)
+        _kutu("port", "🏠 ", adlar_["port"], len(h["port"]), dags["port"], ilk=True, sira=sira, ad_of=ad_of)
         _altinda("port")
         st.markdown("<div class='yr-ok-asagi'>↓</div>", unsafe_allow_html=True)
-        _kutu("bolge", "", adlar_["bolge"], len(h["bolge"]), _dagilim(h["bolge"], kume))
+        _kutu("bolge", "", adlar_["bolge"], len(h["bolge"]), dags["bolge"], sira=sira, ad_of=ad_of)
         _altinda("bolge")
-        _kutu("benz", "", adlar_["benz"], len(benz_kayit), _dagilim(benz_kayit, kume))
+        _kutu("benz", "", adlar_["benz"], len(benz_kayit), dags["benz"], sira=sira, ad_of=ad_of)
         _altinda("benz")
-        _kutu("benzf", "", adlar_["benzf"], len(benz_f_kayit), _dagilim(benz_f_kayit, kume))
+        _kutu("benzf", "", adlar_["benzf"], len(benz_f_kayit), dags["benzf"], sira=sira, ad_of=ad_of)
         _altinda("benzf")
         st.markdown("<div class='yr-ok-asagi'>↓</div>", unsafe_allow_html=True)
-        _kutu("es", "", adlar_["es"], len(guclu), _dagilim([c["kaynak"] for c in guclu], kume))
+        _kutu("es", "", adlar_["es"], len(guclu), dags["es"], sira=sira, ad_of=ad_of)
         _altinda("es")
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
-    guclu_b = [c for c in h["ciftler_b"] if c["guclu"]]
     with st.container(border=True, key="yr_akis_b"):
-        _kutu("tal", "📋 ", adlar_["tal"], len(h["tal"]), _dagilim(h["tal"], kume), ilk=True)
+        _kutu("tal", "📋 ", adlar_["tal"], len(h["tal"]), dags["tal"], ilk=True, sira=sira, ad_of=ad_of)
         _altinda("tal")
         st.markdown("<div class='yr-ok-asagi'>↓</div>", unsafe_allow_html=True)
         for ad in ("zp", "sk", "fs", "pay"):
-            uyg = [p for p, _ in h["uygun"][ad]]
-            _kutu(ad, "", adlar_[ad], len(uyg), _dagilim(uyg, kume))
+            _kutu(ad, "", adlar_[ad], len(uygun_k[ad]), dags[ad], sira=sira, ad_of=ad_of)
             _altinda(ad)
         st.markdown("<div class='yr-ok-asagi'>↓</div>", unsafe_allow_html=True)
-        _kutu("es_b", "", "Eşleşmeler", len(guclu_b), _dagilim([c["kaynak"] for c in guclu_b], kume))
+        _kutu("es_b", "", "Eşleşmeler", len(guclu_b), dags["es_b"], sira=sira, ad_of=ad_of)
         _altinda("es_b")
     st.caption("Taleplerim akışında portföy kutuları, taleplerinden en az biriyle %40+ uyuşan portföyleri sayar; "
                "Eşleşmeler yalnızca güçlü (%70+) çiftlerdir.")
