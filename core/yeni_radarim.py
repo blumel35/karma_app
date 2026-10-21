@@ -26,7 +26,7 @@ aynı işlem ve mülk tipi, fiyat ±%30 içinde, oda sayısı en fazla 1 fark. F
 ilan "benzer" sayılmaz (iddiayı sağlam tutmak için).
 """
 import html as _html
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import streamlit as st
 
@@ -36,7 +36,7 @@ from core import eslesme_havuzu as es
 from core.eslesme_kart_bilesen import eslesme_kartlari
 from core.havuz_tablo_bilesen import havuz_tablosu
 from core.bolge_secici import bolgelerini_cek
-from core.danisman_ortak import su_anki_danisman, su_anki_danisman_varyantlari
+from core.danisman_ortak import su_anki_danisman, su_anki_danisman_varyantlari, IZMIR_ILCELERI
 from core.match_engine import (
     _mulk_normalize, _islem_normalize, _belirsiz_mi, _sayi_ayikla, _oda_secenekleri_cikar,
 )
@@ -44,6 +44,11 @@ from core.match_engine import (
 # "Portföy paylaşımı" = ofis içinde ELLE girilen (kapalı) portföyler — Zeta Paylaşımları sayfasıyla aynı kural
 # (kaynak: zeta / ofis). Mail sistemi, Startkey vb. kaynaklı kayıtlar paylaşım SAYILMAZ.
 PAYLASIM_KAYNAKLARI = {"zeta", "ofis"}
+# Yönetici "Tüm ekip" görünümünde eşleşme hesabı en yeni bu kadar kaynak kayıt için yapılır (süre sınırı).
+EKIP = "👥 Tüm ekip"
+EKIP_PORT_SINIR = 300
+EKIP_TALEP_SINIR = 200
+YONETICILER = {"meltem bulu"}
 MAX_BOLGE = 5
 BOLGE_TABLOLARI = ("uzmanlik_bolgeleri", "fsbo_bolgeleri", "startkey_ilan_bolgeleri")
 TUM = "Tüm uzmanlık bölgelerim"
@@ -76,6 +81,54 @@ def _bolgeler(kullanici):
     return []
 
 
+def _yonetici():
+    return str(st.session_state.get("user_name") or "").strip().lower() in YONETICILER
+
+
+def _yatirim_kaydi(r):
+    """Yatırım talebini (musteri_talepleri) motorun alıcı talebi biçimine çevirir; alıcı talepleriyle aynı
+    listede/eşleşmede görünür. Bütçe alanının son parçası (en çok) bütçe sayılır."""
+    alan = {}
+    for a in r.get("alanlar") or []:
+        try:
+            alan[str(a[0])] = a[1]
+        except Exception:      # noqa: BLE001
+            continue
+    mulk = alan.get("Mülk türü") or ""
+    maxb = str(r.get("fiyat") or "").split("–")[-1].strip()
+    z = r.get("zaman")
+    ham = {
+        "talep_eden_danisan": r.get("sahip") or "", "kayit_tarihi": z.isoformat() if z else "",
+        "mulk_tipi": mulk, "islem_tipi": "Satılık", "il": "İzmir", "ilce": r.get("ilce") or "",
+        "max_butce": maxb, "oda_sayisi_m2": "", "ozel_kriterler": "", "ozet": r.get("alt") or "",
+        "bolge_mahalle": r.get("mahalle") or "", "kaynak": "Yatırım talebi",
+    }
+    kayit = es._talep_kaydi({
+        "id": r["id"], "ham": ham, "baslik": "💼 " + (r.get("baslik") or "Yatırım talebi"), "alt": r.get("alt") or "",
+        "sahip": r.get("sahip") or "", "kaynak": "Yatırım talebi", "fiyat": r.get("fiyat") or "",
+        "ilceler": r.get("ilceler") or [], "zaman": z, "yas_kat": r.get("yas_kat") or "", "islem": "Satılık",
+    })
+    kayit["yatirim"] = True
+    return kayit
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _yatirim(adlar, hepsi=False):
+    """Yatırım talepleri (kişisel veri): `adlar` verilirse YALNIZ o kişinin kayıtları sunucu tarafında çekilir.
+    `hepsi=True` yalnız yönetici "Tüm ekip" görünümünde kullanılır. Dönüş: (kayıtlar, hata_metni)."""
+    if not hepsi and not adlar:
+        return [], ""
+    simdi = datetime.now(timezone.utc)
+    try:
+        r = bh._musteri_formlari(
+            simdi - timedelta(days=3650), simdi, list(IZMIR_ILCELERI),
+            danisman_adlari=None if hepsi else list(adlar),
+        )
+        return [_yatirim_kaydi(k) for k in r.get("yatirim_alici", [])], ""
+    except Exception as e:      # noqa: BLE001
+        return [], str(e)
+
+
 def _paylasim_mi(k):
     return str((k.get("ham") or {}).get("kaynak") or "").strip().lower() in PAYLASIM_KAYNAKLARI
 
@@ -103,25 +156,66 @@ def _benzer_mi(p, s):
     return True
 
 
+def _bolgede(k, kume):
+    """kume None = süzgeç yok (yönetici 'Tüm ilçeler')."""
+    return True if kume is None else bg.bolgede_mi(k, kume)
+
+
+def _yeni_sirali(kayitlar):
+    ep = datetime.min.replace(tzinfo=timezone.utc)
+    return sorted(kayitlar, key=lambda k: k.get("zaman") or ep, reverse=True)
+
+
 @st.cache_data(ttl=120, show_spinner="Eşleşmeler hesaplanıyor...")
 def _hesapla(adlar, bolgeler, secim):
-    """Akış A'nın tüm katmanları. adlar/bolgeler tuple, secim: None (tümü) ya da bir ilçe adı."""
+    """Akış A ve B'nin tüm katmanları.
+    adlar: tuple (kişinin ad varyantları) ya da None = TÜM EKİP (yalnız yönetici görünümü).
+    bolgeler: tuple; secim: None (tümü) ya da bir ilçe adı."""
+    ekip = adlar is None
     veri, hatalar, bilgi = _veri()
+    hatalar = dict(hatalar)
     simdi = datetime.now(timezone.utc)
     talepler = es.omre_gore(veri["talep"], simdi)
     paylasim = [k for k in es.omre_gore(veri["paylasim"], simdi) if _paylasim_mi(k)]
-    benim_p = [k for k in veri["zeta"] + paylasim if bg.benim_mi(k, adlar)]
-    benim_t = [k for k in talepler if bg.benim_mi(k, adlar)]
-    ilceler, ek = bg.kapsam_ilceleri(list(bolgeler), {"p": benim_p, "t": benim_t})
-    kume = bg._ilce_kumesi(ilceler if secim is None else [secim])
+    yat, yat_hata = _yatirim(adlar, hepsi=ekip) if ekip else _yatirim(adlar)
+    if yat_hata:
+        hatalar["Yatırım talebi"] = yat_hata
 
-    port = [k for k in benim_p if bg.bolgede_mi(k, kume)]
-    bolge = [k for k in talepler if bg.bolgede_mi(k, kume)]
+    if ekip:
+        benim_p = veri["zeta"] + paylasim
+        benim_t = talepler + yat
+        gorulen = {}
+        for k in benim_p + benim_t:
+            for i in k.get("ilceler") or []:
+                if i:
+                    gorulen.setdefault(bh.tr_kucuk(i), i)
+        ilceler, ek = sorted(gorulen.values(), key=bg.tr_sira), []
+        kume = None if secim is None else bg._ilce_kumesi([secim])
+    else:
+        benim_p = [k for k in veri["zeta"] + paylasim if bg.benim_mi(k, adlar)]
+        benim_t = [k for k in talepler if bg.benim_mi(k, adlar)] + yat   # yatırım talepleri sunucuda kişiye süzülü
+        ilceler, ek = bg.kapsam_ilceleri(list(bolgeler), {"p": benim_p, "t": benim_t})
+        kume = bg._ilce_kumesi(ilceler if secim is None else [secim])
 
-    # Benzer Startkey: benim portföylerimi ilçeye göre indeksle
+    port = [k for k in benim_p if _bolgede(k, kume)]
+    bolge = [k for k in talepler + yat if _bolgede(k, kume)]
+    tal = [k for k in benim_t if _bolgede(k, kume)]
+    belirsiz = 0 if ekip else sum(1 for k in benim_t if not k.get("ilceler"))
+
+    # Ekip görünümünde hesap yükünü sınırla: en yeni kayıtlar
+    kirpildi = {}
+    port_h, tal_h = port, tal
+    if ekip:
+        if len(port) > EKIP_PORT_SINIR:
+            port_h, kirpildi["port"] = _yeni_sirali(port)[:EKIP_PORT_SINIR], len(port)
+        if len(tal) > EKIP_TALEP_SINIR:
+            tal_h, kirpildi["tal"] = _yeni_sirali(tal)[:EKIP_TALEP_SINIR], len(tal)
+
+    # Benzer Startkey / FSBO: portföyleri ilçeye göre indeksle
     idx = {}
     for p in port:
         idx.setdefault((p["motor"].get("ilce") or "").strip().lower(), []).append(p)
+
     def _benzerleri(pazar):
         sonuc = []
         for s in pazar:
@@ -136,14 +230,13 @@ def _hesapla(adlar, bolgeler, secim):
     benz = _benzerleri(veri["startkey"])
     benz_f = _benzerleri(veri.get("fsbo", []))
 
-    ciftler = es.portfoyden_taleplere(port, bolge, ust_n=5, min_skor=es.OLASI_ESIK)
+    ciftler = es.portfoyden_taleplere(port_h, bolge, ust_n=5, min_skor=es.OLASI_ESIK)
 
     # ── Akış B: Taleplerim → uygun portföyler (kaynağa göre) → Eşleşmeler ──
-    tal = [k for k in benim_t if bg.bolgede_mi(k, kume)]
     kaynaklar_b = {"zp": veri["zeta"], "sk": veri["startkey"], "fs": veri.get("fsbo", []), "pay": paylasim}
     uygun, ciftler_b = {}, []
     for ad, adaylar in kaynaklar_b.items():
-        cf = es.talepten_portfoylere(tal, adaylar, ust_n=5, min_skor=es.OLASI_ESIK) if tal else []
+        cf = es.talepten_portfoylere(tal_h, adaylar, ust_n=5, min_skor=es.OLASI_ESIK) if tal_h else []
         ciftler_b.extend(cf)
         gor, sira = {}, []
         for c in cf:
@@ -154,10 +247,34 @@ def _hesapla(adlar, bolgeler, secim):
             gor[kid][1].append((c["kaynak"], c["skor"]))
         uygun[ad] = [(gor[k][0], sorted(gor[k][1], key=lambda x: -x[1])) for k in sira]
     return {
-        "ilceler": ilceler, "ek": ek, "port": port, "bolge": bolge, "benz": benz, "benz_f": benz_f, "ciftler": ciftler,
-        "tal": tal, "uygun": uygun, "ciftler_b": ciftler_b,
+        "ekip": ekip, "ilceler": ilceler, "ek": ek, "port": port, "bolge": bolge, "benz": benz, "benz_f": benz_f,
+        "ciftler": ciftler, "tal": tal, "uygun": uygun, "ciftler_b": ciftler_b,
+        "kirpildi": kirpildi, "belirsiz": belirsiz,
         "hatalar": hatalar, "bayat": (bilgi or {}).get("bayat_zeta", 0),
     }
+
+
+def _ekip_tablosu(h, kisiler):
+    """Danışman bazında özet satırları (yalnız yönetici 'Tüm ekip' görünümü)."""
+    ad_of = {bh.tr_kucuk(k): k for k in kisiler}
+    sat = {}
+
+    def _s(sahip):
+        a = bh.tr_kucuk(sahip) or "—"
+        ad = ad_of.get(a) or (str(sahip).strip() or "(sahipsiz)")
+        return sat.setdefault(a, {"Danışman": ad, "Portföy": 0, "Talep": 0, "Güçlü (portföy→talep)": 0, "Güçlü (talep→portföy)": 0})
+
+    for k in h["port"]:
+        _s(k.get("sahip"))["Portföy"] += 1
+    for k in h["tal"]:
+        _s(k.get("sahip"))["Talep"] += 1
+    for c in h["ciftler"]:
+        if c["guclu"]:
+            _s(c["kaynak"].get("sahip"))["Güçlü (portföy→talep)"] += 1
+    for c in h["ciftler_b"]:
+        if c["guclu"]:
+            _s(c["kaynak"].get("sahip"))["Güçlü (talep→portföy)"] += 1
+    return sorted(sat.values(), key=lambda r: (-(r["Portföy"] + r["Talep"]), bg.tr_sira(r["Danışman"])))
 
 
 # ── GÖSTERİM YARDIMCILARI ───────────────────────────────────────────────
@@ -348,35 +465,65 @@ def _detay(sec, baslik, h, secim_ad, kullanici):
             _eslesme_detay(h["ciftler_b"], anahtar, sec)
 
 
+def _kisi_ac(ad):
+    st.session_state["yr_kisi"] = ad
+
+
+def _ekip_bolumu(h, kisiler):
+    import pandas as pd
+    st.markdown("**👥 Danışman dağılımı**")
+    satirlar = _ekip_tablosu(h, kisiler)
+    if not satirlar:
+        st.info("Bu kapsamda kayıt yok.")
+        return
+    toplam = {"Danışman": "TOPLAM"}
+    for kol in ("Portföy", "Talep", "Güçlü (portföy→talep)", "Güçlü (talep→portföy)"):
+        toplam[kol] = sum(r[kol] for r in satirlar)
+    st.dataframe(pd.DataFrame(satirlar + [toplam]), hide_index=True, use_container_width=True)
+    adlar_listesi = [r["Danışman"] for r in satirlar if r["Danışman"] in kisiler]
+    if adlar_listesi:
+        c1, c2 = st.columns([4, 1])
+        with c1:
+            sec = st.selectbox("Danışmanın Radarım'ını aç", adlar_listesi, key="yr_ekip_ac")
+        with c2:
+            st.write("")
+            st.button("Aç →", key="yr_ekip_ac_btn", on_click=_kisi_ac, args=(sec,))
+
+
 # ── GİRİŞ NOKTASI ───────────────────────────────────────────────────────
 def render_yeni_radarim():
     st.markdown(_CSS, unsafe_allow_html=True)
     kullanici = su_anki_danisman()
     adlar = tuple(su_anki_danisman_varyantlari() or [kullanici])
 
-    # Yönetici: başka bir danışmanın Radarım'ını görüntüleyebilir (mevcut Radarım ile aynı kural).
-    if str(st.session_state.get("user_name") or "").strip().lower() in {"meltem bulu"}:
+    # Yönetici: başka bir danışmanın ya da TÜM EKİBİN Radarım'ını görüntüleyebilir.
+    # Danışmanlar yalnız kendi verisini görür (yatırım talepleri de yalnız atanan danışmana + yöneticiye).
+    ekip, kisiler = False, []
+    if _yonetici():
         try:
             from core.personel_manager import load_personel_listesi
             _df = load_personel_listesi()
             kisiler = sorted({str(a).strip() for a in _df["ad_soyad"].dropna() if str(a).strip()}, key=bg.tr_sira)
         except Exception:      # noqa: BLE001
             kisiler = []
-        if kisiler:
-            secilen_kisi = st.selectbox("Danışman (yönetici görünümü)", ["Kendim"] + kisiler, key="yr_kisi")
-            if secilen_kisi != "Kendim":
-                kullanici, adlar = secilen_kisi, (secilen_kisi,)
-                st.info(f"👁 {secilen_kisi} adına görüntülüyorsun.")
+        secilen_kisi = st.selectbox("Görünüm (yönetici)", ["Kendim", EKIP] + kisiler, key="yr_kisi")
+        if secilen_kisi == EKIP:
+            ekip, kullanici, adlar = True, "__ekip__", None
+            st.info("👥 Tüm ekibin verisini görüntülüyorsun (yönetici görünümü).")
+        elif secilen_kisi != "Kendim":
+            kullanici, adlar = secilen_kisi, (secilen_kisi,)
+            st.info(f"👁 {secilen_kisi} adına görüntülüyorsun.")
 
-    bolgeler = tuple(_bolgeler(kullanici))
+    bolgeler = () if ekip else tuple(_bolgeler(kullanici))
     ilk = _hesapla(adlar, bolgeler, None)
     ilceler = ilk["ilceler"]
+    tum_ad = "Tüm ilçeler" if ekip else TUM
 
     c1, c2 = st.columns([5, 1])
     with c1:
-        secenek = [TUM] + list(ilceler)
+        secenek = [tum_ad] + list(ilceler)
         secim_ad = st.selectbox(
-            "📍 Uzmanlık bölgesi seç", secenek, key=f"yr_ilce_{kullanici}",
+            "📍 İlçe seç" if ekip else "📍 Uzmanlık bölgesi seç", secenek, key=f"yr_ilce_{kullanici}",
             format_func=lambda i: i + (" ◦" if i in ilk["ek"] else ""),
         )
     with c2:
@@ -387,13 +534,13 @@ def render_yeni_radarim():
             st.rerun()
     if ilk["ek"]:
         st.caption("◦ Uzmanlık bölgen değil; kendi kaydın olduğu için eklendi.")
-    if not bolgeler:
+    if not bolgeler and not ekip:
         st.info("Uzmanlık bölgen seçili değil. Uzmanlık Bölgelerim'den en fazla 5 ilçe seçersen o ilçelerdeki "
                 "ekip kayıtları da burada toplanır.")
     for kaynak, msj in ilk["hatalar"].items():
         st.warning(f"{kaynak} okunamadı, dahil edilmedi: {msj}")
 
-    secim = None if secim_ad == TUM else secim_ad
+    secim = None if secim_ad == tum_ad else secim_ad
     h = _hesapla(adlar, bolgeler, secim)
     guclu = [c for c in h["ciftler"] if c["guclu"]]
     benz_kayit = [s for s, _ in h["benz"]]
@@ -441,6 +588,18 @@ def render_yeni_radarim():
                "Eşleşmeler yalnızca güçlü (%70+) çiftlerdir.")
     if not acik:
         st.caption("Kutulardaki ▾ düğmesine basınca ilgili liste kutunun altında açılır; istediğin kadarını aynı anda açık tutabilirsin.")
+    st.caption("💼 Yatırım talepleri Alıcı talepleri / Taleplerim içinde gösterilir; her danışman yalnız kendisine "
+               "atananı görür, yönetici hepsini.")
+    if h["belirsiz"]:
+        st.caption(f"ℹ {h['belirsiz']} talebinin ilçesi belirsiz olduğu için bölge sayılarına girmiyor.")
+    if h["kirpildi"]:
+        st.caption("⏱ Ekip görünümünde eşleşmeler en yeni "
+                   + (f"{EKIP_PORT_SINIR} portföy (toplam {h['kirpildi']['port']})" if "port" in h["kirpildi"] else "")
+                   + (" ve " if len(h["kirpildi"]) == 2 else "")
+                   + (f"{EKIP_TALEP_SINIR} talep (toplam {h['kirpildi']['tal']})" if "tal" in h["kirpildi"] else "")
+                   + " için hesaplandı; bir ilçe seçerek tümünü kapsayabilirsin.")
+    if ekip:
+        _ekip_bolumu(h, kisiler)
     if h["bayat"]:
         st.caption(f"⚠ {h['bayat']} Zeta ilanı son günlerde Revy'de görünmediği için (yayından kalkmış olabilir) "
                    "eşleştirmeye alınmadı.")
