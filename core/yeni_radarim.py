@@ -47,6 +47,7 @@ from core.match_engine import (
 PAYLASIM_KAYNAKLARI = {"zeta", "ofis"}
 # Yönetici "Tüm ekip" görünümünde eşleşme hesabı en yeni bu kadar kaynak kayıt için yapılır (süre sınırı).
 EKIP = "👥 Tüm ekip"
+PIYASA = "🌐 Tüm Startkey"
 EKIP_PORT_SINIR = 300
 EKIP_TALEP_SINIR = 200
 YONETICILER = {"meltem bulu"}
@@ -553,6 +554,70 @@ def _detay(sec, baslik, h, secim_ad, kullanici):
             _eslesme_detay(h["ciftler_b"], anahtar, sec)
 
 
+PIYASA_KOLONLAR = ("Zeta portföyü", "Paylaşım", "Startkey ilanı", "FSBO ilanı",
+                   "Ağ alıcı talebi", "Zeta talebi", "Yatırım talebi")
+
+
+@st.cache_data(ttl=300, show_spinner="Startkey piyasa özeti hazırlanıyor...")
+def _piyasa():
+    """Yönetici 'Tüm Startkey' özeti: ilçe bazında arz (portföy/ilan) ve talep sayıları. Eşleşme hesabı YOK.
+    Dönüş: (satırlar, toplam_kayit_sayıları, hatalar)."""
+    veri, hatalar, _ = _veri()
+    hatalar = dict(hatalar)
+    simdi = datetime.now(timezone.utc)
+    talepler = es.omre_gore(veri["talep"], simdi)
+    paylasim = [k for k in es.omre_gore(veri["paylasim"], simdi) if _paylasim_mi(k)]
+    yat, yat_hata = _yatirim(None, hepsi=True)
+    if yat_hata:
+        hatalar["Yatırım talebi"] = yat_hata
+    kaynaklar = {
+        "Zeta portföyü": veri["zeta"], "Paylaşım": paylasim, "Startkey ilanı": veri["startkey"],
+        "FSBO ilanı": veri.get("fsbo", []), "Ağ alıcı talebi": talepler,
+        "Zeta talebi": [k for k in talepler if _zeta_talebi_mi(k)], "Yatırım talebi": yat,
+    }
+    dags = {ad: _dagilim(v, None) for ad, v in kaynaklar.items()}
+    ad_of, anahtarlar = {}, set()
+    for d in dags.values():
+        for a, (ad, _) in d.items():
+            ad_of.setdefault(a, ad)
+            anahtarlar.add(a)
+    satirlar = []
+    for a in anahtarlar:
+        r = {"İlçe": ad_of[a]}
+        for kol in PIYASA_KOLONLAR:
+            r[kol] = dags[kol][a][1] if a in dags[kol] else 0
+        satirlar.append(r)
+    satirlar.sort(key=lambda r: (-(r["Zeta portföyü"] + r["Paylaşım"]), -r["Startkey ilanı"], bg.tr_sira(r["İlçe"])))
+    toplam = {kol: len(v) for kol, v in kaynaklar.items()}
+    return satirlar, toplam, hatalar
+
+
+def _piyasa_ozeti():
+    import pandas as pd
+    c1, c2 = st.columns([5, 1])
+    with c1:
+        st.markdown("**🌐 Tüm Startkey — ilçe bazında piyasa özeti**")
+    with c2:
+        if st.button("↻ Yenile", key="yr_piyasa_yenile"):
+            _veri.clear()
+            _piyasa.clear()
+            st.rerun()
+    satirlar, toplam, hatalar = _piyasa()
+    for kaynak, msj in hatalar.items():
+        st.warning(f"{kaynak} okunamadı, dahil edilmedi: {msj}")
+    if not satirlar:
+        st.info("Kayıt bulunamadı.")
+        return
+    t = {"İlçe": "TOPLAM (kayıt)"}
+    t.update(toplam)
+    st.dataframe(pd.DataFrame(satirlar + [t]), hide_index=True, use_container_width=True, height=min(740, 38 * (len(satirlar) + 2)))
+    st.caption(
+        "Zeta portföyü: Revy'de görünen ofis stoku · Paylaşım: ofis içi elle girilen kapalı portföyler (son 14/45 gün) · "
+        "Startkey / FSBO ilanı: aktif stok · Ağ alıcı talebi: tüm Startkey ofislerinin mail talepleri ve Zeta'nın uygulamadan "
+        "girdikleri (kiralık 14, satılık 45 gün) · Zeta talebi: yalnız Zeta danışmanlarınınkiler · Yatırım talebi: formdan gelenler. "
+        "Birden çok ilçe isteyen kayıt her ilçede sayılır; son satır kayıt sayısıdır. Sütun başlığına basarak sıralayabilirsin.")
+
+
 def _kisi_ac(ad):
     st.session_state["yr_kisi"] = ad
 
@@ -594,7 +659,10 @@ def render_yeni_radarim():
             kisiler = sorted({str(a).strip() for a in _df["ad_soyad"].dropna() if str(a).strip()}, key=bg.tr_sira)
         except Exception:      # noqa: BLE001
             kisiler = []
-        secilen_kisi = st.selectbox("Görünüm (yönetici)", ["Kendim", EKIP] + kisiler, key="yr_kisi")
+        secilen_kisi = st.selectbox("Görünüm (yönetici)", ["Kendim", EKIP, PIYASA] + kisiler, key="yr_kisi")
+        if secilen_kisi == PIYASA:
+            _piyasa_ozeti()
+            return
         if secilen_kisi == EKIP:
             ekip, kullanici, adlar = True, "__ekip__", None
             st.info("👥 Tüm ekibin verisini görüntülüyorsun (yönetici görünümü).")
@@ -607,12 +675,25 @@ def render_yeni_radarim():
     ilceler = ilk["ilceler"]
     tum_ad = "Tüm ilçeler" if ekip else TUM
 
+    # İlçe seçicide her ilçenin portföy ve talep sayısı görünür; ilçeler Portföylerim yoğunluğuna göre sıralı.
+    d_port, d_tal = _dagilim(ilk["port"], None), _dagilim(ilk["tal"], None)
+
+    def _say(d, i):
+        return d[bh.tr_kucuk(i)][1] if bh.tr_kucuk(i) in d else 0
+
+    ilceler_sirali = sorted(ilceler, key=lambda i: (-_say(d_port, i), -_say(d_tal, i), bg.tr_sira(i)))
+
+    def _etiket(i):
+        if i == tum_ad:
+            return f"{tum_ad} · {len(ilk['port'])} portföy · {len(ilk['tal'])} talep"
+        return f"{i}{' ◦' if i in ilk['ek'] else ''} · {_say(d_port, i)} portföy · {_say(d_tal, i)} talep"
+
     c1, c2 = st.columns([5, 1])
     with c1:
-        secenek = [tum_ad] + list(ilceler)
+        secenek = [tum_ad] + ilceler_sirali
         secim_ad = st.selectbox(
             "📍 İlçe seç" if ekip else "📍 Uzmanlık bölgesi seç", secenek, key=f"yr_ilce_{kullanici}",
-            format_func=lambda i: i + (" ◦" if i in ilk["ek"] else ""),
+            format_func=_etiket,
         )
     with c2:
         st.write("")
