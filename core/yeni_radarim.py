@@ -60,8 +60,72 @@ GRUP_SAYFA = 15
 
 # ── VERİ ────────────────────────────────────────────────────────────────
 @st.cache_data(ttl=300, show_spinner="Radarım verisi yükleniyor...")
+def _veri_temel():
+    """Alıcı talepleri + Zeta portföyleri + paylaşımlar (core.eslesme_havuzu.veri_yukle ile aynı kurallar).
+    Startkey/FSBO burada YOK: Bölge Havuzu okuyucusu tablo başına en son 3000 kayıtla sınırlı olduğu için
+    bu iki stok ayrıca, ilçe ilçe okunur (_pazar_stok)."""
+    simdi = datetime.now(timezone.utc)
+    kesim = simdi - timedelta(days=es.ADAY_PENCERESI_GUN)
+    veri = {"talep": [], "zeta": [], "paylasim": []}
+    hatalar, bilgi = {}, {"bayat_zeta": 0}
+    try:
+        veri["talep"] = [es._talep_kaydi(k) for k in bh._alici_talepleri(kesim, simdi)]
+    except Exception as e:      # noqa: BLE001
+        hatalar["Alıcı talebi"] = str(e)
+    try:
+        paylasim, zeta = bh._portfoyler(kesim, simdi)
+        veri["paylasim"] = [es._portfoy_kaydi(k, "Paylaşım") for k in paylasim]
+        tum_zeta = [es._portfoy_kaydi(k, "Zeta portföyü") for k in zeta]
+        veri["zeta"] = [k for k in tum_zeta if not k["bayat"]]      # Revy'de görünmeyen (bayat) ilanlar eşleşmeye girmez
+        bilgi["bayat_zeta"] = len(tum_zeta) - len(veri["zeta"])
+    except Exception as e:      # noqa: BLE001
+        hatalar["Portföyler"] = str(e)
+    return veri, hatalar, bilgi
+
+
+@st.cache_data(ttl=900, show_spinner="Startkey ve FSBO ilanları ilçe ilçe okunuyor...")
+def _pazar_stok():
+    """Startkey ve FSBO aktif stoku — 3000 kayıt sınırına takılmamak için her İzmir ilçesi ayrı sorgulanır
+    (paralel). Dönüş: ({'startkey': [...], 'fsbo': [...]}, hatalar, sınıra_takılan_ilçeler)."""
+    from concurrent.futures import ThreadPoolExecutor
+    simdi = datetime.now(timezone.utc)
+    kesim = simdi - timedelta(days=3650)
+    gorevler = [(tur, ilce) for tur in ("startkey", "fsbo") for ilce in IZMIR_ILCELERI]
+
+    def _oku(g):
+        tur, ilce = g
+        try:
+            return g, (bh._startkey if tur == "startkey" else bh._fsbo)(kesim, simdi, [ilce]), ""
+        except Exception as e:      # noqa: BLE001
+            return g, [], str(e)
+
+    sonuc, hatalar, sinir = {"startkey": [], "fsbo": []}, {}, []
+    etiket = {"startkey": "Startkey ilanı", "fsbo": "FSBO ilanı"}
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        for (tur, ilce), kayitlar, hata in ex.map(_oku, gorevler):
+            if hata:
+                hatalar[f"{etiket[tur]} ({ilce})"] = hata
+                continue
+            if len(kayitlar) >= bh.MAX_SATIR:
+                sinir.append(f"{etiket[tur]}: {ilce}")
+            sonuc[tur].extend(es._portfoy_kaydi(k, etiket[tur]) for k in kayitlar)
+    return sonuc, hatalar, sinir
+
+
 def _veri():
-    return es.veri_yukle()
+    """es.veri_yukle() ile aynı biçim: (veri, hatalar, bilgi) — Startkey/FSBO sınırsız."""
+    veri, hatalar, bilgi = _veri_temel()
+    pazar, h2, sinir = _pazar_stok()
+    veri = dict(veri)
+    veri["startkey"], veri["fsbo"] = pazar["startkey"], pazar["fsbo"]
+    bilgi = dict(bilgi)
+    bilgi["sinir"] = sinir
+    return veri, {**hatalar, **h2}, bilgi
+
+
+def _veri_temizle():
+    for f in (_veri_temel, _pazar_stok, _pazar_hafif, _hesapla, _piyasa):
+        f.clear()
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -318,7 +382,7 @@ def _hesapla(adlar, bolgeler, secim):
         "ekip": ekip, "ilceler": ilceler, "ek": ek, "port": port, "bolge": bolge, "benz": benz, "benz_f": benz_f,
         "ciftler": ciftler, "tal": tal, "uygun": uygun, "ciftler_b": ciftler_b,
         "kirpildi": kirpildi, "belirsiz": belirsiz,
-        "hatalar": hatalar, "bayat": (bilgi or {}).get("bayat_zeta", 0),
+        "hatalar": hatalar, "bayat": (bilgi or {}).get("bayat_zeta", 0), "sinir": (bilgi or {}).get("sinir", []),
     }
 
 
@@ -554,68 +618,285 @@ def _detay(sec, baslik, h, secim_ad, kullanici):
             _eslesme_detay(h["ciftler_b"], anahtar, sec)
 
 
-PIYASA_KOLONLAR = ("Zeta portföyü", "Paylaşım", "Startkey ilanı", "FSBO ilanı",
-                   "Ağ alıcı talebi", "Zeta talebi", "Yatırım talebi")
+# (anahtar, üst başlık, alt başlık) — tek başlık altında iki sütun olanlar alt başlıklıdır
+PIYASA_KOLONLAR = (
+    ("fsbo", "FSBO ilanı", ""), ("sk", "Startkey ilanı", ""), ("zp", "Zeta portföyleri", ""),
+    ("kp_sk", "Kapalı portföyler", "Startkey"), ("kp_z", "Kapalı portföyler", "Zeta"),
+    ("at_sk", "Alıcı talepleri", "Startkey"), ("at_z", "Alıcı talepleri", "Zeta"),
+)
+PIYASA_DONEMLER = (("toplam", "Toplam (aktif)", None), ("ay", "Son 30 gün (yeni)", 30), ("hafta", "Son 7 gün (yeni)", 7))
+BELIRSIZ_ILCE = "(ilçe belirsiz)"
+
+
+@st.cache_data(ttl=300, show_spinner="Startkey / FSBO ilan sayıları okunuyor...")
+def _pazar_hafif():
+    """Startkey ve FSBO aktif ilanları için yalnız (ilçeler, ilk görülme) — SINIRSIZ ve hafif sorgu.
+    Dönüş: {'startkey': [(ilçeler, zaman)], 'fsbo': [...]}"""
+    simdi = datetime.now(timezone.utc)
+    kesim_iso = (simdi - timedelta(days=3650)).isoformat()
+    sonuc = {"startkey": [], "mulk_sahibi": []}
+    bas, boy = 0, 1000
+    while bas < 300000:
+        satirlar = (
+            bh.supabase.table("izmir_pazar_ilanlar").select("marka,ilce,ilk_gorulme_tarihi")
+            .eq("aktif", True).in_("marka", list(sonuc)).gte("ilk_gorulme_tarihi", kesim_iso)
+            .order("id", desc=True).range(bas, bas + boy - 1).execute().data or []
+        )
+        for v in satirlar:
+            if v.get("marka") in sonuc:
+                sonuc[v["marka"]].append((bh.ilceleri_ayikla(v.get("ilce")), bh._zaman(v.get("ilk_gorulme_tarihi"))))
+        if len(satirlar) < boy:
+            break
+        bas += boy
+    return {"startkey": sonuc["startkey"], "fsbo": sonuc["mulk_sahibi"]}
+
+
+def _ogeler(kayitlar):
+    return [(k.get("ilceler") or [], k.get("zaman")) for k in kayitlar]
+
+
+def _donemde(ogeler, gun, simdi):
+    if gun is None:
+        return ogeler
+    sinir = simdi - timedelta(days=gun)
+    return [o for o in ogeler if o[1] and o[1] >= sinir]
+
+
+def _ilce_say(ogeler):
+    """{anahtar: [ad, adet]} — çok ilçeli kayıt her ilçede sayılır; ilçesiz olanlar BELIRSIZ_ILCE altında."""
+    d = {}
+    for ilceler, _ in ogeler:
+        gecerli = {bh.tr_kucuk(i): i for i in ilceler if i}
+        if not gecerli:
+            gecerli = {"": BELIRSIZ_ILCE}
+        for a, i in gecerli.items():
+            e = d.setdefault(a, [i, 0])
+            e[1] += 1
+    return d
 
 
 @st.cache_data(ttl=300, show_spinner="Startkey piyasa özeti hazırlanıyor...")
 def _piyasa():
-    """Yönetici 'Tüm Startkey' özeti: ilçe bazında arz (portföy/ilan) ve talep sayıları. Eşleşme hesabı YOK.
-    Dönüş: (satırlar, toplam_kayit_sayıları, hatalar)."""
-    veri, hatalar, _ = _veri()
+    """Yönetici 'Tüm Startkey' özeti: ilçe bazında arz (ilan/portföy) ve talep sayıları; Toplam / Son 30 gün / Son 7 gün.
+    Eşleşme hesabı YOK. Kapalı portföy = ofis içi paylaşım: 'Zeta' = Radar'dan elle girilen (kaynak zeta/ofis),
+    'Startkey' = Startkey mail sistemindeki diğer paylaşımlar. Alıcı talebi: 'Zeta' = Zeta danışmanlarının talepleri
+    + yatırım talepleri, 'Startkey' = ağın diğer talepleri.
+    Toplam: aktif stok (talep/paylaşım kiralık 14, satılık 45 gün); Son 30/7 gün: o sürede gelen yeni kayıtlar.
+    Dönüş: ({dönem: (satırlar, toplamlar)}, hatalar, tarih_metni)."""
+    veri, hatalar, _ = _veri_temel()
     hatalar = dict(hatalar)
     simdi = datetime.now(timezone.utc)
-    talepler = es.omre_gore(veri["talep"], simdi)
-    paylasim = [k for k in es.omre_gore(veri["paylasim"], simdi) if _paylasim_mi(k)]
     yat, yat_hata = _yatirim(None, hepsi=True)
     if yat_hata:
         hatalar["Yatırım talebi"] = yat_hata
-    kaynaklar = {
-        "Zeta portföyü": veri["zeta"], "Paylaşım": paylasim, "Startkey ilanı": veri["startkey"],
-        "FSBO ilanı": veri.get("fsbo", []), "Ağ alıcı talebi": talepler,
-        "Zeta talebi": [k for k in talepler if _zeta_talebi_mi(k)], "Yatırım talebi": yat,
-    }
-    dags = {ad: _dagilim(v, None) for ad, v in kaynaklar.items()}
-    ad_of, anahtarlar = {}, set()
-    for d in dags.values():
-        for a, (ad, _) in d.items():
-            ad_of.setdefault(a, ad)
-            anahtarlar.add(a)
-    satirlar = []
-    for a in anahtarlar:
-        r = {"İlçe": ad_of[a]}
-        for kol in PIYASA_KOLONLAR:
-            r[kol] = dags[kol][a][1] if a in dags[kol] else 0
-        satirlar.append(r)
-    satirlar.sort(key=lambda r: (-(r["Zeta portföyü"] + r["Paylaşım"]), -r["Startkey ilanı"], bg.tr_sira(r["İlçe"])))
-    toplam = {kol: len(v) for kol, v in kaynaklar.items()}
-    return satirlar, toplam, hatalar
+    try:
+        pazar = _pazar_hafif()
+    except Exception as e:      # noqa: BLE001
+        pazar = {"startkey": [], "fsbo": []}
+        hatalar["Startkey/FSBO ilanı"] = str(e)
+
+    sonuc = {}
+    for anahtar, _ad, gun in PIYASA_DONEMLER:
+        if gun is None:      # aktif stok: talep/paylaşım türüne göre ömür süzgeci
+            talepler = es.omre_gore(veri["talep"], simdi)
+            paylasim = es.omre_gore(veri["paylasim"], simdi)
+        else:                # o sürede gelen yeni kayıtlar (ömür süzgeci yok)
+            talepler, paylasim = veri["talep"], veri["paylasim"]
+        zeta_ids = {k["kid"] for k in talepler if _zeta_talebi_mi(k)}
+        kaynaklar = {
+            "fsbo": pazar["fsbo"], "sk": pazar["startkey"], "zp": _ogeler(veri["zeta"]),
+            "kp_sk": _ogeler([k for k in paylasim if not _paylasim_mi(k)]),
+            "kp_z": _ogeler([k for k in paylasim if _paylasim_mi(k)]),
+            "at_sk": _ogeler([k for k in talepler if k["kid"] not in zeta_ids]),
+            "at_z": _ogeler([k for k in talepler if k["kid"] in zeta_ids] + yat),
+        }
+        kaynaklar = {ad: _donemde(o if isinstance(o, list) and (not o or isinstance(o[0], tuple)) else _ogeler(o), gun, simdi)
+                     for ad, o in kaynaklar.items()}
+        dags = {ad: _ilce_say(o) for ad, o in kaynaklar.items()}
+        ad_of, anahtarlar = {}, set()
+        for d in dags.values():
+            for a, (ad, _) in d.items():
+                ad_of.setdefault(a, ad)
+                anahtarlar.add(a)
+        satirlar = []
+        for a in anahtarlar:
+            r = {"ilce": ad_of[a], "_belirsiz": a == ""}
+            for kol, *_ in PIYASA_KOLONLAR:
+                r[kol] = dags[kol][a][1] if a in dags[kol] else 0
+            satirlar.append(r)
+        satirlar.sort(key=lambda r: (r["_belirsiz"], -(r["zp"] + r["kp_z"] + r["at_z"]), -r["sk"], bg.tr_sira(r["ilce"])))
+        sonuc[anahtar] = (satirlar, {kol: len(o) for kol, o in kaynaklar.items()})
+    return sonuc, hatalar, bh.tarih_metni(simdi)
+
+
+_PIYASA_CSS = """
+.yr-pz-kap { overflow:auto; max-height:640px; border:1px solid #e6dfd0; border-radius:12px; background:#fff; }
+table.yr-pz { border-collapse:separate; border-spacing:0; width:100%; font-size:13.5px; }
+table.yr-pz th, table.yr-pz td { padding:7px 10px; text-align:right; border-bottom:1px solid #f0ebdf; white-space:nowrap; }
+table.yr-pz th { background:#fbf4e1; color:#1b2742; font-weight:700; position:sticky; top:0; z-index:2; text-align:center; }
+table.yr-pz thead tr:nth-child(2) th { top:34px; font-weight:600; font-size:12.5px; background:#fdf8ea; }
+table.yr-pz th.yr-g { border-left:1px solid #e6dfd0; }
+table.yr-pz td:first-child, table.yr-pz th:first-child { text-align:left; position:sticky; left:0; background:#fff; z-index:1; }
+table.yr-pz th:first-child { background:#fbf4e1; z-index:3; }
+table.yr-pz td.yr-g { border-left:1px solid #f0ebdf; }
+table.yr-pz td.yr-0 { color:#c3beb2; }
+table.yr-pz tr.yr-top td { font-weight:800; background:#fbf4e1; }
+"""
+
+
+def _baslik_yapisi():
+    """[(metin, kolon_sayisi, satir_sayisi)] üst başlıklar, [alt başlıklar]."""
+    ust, alt, kolonlar, i = [], [], list(PIYASA_KOLONLAR), 0
+    while i < len(kolonlar):
+        _, u, a = kolonlar[i]
+        if a:
+            n = 1
+            while i + n < len(kolonlar) and kolonlar[i + n][1] == u:
+                n += 1
+            ust.append((u, n, 1))
+            alt.extend(x[2] for x in kolonlar[i:i + n])
+            i += n
+        else:
+            ust.append((u, 1, 2))
+            i += 1
+    return ust, alt
+
+
+def _piyasa_html(satirlar, toplam):
+    ust, alt = _baslik_yapisi()
+    h1 = "<th rowspan='2'>İlçe</th>" + "".join(
+        f"<th colspan='{n}' class='yr-g'>{_html.escape(u)}</th>" if r == 1 else f"<th rowspan='2' class='yr-g'>{_html.escape(u)}</th>"
+        for u, n, r in ust)
+    h2 = "".join(f"<th class='yr-g'>{_html.escape(a)}</th>" for a in alt)
+    govde = ""
+    for r in satirlar:
+        govde += "<tr><td>" + _html.escape(r["ilce"]) + "</td>" + "".join(
+            f"<td class='yr-g{' yr-0' if not r[k] else ''}'>{r[k]}</td>" for k, *_ in PIYASA_KOLONLAR) + "</tr>"
+    govde += "<tr class='yr-top'><td>TOPLAM (kayıt)</td>" + "".join(
+        f"<td class='yr-g'>{toplam[k]}</td>" for k, *_ in PIYASA_KOLONLAR) + "</tr>"
+    return f"<div class='yr-pz-kap'><table class='yr-pz'><thead><tr>{h1}</tr><tr>{h2}</tr></thead><tbody>{govde}</tbody></table></div>"
+
+
+_PIYASA_NOT = (
+    "FSBO / Startkey ilanı: aktif ilanlar · Zeta portföyleri: Revy'de görünen ofis stoku · Kapalı portföyler: ofis içi paylaşımlar "
+    "(Zeta: Radar'dan elle girilen; Startkey: mail sistemindeki diğerleri) · Alıcı talepleri (Zeta: Zeta danışmanlarının talepleri ve "
+    "formdan gelen yatırım talepleri; Startkey: ağın diğer talepleri). Toplam: aktif stok (talep ve paylaşımlar kiralıkta 14, satılıkta 45 gün); "
+    "Son 30 / 7 gün: o sürede gelen yeni kayıtlar. Birden çok ilçe isteyen kayıt her ilçede sayılır; son satır kayıt sayısıdır."
+)
+
+
+def _piyasa_excel(sonuc, tarih):
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+    wb, ilk = Workbook(), True
+    ust, alt = _baslik_yapisi()
+    krem, koyu = PatternFill("solid", fgColor="FBF4E1"), Font(bold=True, color="1B2742")
+    ince = Side(style="thin", color="E6DFD0")
+    for anahtar, ad, _ in PIYASA_DONEMLER:
+        satirlar, toplam = sonuc[anahtar]
+        ws = wb.active if ilk else wb.create_sheet()
+        ilk = False
+        ws.title = ad.split(" (")[0]
+        ws["A1"] = f"Tüm Startkey — ilçe bazında piyasa özeti · {ad} · {tarih}"
+        ws["A1"].font = Font(bold=True, size=13, color="1B2742")
+        ws.cell(row=3, column=1, value="İlçe")
+        ws.merge_cells(start_row=3, start_column=1, end_row=4, end_column=1)
+        c, alt_i = 2, 0
+        for u, n, r in ust:
+            ws.cell(row=3, column=c, value=u)
+            if r == 2:
+                ws.merge_cells(start_row=3, start_column=c, end_row=4, end_column=c)
+            else:
+                if n > 1:
+                    ws.merge_cells(start_row=3, start_column=c, end_row=3, end_column=c + n - 1)
+                for j in range(n):
+                    ws.cell(row=4, column=c + j, value=alt[alt_i])
+                    alt_i += 1
+            c += n
+        for rr in (3, 4):
+            for cc in range(1, 2 + len(PIYASA_KOLONLAR)):
+                h = ws.cell(row=rr, column=cc)
+                h.fill, h.font = krem, koyu
+                h.alignment = Alignment(horizontal="center", vertical="center")
+                h.border = Border(bottom=ince)
+        for i, r in enumerate(satirlar):
+            ws.cell(row=5 + i, column=1, value=r["ilce"])
+            for j, (k, *_) in enumerate(PIYASA_KOLONLAR):
+                ws.cell(row=5 + i, column=2 + j, value=r[k])
+        son = 5 + len(satirlar)
+        ws.cell(row=son, column=1, value="TOPLAM (kayıt)")
+        for j, (k, *_) in enumerate(PIYASA_KOLONLAR):
+            ws.cell(row=son, column=2 + j, value=toplam[k])
+        for cc in range(1, 2 + len(PIYASA_KOLONLAR)):
+            ws.cell(row=son, column=cc).font = Font(bold=True, color="1B2742")
+            ws.cell(row=son, column=cc).fill = krem
+        ws.column_dimensions["A"].width = 22
+        for cc in range(2, 2 + len(PIYASA_KOLONLAR)):
+            ws.column_dimensions[get_column_letter(cc)].width = 16
+        ws.freeze_panes = "B5"
+        ws.cell(row=son + 2, column=1, value=_PIYASA_NOT)
+        ws.cell(row=son + 2, column=1).alignment = Alignment(wrap_text=True, vertical="top")
+        ws.merge_cells(start_row=son + 2, start_column=1, end_row=son + 2, end_column=1 + len(PIYASA_KOLONLAR))
+        ws.row_dimensions[son + 2].height = 75
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _piyasa_dosya_html(sonuc, tarih):
+    """Tek dosyalık, telefonda/WhatsApp'ta paylaşılabilir sayfa: üç dönem sekme olarak."""
+    sekmeler = "".join(
+        f"<button class='sk{' on' if i == 0 else ''}' onclick=\"goster('{a}',this)\">{_html.escape(ad)}</button>"
+        for i, (a, ad, _) in enumerate(PIYASA_DONEMLER))
+    bolumler = "".join(
+        f"<section id='{a}' style='display:{'block' if i == 0 else 'none'}'>{_piyasa_html(*sonuc[a])}</section>"
+        for i, (a, ad, _) in enumerate(PIYASA_DONEMLER))
+    return (
+        "<!doctype html><html lang='tr'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<title>Tüm Startkey — piyasa özeti</title><style>"
+        "body{font-family:Segoe UI,Arial,sans-serif;background:#f6f4ef;color:#1b2742;margin:0;padding:16px}"
+        "h1{font-size:18px;margin:0 0 4px}.alt{color:#6b7385;font-size:13px;margin-bottom:12px}"
+        ".sk{border:1px solid #e6dfd0;background:#fff;border-radius:999px;padding:7px 14px;margin:0 6px 10px 0;font-size:13px;cursor:pointer}"
+        ".sk.on{background:#1b2742;color:#fff;border-color:#1b2742}.not{color:#6b7385;font-size:12px;line-height:1.5;margin-top:12px}"
+        + _PIYASA_CSS +
+        "</style></head><body><h1>Tüm Startkey — ilçe bazında piyasa özeti</h1>"
+        f"<div class='alt'>Startkey Zeta · {tarih}</div><div>{sekmeler}</div>{bolumler}"
+        f"<div class='not'>{_html.escape(_PIYASA_NOT)}</div>"
+        "<script>function goster(id,b){document.querySelectorAll('section').forEach(function(s){s.style.display='none'});"
+        "document.getElementById(id).style.display='block';document.querySelectorAll('.sk').forEach(function(x){x.classList.remove('on')});"
+        "b.classList.add('on')}</script></body></html>"
+    ).encode("utf-8")
 
 
 def _piyasa_ozeti():
-    import pandas as pd
     c1, c2 = st.columns([5, 1])
     with c1:
         st.markdown("**🌐 Tüm Startkey — ilçe bazında piyasa özeti**")
     with c2:
         if st.button("↻ Yenile", key="yr_piyasa_yenile"):
-            _veri.clear()
-            _piyasa.clear()
+            _veri_temizle()
             st.rerun()
-    satirlar, toplam, hatalar = _piyasa()
+    sonuc, hatalar, tarih = _piyasa()
     for kaynak, msj in hatalar.items():
         st.warning(f"{kaynak} okunamadı, dahil edilmedi: {msj}")
+    donem = st.radio("Dönem", [ad for _, ad, _ in PIYASA_DONEMLER], horizontal=True, key="yr_piyasa_donem")
+    anahtar = next(a for a, ad, _ in PIYASA_DONEMLER if ad == donem)
+    satirlar, toplam = sonuc[anahtar]
     if not satirlar:
-        st.info("Kayıt bulunamadı.")
-        return
-    t = {"İlçe": "TOPLAM (kayıt)"}
-    t.update(toplam)
-    st.dataframe(pd.DataFrame(satirlar + [t]), hide_index=True, use_container_width=True, height=min(740, 38 * (len(satirlar) + 2)))
-    st.caption(
-        "Zeta portföyü: Revy'de görünen ofis stoku · Paylaşım: ofis içi elle girilen kapalı portföyler (son 14/45 gün) · "
-        "Startkey / FSBO ilanı: aktif stok · Ağ alıcı talebi: tüm Startkey ofislerinin mail talepleri ve Zeta'nın uygulamadan "
-        "girdikleri (kiralık 14, satılık 45 gün) · Zeta talebi: yalnız Zeta danışmanlarınınkiler · Yatırım talebi: formdan gelenler. "
-        "Birden çok ilçe isteyen kayıt her ilçede sayılır; son satır kayıt sayısıdır. Sütun başlığına basarak sıralayabilirsin.")
+        st.info("Bu dönemde kayıt yok.")
+    else:
+        st.markdown(f"<style>{_PIYASA_CSS}</style>" + _piyasa_html(satirlar, toplam), unsafe_allow_html=True)
+    st.caption(_PIYASA_NOT)
+    d1, d2, _ = st.columns([2, 2, 3])
+    gun = tarih.replace(".", "")
+    with d1:
+        st.download_button("⬇ Excel (3 dönem)", data=_piyasa_excel(sonuc, tarih), file_name=f"startkey_piyasa_ozeti_{gun}.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="yr_piyasa_xlsx")
+    with d2:
+        st.download_button("⬇ Paylaşılabilir sayfa (HTML)", data=_piyasa_dosya_html(sonuc, tarih), file_name=f"startkey_piyasa_ozeti_{gun}.html",
+                           mime="text/html", key="yr_piyasa_html")
 
 
 def _kisi_ac(ad):
@@ -698,8 +979,7 @@ def render_yeni_radarim():
     with c2:
         st.write("")
         if st.button("↻ Yenile", key="yr_yenile"):
-            _veri.clear()
-            _hesapla.clear()
+            _veri_temizle()
             st.rerun()
     if ilk["ek"]:
         st.caption("◦ Uzmanlık bölgen değil; kendi kaydın olduğu için eklendi.")
@@ -781,6 +1061,8 @@ def render_yeni_radarim():
                    + " için hesaplandı; bir ilçe seçerek tümünü kapsayabilirsin.")
     if ekip:
         _ekip_bolumu(h, kisiler)
+    if h["sinir"]:
+        st.caption("⚠ Şu ilçelerde ilan sayısı okuma sınırına (3000) takıldı, en yeni 3000'i alındı: " + ", ".join(h["sinir"]))
     if h["bayat"]:
         st.caption(f"⚠ {h['bayat']} Zeta ilanı son günlerde Revy'de görünmediği için (yayından kalkmış olabilir) "
                    "eşleştirmeye alınmadı.")
